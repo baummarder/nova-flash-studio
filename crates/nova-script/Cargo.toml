@@ -1,0 +1,11 @@
+[package]
+name = "nova-script"
+description = "QuickJS-based editor scripting host for NØVA Flash Studio"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+rquickjs.workspace = true
+thiserror.workspace = true

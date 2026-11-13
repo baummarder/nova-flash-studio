@@ -1,0 +1,49 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/nova-core",
+    "crates/nova-swf",
+    "crates/nova-build",
+    "crates/nova-as",
+    "crates/nova-script",
+    "crates/nova-formats",
+    "crates/nova-ai",
+    "crates/nova-app",
+    "crates/nova-cli",
+]
+
+[workspace.package]
+version = "0.3.0-rc1"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT OR Apache-2.0"
+authors = ["NØVA Flash Studio contributors"]
+repository = "https://example.invalid/nova-flash-studio"
+
+[workspace.dependencies]
+nova-core = { path = "crates/nova-core" }
+nova-swf = { path = "crates/nova-swf" }
+nova-build = { path = "crates/nova-build" }
+nova-as = { path = "crates/nova-as" }
+nova-script = { path = "crates/nova-script" }
+nova-formats = { path = "crates/nova-formats" }
+nova-ai = { path = "crates/nova-ai" }
+
+swf = "0.4"
+zip = { version = "9.5.1", default-features = false, features = ["deflate"] }
+roxmltree = "0.21"
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+uuid = { version = "1", features = ["v4", "serde"] }
+flate2 = "1"
+rfd = "0.15"
+rquickjs = "0.14"
+eframe = "0.37"
+egui = "0.37"
+reqwest = { version = "0.13.5", default-features = false, features = ["blocking", "json", "rustls"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

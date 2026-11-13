@@ -1,0 +1,52 @@
+# Build output
+/target
+/dist
+/packaging/**/bin/
+/packaging/**/obj/
+/packaging/**/.vs/
+**/*.pdb
+**/*.dSYM/
+
+# Temporary and editor files
+*.tmp
+*.temp
+*.bak
+*.orig
+*.rej
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs and local diagnostics
+*.log
+*.trace
+*.etl
+
+# Secrets and local provider/user settings
+.env
+.env.*
+**/ai-providers.json
+**/flash-player.json
+**/credentials/
+**/*.cred
+**/*.key
+**/*.pem
+**/*.pfx
+**/*.p12
+
+# Local projects and user-specific runtime paths
+/projects/
+/personal/
+/.local/
+*.personal.nova
+*.private.*
+*.local.*
+
+# SWFs are build products; checked-in samples stay tracked
+**/*.swf
+!samples/*.swf

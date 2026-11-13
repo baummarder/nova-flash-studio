@@ -1,0 +1,17 @@
+[package]
+name = "nova-build"
+description = "Project-to-SWF build pipeline for NØVA Flash Studio"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+nova-as.workspace = true
+nova-core.workspace = true
+nova-swf.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+swf = "0.4"

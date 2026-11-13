@@ -1,0 +1,25 @@
+[package]
+name = "nova-ai"
+description = "Provider, privacy and safe-edit layer for the NØVA AI Agent Editor"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+nova-core.workspace = true
+nova-as.workspace = true
+nova-build.workspace = true
+nova-formats.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+reqwest.workspace = true
+uuid.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Security_Cryptography",
+    "Win32_System_Memory",
+] }

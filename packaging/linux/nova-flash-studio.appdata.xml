@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>studio.nova.flash</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT OR Apache-2.0</project_license>
+  <name>NØVA Flash Studio</name>
+  <summary>Author ActionScript 3 animations and export SWF films</summary>
+  <description>
+    <p>
+      NØVA Flash Studio is a native desktop editor for a small, documented
+      ActionScript 3 subset and a Flash-style timeline. It exports real binary
+      SWF files and can open an export in the system default application or in
+      a user-configured Flash Player Projector.
+    </p>
+    <p>
+      NØVA is not Adobe Flash and does not include a Flash runtime. External
+      playback requires a compatible projector or emulator installed by the user.
+    </p>
+  </description>
+  <launchable type="desktop-id">nova-flash-studio.desktop</launchable>
+  <url type="homepage">https://example.invalid/nova-flash-studio</url>
+  <categories>
+    <category>Graphics</category>
+    <category>Development</category>
+  </categories>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="@VERSION@" date="@DATE@"/>
+  </releases>
+</component>

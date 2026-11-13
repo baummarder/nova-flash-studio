@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=NØVA Flash Studio
+GenericName=Flash Animation Studio
+Comment=Author ActionScript 3 animations and export SWF films
+Exec=nova-flash-studio
+Icon=nova-flash-studio
+Terminal=false
+Categories=Graphics;Development;IDE;
+Keywords=Flash;SWF;Animation;ActionScript;NOVA;
+StartupNotify=true
+StartupWMClass=studio.nova.flash

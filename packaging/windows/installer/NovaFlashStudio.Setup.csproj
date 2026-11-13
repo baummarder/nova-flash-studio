@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>NOVA-Flash-Studio-Setup</AssemblyName>
+    <RootNamespace>NovaFlashStudio.Setup</RootNamespace>
+    <ApplicationIcon>..\..\..\assets\icons\nova-flash-studio.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <NovaAppVersion Condition="'$(NovaAppVersion)' == ''">0.0.0</NovaAppVersion>
+    <Version>$(NovaAppVersion)</Version>
+    <AssemblyVersion>0.3.0.0</AssemblyVersion>
+    <FileVersion>0.3.0.0</FileVersion>
+    <InformationalVersion>$(NovaAppVersion)</InformationalVersion>
+    <Product>NØVA Flash Studio</Product>
+    <Company>NØVA Flash Studio contributors</Company>
+    <Copyright>© NØVA Flash Studio contributors</Copyright>
+    <Description>NØVA Flash Studio installer and uninstaller</Description>
+    <SelfContained Condition="'$(RuntimeIdentifier)' != ''">true</SelfContained>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- EULA shown on the license page; single source is legal/EULA-DRAFT.md -->
+    <EmbeddedResource Include="..\..\..\legal\EULA-DRAFT.md">
+      <LogicalName>EULA.txt</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\..\..\assets\branding\nova-logo-256.png">
+      <LogicalName>logo.png</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(NovaPayloadZip)' != ''">
+    <!-- The portable ZIP produced by scripts/package-windows.ps1 -->
+    <EmbeddedResource Include="$(NovaPayloadZip)">
+      <LogicalName>payload.zip</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+</Project>

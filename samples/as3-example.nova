@@ -1,0 +1,228 @@
+{
+  "format": "nova-flash-studio",
+  "formatVersion": 1,
+  "project": {
+    "id": "65d50961-d692-4636-917b-61fefe612147",
+    "metadata": {
+      "name": "NØVA AS3 Beispiel",
+      "author": "",
+      "description": "Ein Rechteck mit einer AS3-Klasse, die sich per ENTER_FRAME selbst bewegt.",
+      "createdUnix": 1794378947,
+      "modifiedUnix": 1794378947
+    },
+    "scenes": [
+      {
+        "id": "c73e485a-a568-40b2-847a-a542eaedfef6",
+        "name": "Szene 1",
+        "width": 640.0,
+        "height": 360.0,
+        "background": {
+          "r": 18,
+          "g": 20,
+          "b": 26,
+          "a": 255
+        },
+        "fps": 24.0,
+        "layers": [
+          {
+            "id": "aafd2fe1-c7e6-4714-b317-818c4ecba457",
+            "name": "Box",
+            "visible": true,
+            "locked": false,
+            "kind": "normal",
+            "frames": [
+              {
+                "keyframe": true,
+                "objects": [
+                  {
+                    "id": "87163e27-a9f4-4dc5-9ce2-c9483ed59e0a",
+                    "name": "Box",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 120.0,
+                      "height": 80.0,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 260.0,
+                      "y": 130.0,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 245,
+                      "g": 166,
+                      "b": 35,
+                      "a": 255
+                    },
+                    "script": "8dd132de-cfd1-44e3-88ae-54ee327da762"
+                  }
+                ]
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "symbols": [],
+    "assets": [],
+    "scripts": [
+      {
+        "id": "8dd132de-cfd1-44e3-88ae-54ee327da762",
+        "name": "Box.as",
+        "path": "scripts/Box.as",
+        "source": "package {\n    import flash.display.MovieClip;\n    import flash.events.Event;\n\n    public class Box extends MovieClip {\n        public var speed:Number = 2;\n        private var direction:Number = 1;\n        private var frames:int = 0;\n\n        public function Box() {\n            trace(\"Box gestartet\");\n            addEventListener(Event.ENTER_FRAME, update);\n        }\n\n        private function update(event:Event):void {\n            frames += 1;\n            x += speed * direction;\n            rotation += 0.5;\n            if (x > 520) {\n                direction = -1;\n            }\n            if (x < 40) {\n                direction = 1;\n            }\n        }\n    }\n}\n",
+        "linkedObject": "87163e27-a9f4-4dc5-9ce2-c9483ed59e0a"
+      }
+    ],
+    "export": {
+      "target": "avm2",
+      "swfVersion": 10,
+      "compression": "zlib",
+      "includeScripts": true
+    },
+    "activeScene": "c73e485a-a568-40b2-847a-a542eaedfef6"
+  }
+}

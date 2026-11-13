@@ -1,0 +1,36 @@
+[package]
+name = "nova-app"
+description = "NØVA Flash Studio desktop application"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+build = "build.rs"
+
+[[bin]]
+name = "nova-flash-studio"
+path = "src/main.rs"
+
+[dependencies]
+nova-core.workspace = true
+nova-swf.workspace = true
+nova-build.workspace = true
+nova-formats.workspace = true
+nova-as.workspace = true
+nova-script.workspace = true
+nova-ai.workspace = true
+eframe.workspace = true
+egui.workspace = true
+rfd.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+image = { version = "0.25", default-features = false, features = ["png"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+] }

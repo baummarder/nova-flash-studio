@@ -1,0 +1,90 @@
+name: release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Test and package Windows
+        shell: powershell
+        run: ./scripts/package-windows.ps1
+      - name: Build Windows installer
+        shell: powershell
+        # windows-latest ships the .NET SDK; the installer embeds the ZIP above.
+        run: ./scripts/package-installer.ps1 -UseExistingPayload
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nova-flash-studio-windows-x64
+          path: dist/windows/**
+          if-no-files-found: error
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Test
+        run: cargo test --workspace
+      - name: Package unsigned app bundle
+        run: bash scripts/package-macos.sh
+      - name: Upload macOS archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: nova-flash-studio-macos-unsigned
+          path: dist/macos/*.zip
+          if-no-files-found: error
+
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install build and runtime headers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libxkbcommon-dev libwayland-dev libx11-dev libxi-dev \
+            libxcursor-dev libxrandr-dev libxinerama-dev libgl1-mesa-dev \
+            libasound2-dev libudev-dev pkg-config
+      - name: Test
+        run: cargo test --workspace
+      - name: Get appimagetool
+        run: |
+          curl -fL -o /tmp/appimagetool \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x /tmp/appimagetool
+      - name: Package AppImage
+        env:
+          APPIMAGETOOL: /tmp/appimagetool
+        run: bash scripts/package-linux.sh
+      - name: Upload Linux AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: nova-flash-studio-linux-x86_64
+          path: dist/linux/NØVA-Flash-Studio.AppImage
+          if-no-files-found: error
+
+  structure:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pillow
+      - name: Verify icon containers and packaging metadata
+        run: python scripts/verify-packaging.py
