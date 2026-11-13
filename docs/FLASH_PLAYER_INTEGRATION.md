@@ -141,7 +141,7 @@ if writing fails. A UTF-8 BOM is tolerated when reading.
 
 ### Legacy migration
 
-The v0.3.0-rc1 file used:
+The legacy pre-Milestone-7 file used:
 
 ```json
 {
@@ -184,7 +184,7 @@ Keep these separate in diagnostics and bug reports:
 | SWF path validation | File exists, is readable, is a file, has `.swf`, starts with `FWS`/`CWS`/`ZWS` | That the runtime can execute it |
 | Runtime path validation | File exists, is a native executable/bundle, passes the structural check | That it is the intended Adobe/Ruffle build, or that it starts |
 | Process launch validation | The OS created the runtime process; NØVA has a PID | That the SWF loaded, executed, or rendered |
-| Playback validation | The runtime log shows the SWF loaded and, where applicable, script trace/enter-frame activity without errors | Full visual, timing, audio, or Adobe compatibility |
+| Playback validation | The runtime log or a captured runtime frame shows the SWF loaded and, where applicable, script/timeline activity without fatal errors | Full visual, timing, audio, or Adobe compatibility |
 
 The **Prüfen** button performs runtime path validation only. **Open in Flash
 Player** performs process launch validation. Actual playback requires inspecting
@@ -256,12 +256,27 @@ the headless installer.
 
 | Runtime | Status in this environment |
 | --- | --- |
-| **Ruffle Desktop 0.7.1** | **Playback PASS for the regenerated `as3-example` SWF via the app launch path**, both from the toolbar action and from a `.swf` startup argument. The app started `ruffle.exe` with the SWF as one argument; Ruffle logged `Opening file:///…/as3-example.swf`, `Loaded SWF version 10, resolution 640x360 @ 24 FPS`, and `avm_trace: Box gestartet` with no AVM2 errors. The app status bar reported “Ruffle gestartet; Wiedergabe nicht verifiziert”. |
-| **Adobe Flash Player Projector** | **PROCESS LAUNCH PASS; PLAYBACK NOT VERIFIED.** A local debug projector was configured through per-user Runtime settings. `--startup-check` reported the projector as valid, and `--open samples/as3-example.swf` started `flashplayer_32_sa_debug` with a main window titled `Adobe Flash Player 32`. No visual playback, timeline rendering or script execution was observed. No Adobe binary was downloaded or bundled, and no Adobe playback claim is made. |
+| **Ruffle Desktop 0.7.1** | **Playback PASS for the regenerated `as3-example` SWF via the app launch path**, both from the toolbar action and from a `.swf` startup argument. The app started `ruffle.exe` with the SWF as one argument; Ruffle logged `Opening file:///…/as3-example.swf`, `Loaded SWF version 10, resolution 640x360 @ 24 FPS`, and `avm_trace: Box gestartet` with no AVM2 errors. The app status bar reported “Ruffle gestartet; Wiedergabe nicht verifiziert”. M7.3 additionally captured visual playback of `validation.swf`: red document-class marker, cyan linked-sprite rotation and orange tween motion. |
+| **Adobe Flash Player Projector 32.0.0.465** | **PROCESS/WINDOW LAUNCH PASS; PLAYBACK NOT VERIFIED.** A local debug projector was configured through per-user Runtime settings. `--startup-check` reported the projector as valid, and `--open samples/as3-example.swf` started `flashplayer_32_sa_debug` with a main window titled `Adobe Flash Player 32`. In M7.3 the window opened but the SWF area rendered blank for the validation and sample SWFs, and no `flashlog.txt` trace appeared. No Adobe binary was downloaded or bundled, and no Adobe playback claim is made. |
 
 The checked-in `samples/as3-example.swf` predates the AVM2 fixes and is not a
 valid playback baseline. Regenerate it with `nova export samples/as3-example.nova`
 before using it for runtime testing.
+
+### Milestone 7.3 visual evidence
+
+The disposable `validation.swf` (875 bytes, 24 frames, 2 ABC scripts,
+SymbolClass `(0, Main)`/`(4, Added)`) was opened directly in Ruffle 0.7.1. A
+PrintWindow capture showed the red document-class marker, the cyan linked sprite
+rotating and the orange tween moving; timeline labels executed. Ruffle logged a
+recurring non-fatal `ReferenceError: Error #1056` for named timeline children.
+
+The same file opened an Adobe debug projector window, but the content area was
+blank and no trace file was written. Adobe visual playback is therefore
+**NOT VERIFIED**, not PASS. A one-frame SymbolClass fixture executed its linked
+class before and after import/re-export; the multi-frame rebuilt SWF preserved
+the structural links but did not visibly execute the linked class across the
+rebuilt frames (**PARTIAL**). See `docs/SWF_RUNTIME_COMPATIBILITY.md`.
 
 ## Manual QA matrix
 
@@ -282,15 +297,26 @@ before using it for runtime testing.
 | Invalid settings JSON | App starts with defaults and warning | PASS (automated test) |
 | Settings save/restart | Configuration restored | PASS (automated round-trip + GUI) |
 | Windows `.swf` association (explicit, default-off) | Not applied unless the user checks it; if selected, the SWF is passed to NØVA and uses the configured runtime | PASS (installer code; M7 startup path tested via `--open`; fresh registry install not rerun in M7) |
+| M7.3 Ruffle visual playback of `validation.swf` | Document-class marker, linked sprite, tween and labels visible | PASS (PrintWindow capture) |
+| M7.3 Adobe debug projector | SWF loads and renders | PARTIAL / NOT VERIFIED — window opens, content blank, no trace |
+| M7.3 one-frame SymbolClass import/re-export | Linked class still executes | PASS (Ruffle visual) |
+| M7.3 multi-frame SymbolClass import/re-export | Linked class still executes across frames | PARTIAL — structural links only |
+| M7.3 current `.swf` association inspection | NØVA not silently registered | PASS (inspection only: HKCR Winamp, HKCU Ruffle/Adobe entries; no change made) |
 
 ## Limitations
 
-- Actual Adobe Flash Player playback is unverified. A local projector was
-  configured and its process launch was observed, but no playback log or visual
-  playback was recorded.
+- Actual Adobe Flash Player playback is unverified. A local projector starts a
+  window, but the tested SWFs rendered blank and no trace log was written.
+  Adobe load, rendering and script execution are **NOT VERIFIED**.
 - NØVA cannot verify that a selected executable is genuinely Adobe rather than
   another native program. Structural validation only checks the file type.
 - The app cannot confirm playback merely from a successful `spawn()`; the UI
   intentionally says “Wiedergabe nicht verifiziert”.
-- Ruffle compatibility is evidence for the tested SWF, not a guarantee for the
+- Ruffle compatibility is evidence for the tested SWFs, not a guarantee for the
   full AS3 subset. See `docs/SWF_RUNTIME_COMPATIBILITY.md`.
+- Ruffle logs a non-fatal `Error #1056` for named timeline children on the
+  document class; playback continues and no `dynamic` workaround was added.
+- Multi-frame SWF import/re-export preserves structural SymbolClass links but
+  does not visibly execute the linked class across rebuilt frames (**PARTIAL**).
+- The current `.swf` association state was inspected, not changed; NØVA is not
+  registered as a handler in this environment.

@@ -120,8 +120,32 @@ AI Agent Editor shows the classification next to the provider.
   the key.
 - A timeout is reported as a timeout, not as a model error.
 - A provider that is disabled cannot be tested or used.
-- Tests in `crates/nova-ai/src/provider.rs` use a mock transport; the test suite
-  does not make live network requests.
+- The default tests in `crates/nova-ai/src/provider.rs` use a mock transport and
+  make no live network requests. Opt-in live Ollama tests live in
+  `crates/nova-ai/tests/live_ollama.rs` and are ignored unless explicitly run.
+
+## Milestone 7.3 live validation
+
+| Check | Result |
+| --- | --- |
+| Local Ollama `0.40.16` at `http://localhost:11434` | **PASS** — 32 models discovered |
+| `qwen2.5-coder:7b` chat | **PASS** |
+| Agent request/parsing | **PASS** — 2,009 context characters, `cloud=false` |
+| Unavailable endpoint | **PASS** — clear network error, no fabricated answer |
+| Ollama Cloud / Groq / custom cloud | **NOT AVAILABLE** — no credential or endpoint configured; no request attempted |
+| DPAPI plaintext check | **PASS** — encrypted blob does not contain the secret |
+| Provider JSON secret check | **PASS** — no key or key field is serialized |
+| Error redaction | **PASS** — keys in provider error text are replaced with `[redacted]` |
+| Interactive key-entry GUI | **PARTIAL** — write-only UI and tests exist; no full interactive session was repeated |
+
+Run the live tests with:
+
+```powershell
+cargo test -p nova-ai --test live_ollama -- --ignored --nocapture --test-threads=1
+```
+
+No real cloud API key was used or printed. The live tests are deliberately
+separate from the default offline suite.
 
 ## CLI diagnostics
 

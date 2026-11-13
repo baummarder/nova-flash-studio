@@ -1488,7 +1488,10 @@ fn apply_preview_to_project(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nova_ai::DiffPreview;
+    use nova_ai::{
+        ContextSelection, DiffPreview, MemoryCredentialStore, ProviderConfig, ProviderKind,
+        ProviderSettings,
+    };
 
     fn preview(kind: ChangeKind, path: &str, content: &str) -> ChangePreview {
         ChangePreview {
@@ -1596,5 +1599,168 @@ mod tests {
             &mut state,
         );
         assert!(delete.is_err());
+    }
+
+    #[test]
+    #[ignore = "requires a running local Ollama instance and an installed model"]
+    fn live_agent_workflow_reject_accept_build_and_undo() {
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_millis())
+            .unwrap_or(0);
+        let root =
+            std::env::temp_dir().join(format!("nova-live-agent-{}-{stamp}", std::process::id()));
+        std::fs::create_dir_all(root.join("scripts")).expect("create test workspace");
+        let config_dir = root.join(".config");
+        let mut project = Project::demo();
+        for script in &project.scripts {
+            let path = root.join(&script.path);
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent).expect("create script directory");
+            }
+            std::fs::write(&path, &script.source).expect("write script");
+        }
+        let original_main = project
+            .scripts
+            .iter()
+            .find(|script| script.path.ends_with("Main.as"))
+            .map(|script| script.source.clone())
+            .expect("demo project has Main.as");
+
+        let transport = Arc::new(ReqwestTransport::new().expect("HTTP client"));
+        let credentials = Box::new(MemoryCredentialStore::new());
+        let mut manager = ProviderManager::with_parts(
+            ProviderSettings::default(),
+            credentials,
+            transport,
+            &config_dir,
+        );
+        let model =
+            std::env::var("NOVA_LIVE_OLLAMA_MODEL").unwrap_or_else(|_| "qwen2.5-coder:7b".into());
+        let mut provider = ProviderConfig::new(ProviderKind::OllamaLocal);
+        provider.name = "Ollama Live E2E".into();
+        provider.model = model.clone();
+        provider.temperature = Some(0.0);
+        let provider_id = manager.add(provider).expect("add live provider");
+        manager
+            .set_default(&provider_id)
+            .expect("select live provider");
+
+        let mut editor = AiEditor::new();
+        editor.providers = manager;
+        editor.startup_error = None;
+        editor.follow_project = false;
+        editor.workspace_root = root.to_string_lossy().to_string();
+        editor.refresh_workspace();
+        editor.session.context = ContextSelection {
+            include_project_structure: true,
+            include_timeline: true,
+            include_script_metadata: true,
+            include_script_sources: true,
+            include_assets: true,
+            include_diagnostics: true,
+            selected_scripts: project.scripts.iter().map(|script| script.id).collect(),
+            selected_objects: Vec::new(),
+            selected_code: String::new(),
+            notes: String::new(),
+        };
+        let mut state = AppState::new(&project);
+
+        let explanation = editor
+            .session
+            .request(
+                &editor.providers,
+                &project,
+                0,
+                "Code",
+                &editor.diagnostics,
+                "Erkläre in zwei Sätzen die Aufgabe von scripts/Main.as. \
+                 Ändere keine Dateien und antworte auf Deutsch.",
+            )
+            .expect("live explanation");
+        println!("LIVE UI agent explanation: {}", explanation.reply.message);
+        assert!(!explanation.reply.message.trim().is_empty());
+        assert!(!explanation.cloud);
+        assert!(explanation.reply.changes.is_empty());
+
+        let proposal = editor
+            .session
+            .request(
+                &editor.providers,
+                &project,
+                0,
+                "Code",
+                &editor.diagnostics,
+                "Erstelle eine neue ActionScript-3-Datei scripts/Added.as mit einer \
+                 minimalen öffentlichen Klasse Added. Antworte ausschließlich mit dem \
+                 vorgegebenen JSON-Objekt. changes muss genau einen Eintrag mit path \
+                 scripts/Added.as, vollständigem content, reason und delete=false enthalten.",
+            )
+            .expect("live proposal");
+        println!(
+            "LIVE UI agent proposal: {} change(s): {:?}",
+            proposal.reply.changes.len(),
+            proposal
+                .reply
+                .changes
+                .iter()
+                .map(|change| change.path.as_str())
+                .collect::<Vec<_>>()
+        );
+        let change = proposal
+            .reply
+            .changes
+            .first()
+            .cloned()
+            .expect("model proposed a file change");
+        assert!(!change.path.is_empty());
+        let changed_path = root.join(&change.path);
+
+        editor.session.pending_changes = vec![change.clone()];
+        editor.prepare_previews(&project);
+        assert!(
+            editor.preview_errors.is_empty(),
+            "preview errors: {:?}",
+            editor.preview_errors
+        );
+        assert_eq!(editor.pending_previews.len(), 1);
+        editor.reject_pending(&mut state);
+        assert!(!changed_path.exists(), "rejected change was written");
+        assert_eq!(project.scripts.len(), 1, "rejected change touched project");
+
+        editor.session.pending_changes = vec![change];
+        editor.prepare_previews(&project);
+        editor.accept_pending(&mut project, &mut state);
+        assert!(editor.error.is_none(), "accept error: {:?}", editor.error);
+        assert!(changed_path.exists(), "accepted change was not written");
+        let written = std::fs::read_to_string(&changed_path).expect("read accepted file");
+        assert!(written.contains("class Added"));
+        assert!(
+            project
+                .scripts
+                .iter()
+                .any(|script| script.path.ends_with("Added.as")),
+            "accepted change did not update the project model"
+        );
+        assert_eq!(
+            project
+                .scripts
+                .iter()
+                .find(|script| script.path.ends_with("Main.as"))
+                .map(|script| script.source.clone()),
+            Some(original_main),
+            "the original script was modified"
+        );
+
+        editor.run_build(&project, &mut state);
+        let report = editor.build_report.as_ref().expect("build report");
+        println!("LIVE UI agent build: {}", report.summary);
+        assert!(report.ok, "build failed: {}", report.text());
+        assert!(!editor.activity.is_empty());
+
+        editor.undo_last_file(&mut state);
+        assert!(!changed_path.exists(), "file undo did not remove the file");
+
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

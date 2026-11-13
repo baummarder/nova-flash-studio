@@ -8,8 +8,9 @@ the project format is versioned JSON, and the SWF writer is implemented directly
 against the published SWF file-format specification. Tools and extensions run in
 an embedded QuickJS context; ActionScript is **not** executed by QuickJS.
 
-> **Status: Milestones 2–7.2 implemented – release candidate, not stable.** The
-> SWF container, shapes, sprites and frame-by-frame animation export work and are
+> **Status: Milestones 2-7.3 implemented — release candidate `0.3.0-rc2`, not
+> stable.** The SWF container, shapes, sprites and frame-by-frame animation
+> export work and are
 > covered by tests. The editor has undo/redo, multi-select, tween authoring,
 > keyframe workflow and autosave with crash recovery. A documented AS3 subset is
 > type-checked and compiled to real AVM2 ABC, embedded with `DoABC2` and linked
@@ -26,19 +27,25 @@ an embedded QuickJS context; ActionScript is **not** executed by QuickJS.
 > **Milestone 7.2 adds the integrated AI Agent Editor**, local/cloud provider
 > management with DPAPI-protected credentials, explicit cloud consent, bounded
 > user-selected context, diff-confirmed and project-root-confined file changes,
-> build diagnostics and `SymbolClass` reconstruction. Adobe Flash Player
-> Projector is configured in this development environment and its process launch
-> is tested; **visual Adobe playback remains NOT VERIFIED**. Ruffle Desktop 0.7.1
-> playback of a regenerated `as3-example` SWF is verified. The Windows ZIP and
-> Setup.exe are regenerated after the Milestone 7.2 changes and smoke-tested by
-> the packaging scripts. macOS and Linux packages are scripted and structurally
-> checked but were not built on their native hosts here. See
+> build diagnostics and `SymbolClass` reconstruction. **Milestone 7.3** adds
+> live local-Ollama provider and AI Agent backend validation, a security audit,
+> Ruffle visual playback of a document-class/SymbolClass/tween fixture, XFL
+> round-trip checks, installer/portable rc2 verification and performance
+> measurements. A local Adobe debug projector is configured and starts a window,
+> but the tested SWF area rendered blank and no trace log appeared; **visual
+> Adobe playback remains NOT VERIFIED**. Ruffle Desktop 0.7.1 visually played the
+> M7.3 fixture (marker, linked sprite, tween and labels). The rc2 Windows ZIP and
+> Setup.exe are produced and smoke-tested by the packaging scripts; the multi-frame
+> SymbolClass round-trip and XFL tween fidelity remain **PARTIAL**. macOS and
+> Linux packages are scripted and structurally checked but were not built on
+> their native hosts here. See
 > [Limitations](#limitations), [docs/AI_AGENT_EDITOR.md](docs/AI_AGENT_EDITOR.md),
 > [docs/AI_PROVIDER_GUIDE.md](docs/AI_PROVIDER_GUIDE.md),
 > [docs/FORMAT_COMPATIBILITY.md](docs/FORMAT_COMPATIBILITY.md),
 > [docs/PACKAGING.md](docs/PACKAGING.md),
-> [docs/FLASH_PLAYER_INTEGRATION.md](docs/FLASH_PLAYER_INTEGRATION.md), and
-> [docs/MILESTONE_7_2_REPORT.md](docs/MILESTONE_7_2_REPORT.md).
+> [docs/FLASH_PLAYER_INTEGRATION.md](docs/FLASH_PLAYER_INTEGRATION.md),
+> [docs/MILESTONE_7_2_REPORT.md](docs/MILESTONE_7_2_REPORT.md), and
+> [docs/MILESTONE_7_3_REPORT.md](docs/MILESTONE_7_3_REPORT.md).
 
 ---
 
@@ -125,16 +132,12 @@ bash scripts/package-macos.sh
 bash scripts/package-linux.sh
 ```
 
-The current Windows artifacts are:
-
-| Artifact | Size | SHA-256 |
-| --- | ---: | --- |
-| `NØVA Flash Studio.exe` | 23,522,816 | `5AE00C26DA352E51EB81159DF6D05436BF893E06E803626D34321CE13B30AC0B` |
-| `NOVA-Flash-Studio-0.3.0-rc1-windows-x64.zip` | 9,882,733 | `DD3A5BDEAA0C9EA0305FB7A602C0ABDE5BA2D49CC0D7FF20C4A1351C68184763` |
-| `NOVA-Flash-Studio-0.3.0-rc1-windows-x64-Setup.exe` | 81,795,347 | `87BAB81BE244F1404A42C862F777D1DB73E6D1B1385A1AC1649A5538C67ECE98` |
-
-`dist/windows/SHA256SUMS.txt` is authoritative if a documentation-only rebuild
-changes a ZIP or Setup hash. The artifacts are unsigned.
+The current Windows artifacts are produced from workspace version `0.3.0-rc2`:
+the portable ZIP, the staged `NØVA Flash Studio.exe`, and the self-contained
+`NOVA-Flash-Studio-0.3.0-rc2-windows-x64-Setup.exe`. Sizes and SHA-256 values are
+listed in `dist/windows/SHA256SUMS.txt`, which is authoritative even if a
+documentation-only rebuild changes a ZIP or Setup hash. The artifacts are
+unsigned.
 
 See [docs/PACKAGING.md](docs/PACKAGING.md) for prerequisites, signing,
 notarization, AppImage dependencies, CI and the exact artifact layout.
@@ -388,33 +391,46 @@ fallbacks:
 - **The AS3 compiler supports a documented subset, not full ActionScript 3.**
   Unsupported constructs are rejected with file/line diagnostics; they are never
   silently translated. See [docs/AS3_COMPILER.md](docs/AS3_COMPILER.md).
-- **Adobe playback remains unverified; Ruffle evidence is limited.** Ruffle
-  Desktop 0.7.1 actually executed a regenerated `as3-example` SWF through NØVA's
-  launch path (`avm_trace: Box gestartet`, no AVM2 errors), and the demo passed
-  direct Ruffle tests. A local Adobe Flash Player debug projector is configured
-  in this development environment and its process launch is tested; the actual
-  visual SWF playback is **NOT VERIFIED** and no Adobe compatibility claim is
-  made. NØVA does not ship a runtime, and a successful process start is not
-  reported as playback. The checked-in `samples/as3-example.swf` predates the
-  AVM2 fixes; regenerate it before runtime testing.
+- **Adobe playback remains unverified; Ruffle visual playback is verified only
+  for the M7.3 fixtures.** Ruffle Desktop 0.7.1 executed a regenerated
+  `as3-example` SWF through NØVA's launch path (`avm_trace: Box gestartet`, no
+  AVM2 errors) and rendered the M7.3 `validation.swf` with the document-class
+  marker, linked sprite rotation, tween motion and timeline labels. A local Adobe
+  Flash Player debug projector is configured in this development environment;
+  its process and window start, but the SWF area rendered blank for the tested
+  files and no `flashlog.txt` trace appeared. Adobe visual playback and Adobe
+  compatibility are therefore **NOT VERIFIED**. NØVA does not ship a runtime,
+  and a successful process start is not reported as playback. The checked-in
+  `samples/as3-example.swf` predates the AVM2 fixes; regenerate it before runtime
+  testing.
 - **FLA support is a documented XFL subset.** `.fla` import reads document
   settings, timelines, layers, frames, labels, basic shapes, symbol instances and
   `scripts/*.as`. Complex edge geometry, nested symbol timelines, text, bitmaps,
   sounds and filters are partial or preserved-only. Native `.fla` export is
   refused; the experimental XFL ZIP has not been opened in Adobe Animate/Flash.
+  The M7.3 XFL round-trip preserved scripts and document settings but lost the
+  authored tween and left frames 1–22 empty; this is a documented limitation, not
+  Adobe compatibility.
 - **SWF reconstruction is lossy.** Sprites are flattened, strokes/gradients and
   unsupported tags are reported rather than fully editable, and preserved ABC is
   bytecode, not source. `SymbolClass` character links are reconstructed only when
   the referenced character can be mapped to an imported object; links to
   unsupported, missing or ambiguous characters are reported and not invented.
-  A re-exported scripted SWF can therefore still differ from the original.
+  A re-exported scripted SWF can therefore still differ from the original. In
+  M7.3, a one-frame `SymbolClass` fixture survived import/re-export and still
+  executed its linked class in Ruffle, but a multi-frame rebuilt SWF preserved the
+  structural links without visibly executing the linked class across rebuilt
+  frames.
 - **The AI Agent Editor is not a full autonomous coding agent.** It sends one
   bounded, user-selected context per request; it does not upload the project by
   default, execute shell commands or apply file changes without a confirmed diff.
   Cloud use requires explicit per-session consent. Responses are not streamed,
   and the model can propose incorrect code. Preserved ABC is never replaced by
   reconstructed source. Provider availability and data retention are outside
-  NØVA's control. See [docs/AI_AGENT_EDITOR.md](docs/AI_AGENT_EDITOR.md).
+  NØVA's control. M7.3 validated the backend workflow live against local Ollama
+  with `qwen2.5-coder:7b` (explanation, reject, accept, build and file undo), but
+  the full interactive GUI workflow and cloud/Groq providers remain unverified.
+  See [docs/AI_AGENT_EDITOR.md](docs/AI_AGENT_EDITOR.md).
 - **macOS/Linux packages were not built here.** Their scripts and metadata are
   checked structurally; a native build on each platform (or the prepared CI
   matrix) is still required before calling those artifacts tested.
@@ -530,6 +546,7 @@ docs/
   MILESTONE_7_REPORT.md  runtime integration report
   MILESTONE_7_1_REPORT.md  format layer report
   MILESTONE_7_2_REPORT.md  AI Agent Editor, provider and SymbolClass report
+  MILESTONE_7_3_REPORT.md  real-world validation, security, performance and RC2 report
 ```
 
 ## Documentation
@@ -567,6 +584,9 @@ docs/
 - [Milestone 7.2 report](docs/MILESTONE_7_2_REPORT.md) — AI Agent Editor,
   provider/credential layer, safe edits, SymbolClass reconstruction and test
   evidence.
+- [Milestone 7.3 report](docs/MILESTONE_7_3_REPORT.md) — live Ollama validation,
+  security audit, Ruffle visual playback, XFL/installer verification, performance
+  and the rc2 release-candidate evidence.
 - [Licensing](docs/LICENSING.md) — license texts, third-party notices, EULA
   draft status and the no-activation/no-telemetry policy.
 - [Roadmap](docs/ROADMAP.md) — what comes next and what "done" means.

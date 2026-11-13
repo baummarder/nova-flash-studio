@@ -5,7 +5,7 @@ the compiled executable or bundle plus the branding assets and documentation;
 target machines do **not** need a Rust toolchain.
 
 The source version is the single release version. It lives in
-`[workspace.package] version` in `Cargo.toml` (currently `0.3.0-rc1`). The Windows
+`[workspace.package] version` in `Cargo.toml` (currently `0.3.0-rc2`). The Windows
 resource, splash screen, macOS `Info.plist` and package scripts read that value.
 
 ## Artifact layout
@@ -253,6 +253,36 @@ playback are part of this packaging verification. Because this document is
 packaged before `SHA256SUMS.txt` is written, the checksum file is authoritative
 if a later documentation-only rebuild changes the ZIP or Setup hash.
 
+### Milestone 7.3 / rc2 verification
+
+The rc2 build is produced by the same packaging pipeline after the M7.3 live
+tests and documentation. The package run executes the workspace tests, the
+release build and the branded-artifact checks, then writes:
+
+- `NØVA Flash Studio.exe`
+- `NOVA-Flash-Studio-0.3.0-rc2-windows-x64.zip`
+- `NOVA-Flash-Studio-0.3.0-rc2-windows-x64-Setup.exe`
+- `SHA256SUMS.txt`
+
+Verification performed on the rc2 artifacts:
+
+| Check | Result |
+| --- | --- |
+| `Setup.exe --version` | PASS — `NØVA Flash Studio Setup 0.3.0-rc2` |
+| `Setup.exe --smoke-test` | PASS — payload hash, 45 entries, one EXE, EULA and `smoke-test: OK` |
+| Portable ZIP extraction | PASS — 45 entries with binary, docs and legal files |
+| Portable `--version` / `--startup-check` | PASS |
+| Headless per-user install to a temporary directory (`--no-desktop --no-start-menu --no-assoc`) | PASS — files, manifest, uninstaller and HKCU entry; no shortcuts or associations |
+| Installed app `--version` / `--startup-check` | PASS |
+| Headless uninstall | PASS — install directory removed; `%APPDATA%\NOVA Flash Studio\flash-player.json` hash unchanged |
+| All-users/UAC install | NOT VERIFIED — requires a disposable profile/VM |
+| Signing | NOT AVAILABLE — no legitimate certificate; artifacts remain unsigned |
+
+Final sizes and SHA-256 values are in `dist/windows/SHA256SUMS.txt`. The
+packaged Markdown predates the final checksum table; the checksum file is
+authoritative. The previous rc1 artifacts were backed up outside `dist/windows`
+until the rc2 build and verification passed.
+
 ## macOS
 
 ```bash
@@ -366,8 +396,8 @@ artifact; signing/notarization secrets must be added before public distribution.
 
 | Check | Windows | macOS | Linux |
 | --- | --- | --- | --- |
-| Source compiles | yes, native | not run here | not run here |
-| Unit/integration tests | yes, native | not run here | not run here |
+| Source compiles | yes, native | NOT AVAILABLE (no macOS host) | NOT AVAILABLE (no Linux host) |
+| Unit/integration tests | yes, native | NOT AVAILABLE (no macOS host) | NOT AVAILABLE (no Linux host) |
 | Package script executed | yes, native | no macOS host | no Linux host |
 | Artifact structure checked | yes | template checks only | template checks only |
 | Executable `--version` smoke | yes | not applicable here | not applicable here |

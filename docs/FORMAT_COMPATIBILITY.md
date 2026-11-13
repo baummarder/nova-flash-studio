@@ -1,7 +1,7 @@
 # Format compatibility report
 
-This report describes the real format support added for NØVA Flash Studio
-`0.3.0-rc1`. It is intentionally narrower than "supports FLA" or "supports
+This report describes the real format support in NØVA Flash Studio
+`0.3.0-rc2`. It is intentionally narrower than "supports FLA" or "supports
 SWF": every claim below is tied to implemented code, fixtures and tests.
 
 ## Non-claims
@@ -10,8 +10,9 @@ SWF": every claim below is tied to implemented code, fixtures and tests.
 - NØVA does **not** claim that an exported XFL ZIP is a valid Adobe `.fla`
   authoring file. It has not been opened in Adobe Animate or Flash.
 - NØVA does **not** claim Adobe Flash Player playback. A local debug projector
-  was configured and its process launch was observed, but no visual playback or
-  script execution was verified.
+  was configured; its process and window started, but the tested SWF area
+  rendered blank and no trace log appeared. Adobe load, visual playback and
+  script execution remain **NOT VERIFIED**.
 - NØVA does **not** decompile AVM2 bytecode. Preserved ABC is bytecode, not
   recovered ActionScript source.
 - A reconstructed SWF is not byte-for-byte identical to the imported SWF.
@@ -173,23 +174,28 @@ The `nova-formats` test suite includes:
 These are structural conversion tests. They do not prove visual equivalence or
 Adobe authoring compatibility.
 
-## Runtime results
+## Runtime results (Milestone 7.3)
 
-- Ruffle Desktop 0.7.1 playback of the previously tested NØVA sample remains the
-  only runtime evidence in this repository. See
-  `docs/SWF_RUNTIME_COMPATIBILITY.md`.
-- Adobe Flash Player Projector is not installed. Adobe path validation, launch
-  and playback are **NOT VERIFIED**.
-- Reconstructed SWFs from imported FLA/SWF are structurally validated but have
-  not been added to the Ruffle playback matrix.
+- Ruffle Desktop 0.7.1 visually played the M7.3 `validation.swf` (24 frames,
+  2 ABC scripts, SymbolClass `(0, Main)` and `(4, Added)`): the red
+  document-class marker, cyan linked-sprite rotation, orange tween motion and
+  timeline labels were captured. Ruffle logged recurring non-fatal
+  `ReferenceError: Error #1056` for named timeline children.
+- A one-frame `SymbolClass` fixture executed its linked `Added` class in Ruffle
+  before and after a one-frame SWF import/re-export.
+- A multi-frame SWF import/re-export preserved frames, ABC scripts and structural
+  links `(0, Main)`/`(49, Added)`, but the linked `Added` rotation was not observed
+  after the round-trip. This is **PARTIAL**.
+- The Adobe Flash Player debug projector 32.0.0.465 started a process and window,
+  but rendered the tested SWFs blank and produced no `flashlog.txt`. Adobe
+  playback is **NOT VERIFIED**.
+- See `docs/SWF_RUNTIME_COMPATIBILITY.md` for the full evidence table.
 
 ## AI Agent Editor status
 
-This repository does not contain an AI Agent Editor, a model provider, or an
-agent runtime. There is therefore no agent UI to extend and no provider call to
-modify.
-
-The format work exposes the integration surface an agent would need:
+The repository now contains the Milestone 7.2/7.3 AI Agent Editor, provider
+layer and credential store. The format layer exposes the integration surface the
+agent uses:
 
 - `nova_formats::analyze_path()` returns a serializable `AnalysisResult` with
   `ProjectAnalysis`, `ScriptAnalysis`, compatibility issues and capability data.
@@ -197,14 +203,19 @@ The format work exposes the integration surface an agent would need:
   `abcBytes`, `sourceBytes` and `isOriginalSource`.
 - `nova analyze <file>` prints the same JSON plus the human-readable report.
 
-No AI-generated code is labelled original. The Milestone 7.2 agent writes only
-after a confirmed diff; preserved ABC remains bytecode and is never presented as
-reconstructed source.
+No AI-generated code is labelled original. The agent writes only after a
+confirmed diff; preserved ABC remains bytecode and is never presented as
+reconstructed source. Milestone 7.3 validated the backend workflow live against
+local Ollama `qwen2.5-coder:7b`; cloud providers and the full interactive GUI
+workflow remain unverified.
 
 ## Current limitations
 
 - Native `.fla` export is not implemented.
 - The XFL package is experimental and untested in Adobe Animate.
+- The M7.3 XFL export/re-import round-trip preserved document settings and
+  scripts, but frames 1–22 were empty and the authored tween was lost. Geometry
+  and library symbols are approximated.
 - Complex XFL edge geometry, filters, text, bitmaps, sounds and nested symbol
   timelines are incomplete.
 - SWF sprites are flattened; there is no editable nested symbol library.
@@ -214,5 +225,9 @@ reconstructed source.
   maps to a visible reconstructed object. Unmappable links are reported, not
   invented. Preserved ABC is embedded, but a reconstructed movie may still differ
   from the original display-class behavior.
+- A one-frame SymbolClass round-trip executed its linked class in Ruffle, but a
+  multi-frame rebuilt SWF preserved only the structural links; visible linked-class
+  execution across rebuilt frames is **PARTIAL**.
 - Preserved ABC cannot be recompiled or edited as ActionScript.
-- Adobe runtime and Adobe authoring application compatibility remain unverified.
+- Adobe visual playback, Adobe authoring application compatibility and XFL
+  authoring compatibility remain **NOT VERIFIED**.

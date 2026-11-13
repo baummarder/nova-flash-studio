@@ -187,6 +187,32 @@ credential storage, endpoint behavior and privacy details.
 - The context builder does not send binary assets, ABC bytes or files outside
   the selected context.
 
+## Milestone 7.3 live validation
+
+The backend workflow was exercised against a real local Ollama service
+(`0.40.16`, 32 installed models) with `qwen2.5-coder:7b`:
+
+| Step | Result |
+| --- | --- |
+| Provider discovery and chat | **PASS** |
+| Agent request/JSON parsing | **PASS** — 2,009 context characters, `cloud=false` |
+| Explanation of selected `scripts/Main.as` | **PASS** |
+| Proposal for a new `scripts/Added.as` | **PASS** |
+| Reject proposal | **PASS** — no file written, project unchanged |
+| Accept proposal | **PASS** — file and project script list updated; `scripts/Main.as` intact |
+| Build after accept | **PASS** — 1,478 bytes, 48 frames, 145 objects, 4 shapes, 2 sprites, 2 scripts |
+| File undo | **PASS** — new script removed |
+| Unavailable endpoint | **PASS** — returned a network error, not a fabricated reply |
+| Cloud/Groq providers | **NOT AVAILABLE** — no credential or endpoint configured |
+| Full interactive GUI click-through | **PARTIAL** — backend workflow verified; every panel and credential-entry dialog was not repeated |
+
+The live tests are opt-in and ignored by default:
+
+```powershell
+cargo test -p nova-ai --test live_ollama -- --ignored --nocapture --test-threads=1
+cargo test -p nova-app live_agent_workflow_reject_accept_build_and_undo -- --ignored --nocapture --test-threads=1
+```
+
 ## Tests
 
 `crates/nova-ai` contains mocked tests for:
@@ -200,5 +226,9 @@ credential storage, endpoint behavior and privacy details.
 - context inclusion/exclusion and preserved-ABC handling;
 - path traversal, create-overwrite protection, diff preview, apply/undo;
 - build success, compiler diagnostics and preserved-ABC skipping.
+
+`crates/nova-ai/tests/live_ollama.rs` adds three ignored live tests. The app
+suite adds one ignored live end-to-end test in `ai_editor.rs`. The default
+workspace suite remains offline and uses `MockTransport`/`MemoryCredentialStore`.
 
 The full workspace suite is run with `cargo test --workspace`.
