@@ -12,7 +12,7 @@ package {
     import game.Camera;
 
     /// Side-scrolling platformer. Level geometry (ground, platforms, coins)
-    /// lives on the NÃ˜VA timeline as named MovieClips; this document class drives
+    /// lives on the NØVA timeline as named MovieClips; this document class drives
     /// the player, camera and pickups. The same objects carry game metadata so
     /// the editor preview simulates them too.
     public dynamic class Main extends MovieClip {
