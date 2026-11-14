@@ -132,6 +132,7 @@ def gamekit_scripts():
             "CAMERA": "scripts/game/Camera.as",
             "RANDOM": "scripts/game/Random.as",
             "NOVA_GAME": "scripts/game/NovaGame.as",
+            "MATH": "scripts/Math.as",
         }
         if const in paths:
             out.append(script(paths[const], body))

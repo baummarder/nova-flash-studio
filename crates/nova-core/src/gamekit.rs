@@ -18,6 +18,7 @@ pub const FILES: &[(&str, &str)] = &[
     ("scripts/game/Camera.as", CAMERA),
     ("scripts/game/Random.as", RANDOM),
     ("scripts/game/NovaGame.as", NOVA_GAME),
+    ("scripts/Math.as", MATH),
 ];
 
 const INPUT: &str = r#"package game {
@@ -63,6 +64,16 @@ const INPUT: &str = r#"package game {
 
         public static function down(code:int):Boolean {
             return held[code] == true;
+        }
+
+        /// Test hook: injects a synthetic key state. Behaves exactly like a
+        /// real key for `down`/`pressed` queries (used by the Ruffle harness
+        /// for deterministic input tests).
+        public static function debugSetKey(code:int, down:Boolean):void {
+            held[code] = down;
+            if (!down) {
+                consumed[code] = false;
+            }
         }
 
         /// True only on the frame the key went down (edge trigger).
@@ -303,6 +314,9 @@ const NOVA_GAME: &str = r#"package game {
         private static var prevKeys:Object = {};
         private static var bodies:Object = {};
         private static var bodyCount:int = 0;
+        /// Per-scene body snapshots for state memory across transitions
+        /// (parity with the preview GameRuntime's scene state restore).
+        private static var sceneStates:Object = {};
         private static var contacts:Object = {};
         private static var contactKeys:Object = {};
         private static var contactCount:int = 0;
@@ -503,6 +517,47 @@ const NOVA_GAME: &str = r#"package game {
             return false;
         }
 
+        /// Sets velocity on a named kinematic/dynamic body. Kinematic bodies
+        /// integrate `vx`/`vy` without gravity; this is the drive API the M12
+        /// report listed as missing.
+        public static function setBodyVelocity(name:String, vx:Number, vy:Number):Boolean {
+            for (var i:int = 0; i < bodyCount; i++) {
+                var b:Object = bodies[i];
+                if (b != null && b.name == name) {
+                    b.vx = vx;
+                    b.vy = vy;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// Returns `{x, y}` velocity for a named body, or null.
+        public static function getBodyVelocity(name:String):Object {
+            for (var i:int = 0; i < bodyCount; i++) {
+                var b:Object = bodies[i];
+                if (b != null && b.name == name) {
+                    return { x: b.vx, y: b.vy };
+                }
+            }
+            return null;
+        }
+
+        /// Drops all saved per-scene body snapshots (see scene-state memory).
+        public static function clearSceneStates():void {
+            sceneStates = {};
+        }
+
+        /// Test hook: injects a synthetic key press/release. Mirrors the real
+        /// key path — `Input.down`/`pressed` see it and `nova:keyPressed` /
+        /// `nova:keyReleased` events fire, so configured key transitions and
+        /// input bindings can be exercised deterministically in Ruffle.
+        public static function debugSetKey(code:int, down:Boolean):void {
+            Input.debugSetKey(code, down);
+            eventInfo = { kind: "key", scene: sceneName, a: "", b: "", key: code, data: null };
+            emit(down ? "nova:keyPressed" : "nova:keyReleased", code);
+        }
+
         /// Diagnostic dump for runtime validation: scene, body count and the
         /// first few body positions/types.
         public static function debugInfo():String {
@@ -560,7 +615,15 @@ const NOVA_GAME: &str = r#"package game {
 
             checkTransitions();
             syncBodies();
-            stepPhysics(dt);
+            refreshBodyObjects();
+            // Substepped physics: fast bodies (terminal fall ~2000 px/s)
+            // would otherwise tunnel through tile-thin colliders between
+            // frames. 8 substeps keeps per-step motion well under one tile.
+            var substeps:int = 8;
+            var sdt:Number = dt / substeps;
+            for (var s:int = 0; s < substeps; s++) {
+                stepPhysics(sdt);
+            }
             stepCamera(dt);
             stepParticles(dt);
             Input.poll();
@@ -586,6 +649,7 @@ const NOVA_GAME: &str = r#"package game {
 
         private static function enterScene(idx:int, announce:Boolean):void {
             var oldName:String = sceneName;
+            saveSceneState(oldName);
             sceneIdx = idx;
             sceneName = NovaGameData.SCENE_NAMES[idx];
             sceneStart = NovaGameData.SCENE_START[idx];
@@ -728,6 +792,7 @@ const NOVA_GAME: &str = r#"package game {
                 return;
             }
             var count:int = table.count;
+            var slot:int = 0;
             for (var i:int = 0; i < count; i++) {
                 var spec:String = table[i];
                 var p:Object = splitPipe(spec);
@@ -739,10 +804,19 @@ const NOVA_GAME: &str = r#"package game {
                 if (obj == null) {
                     continue;
                 }
+                var shapeCode:Number = parseFloat(p[1]);
+                if (shapeCode == 4) {
+                    // Tile-grid collider: w=cols, h=rows, points="tw;th;bits".
+                    // Expand contiguous solid runs into static rect bodies
+                    // that share the map object's name so contact tracking
+                    // sees one pair per map object (preview parity).
+                    slot = syncGridBodies(slot, objName, obj, p);
+                    continue;
+                }
                 var body:Object = {};
                 body.name = objName;
                 body.o = obj;
-                body.shape = parseFloat(p[1]);
+                body.shape = shapeCode;
                 body.w = parseFloat(p[2]);
                 body.h = parseFloat(p[3]);
                 body.layer = parseFloat(p[4]);
@@ -763,9 +837,148 @@ const NOVA_GAME: &str = r#"package game {
                 body.grounded = false;
                 body.px = obj.x;
                 body.py = obj.y;
-                bodies[i] = body;
+                body.extentW = body.w;
+                body.extentH = body.h;
+                bodies[slot] = body;
+                slot++;
             }
-            bodyCount = count;
+            bodyCount = slot;
+            restoreSceneState();
+        }
+
+        /// Expands a shape-4 tile-grid spec into one static rect body per
+        /// contiguous horizontal run of solid cells. Returns the next free
+        /// body slot. Cell rects are centred on the map object's position
+        /// (objects are centre-origin, matching the preview TileCollider).
+        private static function syncGridBodies(slot:int, name:String, obj:DisplayObject, p:Object):int {
+            var cols:int = parseInt(p[2], 10);
+            var rows:int = parseInt(p[3], 10);
+            var layer:Number = parseFloat(p[4]);
+            var mask:Number = parseFloat(p[5]);
+            var gp:Object = splitSemi(p[11]);
+            if (gp == null || gp.n < 3 || cols <= 0 || rows <= 0) {
+                return slot;
+            }
+            var tw:Number = parseFloat(gp[0]);
+            var th:Number = parseFloat(gp[1]);
+            var bits:String = gp[2];
+            if (tw <= 0 || th <= 0 || bits.length < cols * rows) {
+                return slot;
+            }
+            var gridW:Number = cols * tw;
+            var gridH:Number = rows * th;
+            var originX:Number = obj.x - gridW / 2;
+            var originY:Number = obj.y - gridH / 2;
+            for (var r:int = 0; r < rows; r++) {
+                var c:int = 0;
+                while (c < cols) {
+                    var idx:int = r * cols + c;
+                    if (bits.charAt(idx) != "1") {
+                        c++;
+                        continue;
+                    }
+                    var start:int = c;
+                    while (c < cols && bits.charAt(r * cols + c) == "1") {
+                        c++;
+                    }
+                    var runLen:int = c - start;
+                    var body:Object = {};
+                    body.name = name;
+                    body.o = null;
+                    body.isGrid = true;
+                    body.shape = 0;
+                    body.w = runLen * tw;
+                    body.h = th;
+                    body.layer = layer;
+                    body.mask = mask;
+                    body.btype = 0;
+                    body.gx = 0;
+                    body.fr = 0;
+                    body.bo = 0;
+                    body.ctrl = 0;
+                    body.npts = 0;
+                    body.pts = {};
+                    body.vx = 0;
+                    body.vy = 0;
+                    body.grounded = true;
+                    body.px = originX + (start + runLen / 2) * tw;
+                    body.py = originY + (r + 0.5) * th;
+                    body.extentW = body.w;
+                    body.extentH = body.h;
+                    bodies[slot] = body;
+                    slot++;
+                }
+            }
+            return slot;
+        }
+
+        /// Snapshots every body's position/velocity under `name`. Called when
+        /// leaving a scene so returning restores the world as it was left —
+        /// matching the preview runtime's per-scene state memory.
+        private static function saveSceneState(name:String):void {
+            if (name == "" || bodyCount == 0) {
+                return;
+            }
+            var snap:Object = {};
+            var any:Boolean = false;
+            for (var i:int = 0; i < bodyCount; i++) {
+                var b:Object = bodies[i];
+                if (b == null || b.o == null) {
+                    continue;
+                }
+                snap[b.name] = { x: b.px, y: b.py, vx: b.vx, vy: b.vy };
+                any = true;
+            }
+            if (any) {
+                sceneStates[name] = snap;
+            }
+        }
+
+        /// Applies a previously saved snapshot to the freshly synced bodies of
+        /// the current scene. Bodies without a saved entry keep authored
+        /// placement; saved names with no current body are ignored.
+        private static function restoreSceneState():void {
+            var snap:Object = sceneStates[sceneName];
+            if (snap == null) {
+                return;
+            }
+            for (var i:int = 0; i < bodyCount; i++) {
+                var b:Object = bodies[i];
+                if (b == null || b.o == null) {
+                    continue;
+                }
+                var s:Object = snap[b.name];
+                if (s == null) {
+                    continue;
+                }
+                b.px = s.x;
+                b.py = s.y;
+                b.vx = s.vx;
+                b.vy = s.vy;
+                if (b.o != null) {
+                    b.o.x = s.x;
+                    b.o.y = s.y;
+                }
+                invalidatePoints(b);
+            }
+        }
+
+        /// Multi-frame scenes re-place objects on every `gotoAndStop`, which
+        /// replaces the DisplayObject instances bodies were bound to at sync
+        /// time. Re-resolve `body.o` each tick so physics writes reach the
+        /// LIVE instance. Grid-run bodies (`isGrid`) are virtual and keep
+        /// `o == null`.
+        private static function refreshBodyObjects():void {
+            for (var i:int = 0; i < bodyCount; i++) {
+                var b:Object = bodies[i];
+                if (b == null || b.isGrid == true || b.name == null || b.name == "") {
+                    continue;
+                }
+                var o:DisplayObject = root.getChildByName(b.name);
+                if (o != null) {
+                    b.o = o;
+                }
+            }
         }
 
         private static function loadPoints(body:Object, pts:String):void {
@@ -1855,6 +2068,205 @@ const NOVA_GAME: &str = r#"package game {
 
         private static function fCos(x:Number):Number {
             return fSin(x + 1.5707963267948966);
+        }
+    }
+}
+"#;
+
+/// Minimal top-level `Math` for the AVM2 subset. Ruffle does not provide the
+/// playerglobal `Math` class to DoABC2 scripts compiled by nova-as, so user
+/// code calling `Math.sqrt(...)` would hit `undefined`. This shim supplies
+/// the commonly used functions with deterministic implementations.
+const MATH: &str = r#"package {
+    public final class Math {
+        public static const PI:Number = 3.141592653589793;
+        public static const E:Number = 2.718281828459045;
+        public static const LN2:Number = 0.6931471805599453;
+        public static const LN10:Number = 2.302585092994046;
+        public static const LOG2E:Number = 1.4426950408889634;
+        public static const LOG10E:Number = 0.4342944819032518;
+        public static const SQRT1_2:Number = 0.7071067811865476;
+        public static const SQRT2:Number = 1.4142135623730951;
+
+        private static var seed:Number = 1;
+
+        public static function abs(x:Number):Number {
+            return x < 0 ? -x : x;
+        }
+
+        public static function sqrt(x:Number):Number {
+            if (x <= 0) {
+                return 0;
+            }
+            var r:Number = x;
+            for (var i:int = 0; i < 32; i++) {
+                r = (r + x / r) * 0.5;
+            }
+            return r;
+        }
+
+        public static function floor(x:Number):Number {
+            var i:Number = x < 0 ? -1 : 0;
+            while (i + 1 <= x) { i += 1; }
+            while (i > x) { i -= 1; }
+            return i;
+        }
+
+        public static function ceil(x:Number):Number {
+            return -Math.floor(-x);
+        }
+
+        public static function round(x:Number):Number {
+            return Math.floor(x + 0.5);
+        }
+
+        public static function trunc(x:Number):Number {
+            return x < 0 ? Math.ceil(x) : Math.floor(x);
+        }
+
+        public static function min(a:Number, b:Number):Number {
+            return a < b ? a : b;
+        }
+
+        public static function max(a:Number, b:Number):Number {
+            return a > b ? a : b;
+        }
+
+        public static function pow(a:Number, b:Number):Number {
+            var r:Number = 1;
+            var n:Number = Math.abs(b);
+            var base:Number = a;
+            while (n > 0) {
+                if (n % 2 == 1) {
+                    r *= base;
+                }
+                base *= base;
+                n = Math.floor(n / 2);
+            }
+            return b < 0 ? 1 / r : r;
+        }
+
+        private static function reduceAngle(x:Number):Number {
+            return x - Math.floor(x / (2 * Math.PI)) * 2 * Math.PI;
+        }
+
+        public static function sin(x:Number):Number {
+            x = Math.reduceAngle(x);
+            var s:Number = x;
+            var t:Number = x * x / 6;
+            s -= t;
+            t = t * x * x / 20;
+            s += t;
+            t = t * x * x / 42;
+            s -= t;
+            t = t * x * x / 72;
+            s += t;
+            t = t * x * x / 110;
+            s -= t;
+            return s;
+        }
+
+        public static function cos(x:Number):Number {
+            return Math.sin(x + Math.PI / 2);
+        }
+
+        public static function tan(x:Number):Number {
+            var c:Number = Math.cos(x);
+            return Math.abs(c) < 1e-9 ? 1e30 : Math.sin(x) / c;
+        }
+
+        public static function asin(x:Number):Number {
+            // Series around 0 converges slowly near +-1; clamp and refine.
+            if (x <= -1) { return -Math.PI / 2; }
+            if (x >= 1) { return Math.PI / 2; }
+            var r:Number = x;
+            var term:Number = x;
+            var xx:Number = x * x;
+            for (var i:int = 1; i < 40; i++) {
+                term = term * xx * (2 * i - 1) / (2 * i + 1);
+                r += term / (2 * i + 1);
+            }
+            return r;
+        }
+
+        public static function acos(x:Number):Number {
+            if (x <= -1) { return Math.PI; }
+            if (x >= 1) { return 0; }
+            return Math.PI / 2 - Math.asin(x);
+        }
+
+        public static function atan(x:Number):Number {
+            if (x == 0) { return 0; }
+            var neg:Boolean = x < 0;
+            var a:Number = Math.abs(x);
+            // atan(a) = pi/4 + atan((a-1)/(a+1)) keeps |t| <= 1 for series.
+            var t:Number = a > 1 ? (a - 1) / (a + 1) : a;
+            var r:Number = a > 1 ? Math.PI / 4 : 0;
+            var s:Number = t;
+            var term:Number = t;
+            var tt:Number = t * t;
+            for (var i:int = 1; i < 40; i++) {
+                term = term * tt;
+                var add:Number = term / (2 * i + 1);
+                if (i % 2 == 1) {
+                    r -= add;
+                } else {
+                    r += add;
+                }
+                s += 0;
+            }
+            r += s - t;
+            return neg ? -r : r;
+        }
+
+        public static function atan2(y:Number, x:Number):Number {
+            if (x == 0) {
+                return y > 0 ? Math.PI / 2 : (y < 0 ? -Math.PI / 2 : 0);
+            }
+            var a:Number = Math.atan(Math.abs(y / x));
+            if (x < 0) {
+                a = Math.PI - a;
+            }
+            return y < 0 ? -a : a;
+        }
+
+        public static function exp(x:Number):Number {
+            if (x > 700) { return 1e308; }
+            if (x < -700) { return 0; }
+            var r:Number = 1;
+            var term:Number = 1;
+            for (var i:int = 1; i < 60; i++) {
+                term = term * x / i;
+                r += term;
+            }
+            return r;
+        }
+
+        public static function log(x:Number):Number {
+            if (x <= 0) { return 0 - 1e308; }
+            // ln(x) = 2*atanh((x-1)/(x+1)) series.
+            var t:Number = (x - 1) / (x + 1);
+            var tt:Number = t * t;
+            var term:Number = t;
+            var sum:Number = 0;
+            for (var i:int = 0; i < 200; i++) {
+                sum += term / (2 * i + 1);
+                term = term * tt;
+                if (Math.abs(term) < 1e-12) { break; }
+            }
+            return 2 * sum;
+        }
+
+        /// Deterministic LCG (Numerical Recipes). Not cryptographic; reseed via
+        /// `Math.setSeed` for reproducible runs.
+        public static function random():Number {
+            seed = (seed * 1664525 + 1013904223) % 4294967296;
+            return seed / 4294967296;
+        }
+
+        public static function setSeed(s:Number):void {
+            seed = s % 4294967296;
+            if (seed < 0) { seed += 4294967296; }
         }
     }
 }

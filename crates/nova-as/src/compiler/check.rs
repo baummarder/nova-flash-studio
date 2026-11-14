@@ -1171,6 +1171,17 @@ impl Checker {
                             call: None,
                         };
                     }
+                    // M13: `Math` resolves to the gamekit Math.as shim class
+                    // (top-level, unnamed package) at runtime.
+                    if name == "Math" {
+                        return ExprInfo {
+                            ty: Type::Class("Math".to_string()),
+                            reference: Some(RefKind::ClassRef {
+                                class: "Math".to_string(),
+                            }),
+                            call: None,
+                        };
+                    }
                     // The member may be inherited from a Flash class whose
                     // members are not modelled.
                     return ExprInfo {
@@ -1220,6 +1231,17 @@ impl Checker {
             return ExprInfo {
                 ty: Type::Any,
                 reference: Some(RefKind::GlobalFunction),
+                call: None,
+            };
+        }
+
+        // M13: `Math` resolves to the gamekit Math.as shim class.
+        if name == "Math" {
+            return ExprInfo {
+                ty: Type::Class("Math".to_string()),
+                reference: Some(RefKind::ClassRef {
+                    class: "Math".to_string(),
+                }),
                 call: None,
             };
         }

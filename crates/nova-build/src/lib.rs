@@ -1668,7 +1668,7 @@ fn unpack_color(value: u32) -> Color {
 /// config, or per-object collision/physics. The generated class is plain AS3
 /// (no display inheritance) so it can never become a document-class candidate.
 fn nova_game_data_source(
-    _project: &Project,
+    project: &Project,
     export_scenes: &[&Scene],
     warnings: &mut Vec<String>,
 ) -> Option<(String, String)> {
@@ -1680,7 +1680,14 @@ fn nova_game_data_source(
                 .any(|o| o.instance.game.is_some() || o.instance.particles.is_some())
         })
     });
-    if export_scenes.len() <= 1 && !has_scene_game && !has_object_game {
+    let has_tile_colliders = export_scenes.iter().any(|scene| {
+        (0..scene.frame_count()).any(|frame| {
+            resolve_scene(scene, frame)
+                .iter()
+                .any(|o| tilemap_grid(project, &o.instance).is_some())
+        })
+    });
+    if export_scenes.len() <= 1 && !has_scene_game && !has_object_game && !has_tile_colliders {
         return None;
     }
 
@@ -1736,13 +1743,13 @@ fn nova_game_data_source(
         let mut entries: Vec<(String, String)> = Vec::new();
         for frame_idx in 0..scene.frame_count() {
             for object in resolve_scene(scene, frame_idx) {
-                let Some(game) = &object.instance.game else {
-                    continue;
-                };
                 if seen.contains_key(&object.instance.id) {
                     continue;
                 }
-                let spec = collider_spec(&object.instance.name, game, warnings);
+                let spec = match &object.instance.game {
+                    Some(game) => collider_spec(&object.instance.name, game, warnings),
+                    None => tilemap_grid_spec(project, &object.instance, warnings),
+                };
                 if let Some(spec) = spec {
                     let slot = entries.len();
                     seen.insert(object.instance.id, slot);
@@ -1879,9 +1886,74 @@ fn nova_game_data_source(
     Some(("scripts/game/NovaGameData.as".to_string(), out))
 }
 
+/// Returns the solid-cell bitmap for a tilemap object instance, or `None`
+/// when the object is not a tilemap, has no solid tiles, or exceeds the
+/// bridge's cell cap. Mirrors `nova_core::game::attach_tile_colliders`:
+/// a cell is solid when any layer holds a tile whose tileset flag is solid.
+fn tilemap_grid(
+    project: &Project,
+    instance: &nova_core::model::ObjectInstance,
+) -> Option<(usize, usize, f32, f32, String)> {
+    let nova_core::model::ObjectKind::Tilemap(map) = &instance.kind else {
+        return None;
+    };
+    if map.columns == 0 || map.rows == 0 || map.columns * map.rows > 8192 {
+        return None;
+    }
+    let tileset = project.tilesets.iter().find(|t| t.id == map.tileset)?;
+    if tileset.solid.iter().all(|s| !s) {
+        return None;
+    }
+    let mut solid = vec![false; map.columns * map.rows];
+    for layer in &map.layers {
+        for (index, cell) in layer.cells.iter().enumerate() {
+            if *cell > 0 && tileset.is_solid(*cell as usize - 1) {
+                solid[index] = true;
+            }
+        }
+    }
+    if !solid.iter().any(|s| *s) {
+        return None;
+    }
+    let bits: String = solid.iter().map(|s| if *s { '1' } else { '0' }).collect();
+    Some((map.columns, map.rows, map.tile_width, map.tile_height, bits))
+}
+
+/// Builds a shape-4 "tile grid" collider spec for the AS3 bridge. The bridge
+/// expands contiguous solid runs into static rect bodies sharing the map's
+/// object name (one contact pair per map object, like the preview).
+/// spec tail: `cols|rows|layer|mask|0|0|0|0|0|tw;th;bits`
+fn tilemap_grid_spec(
+    project: &Project,
+    instance: &nova_core::model::ObjectInstance,
+    warnings: &mut Vec<String>,
+) -> Option<(String, String)> {
+    let (cols, rows, tw, th, bits) = tilemap_grid(project, instance)?;
+    let (layer, mask) = instance
+        .game
+        .as_ref()
+        .and_then(|g| g.collision.as_ref())
+        .map(|c| (c.layer, c.mask))
+        .unwrap_or((1, u32::MAX));
+    let name = sanitize_as3_name(&instance.name);
+    if name.is_empty() {
+        warnings.push(
+            "Ein Tilemap-Objekt ohne Namen kann keinen Tile-Kollider exportieren.".to_string(),
+        );
+        return None;
+    }
+    Some((
+        name,
+        format!(
+            "4|{}|{}|{}|{}|0|0|0|0|0|{};{};{}",
+            cols, rows, layer, mask, num(tw), num(th), bits
+        ),
+    ))
+}
+
 /// Builds the collider spec payload for one object, or `None` when the object
-/// has no collision/physics data. Tilemap colliders are skipped: the SWF only
-/// contains the baked bitmap, so tile collision cannot be reproduced.
+/// has no collision/physics data. Tilemap objects are handled separately by
+/// [`tilemap_grid_spec`].
 fn collider_spec(
     name: &str,
     game: &nova_core::GameObjectConfig,
@@ -1905,7 +1977,22 @@ fn collider_spec(
         }
         Some(CollisionShape::Polygon { points }) => {
             let c = collision.as_ref().unwrap();
-            let pts = points
+            // M13: the AS3 bridge runs SAT which requires convex polygons.
+            // The preview approximates concave input by its convex hull —
+            // apply the same hull here so SWF behaviour matches preview
+            // instead of producing undefined SAT results.
+            let hull = if nova_core::collision::is_convex(points) {
+                points.clone()
+            } else {
+                nova_core::collision::convex_hull(points)
+            };
+            if hull.len() != points.len() {
+                warnings.push(format!(
+                    "Kollider '{}' ist ein Konkavpolygon; es wird wie in der Vorschau durch die konvexe Hülle approximiert.",
+                    name
+                ));
+            }
+            let pts = hull
                 .iter()
                 .map(|(x, y)| format!("{},{}", num(*x), num(*y)))
                 .collect::<Vec<_>>()
