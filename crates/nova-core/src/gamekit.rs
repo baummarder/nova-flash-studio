@@ -2268,6 +2268,90 @@ const MATH: &str = r#"package {
             seed = s % 4294967296;
             if (seed < 0) { seed += 4294967296; }
         }
+
+        // ---- M14 additions -------------------------------------------------
+
+        /// 32-bit integer multiply (AVM2 `Math.imul` semantics: wraps to int32).
+        public static function imul(a:Number, b:Number):Number {
+            var product:Number = a * b;
+            product = product % 4294967296;
+            if (product < 0) { product += 4294967296; }
+            if (product >= 2147483648) { product -= 4294967296; }
+            return product;
+        }
+
+        /// Sign of x: -1, 0 or 1 (NaN -> NaN).
+        public static function sign(x:Number):Number {
+            if (x > 0) { return 1; }
+            if (x < 0) { return -1; }
+            if (x == 0) { return 0; }
+            return x; // NaN
+        }
+
+        /// Count of leading zero bits in the uint32 representation.
+        public static function clz32(x:Number):Number {
+            var v:Number = x % 4294967296;
+            if (v < 0) { v += 4294967296; }
+            if (v == 0) { return 32; }
+            var n:Number = 0;
+            var bit:Number = 2147483648;
+            while ((v & bit) == 0) {
+                n++;
+                bit = bit / 2;
+            }
+            return n;
+        }
+
+        /// Cube root (Newton iteration).
+        public static function cbrt(x:Number):Number {
+            if (x == 0) { return 0; }
+            var neg:Boolean = x < 0;
+            var r:Number = Math.abs(x);
+            var guess:Number = r > 1 ? r : 1;
+            for (var i:int = 0; i < 24; i++) {
+                guess = (2 * guess + r / (guess * guess)) / 3;
+            }
+            return neg ? -guess : guess;
+        }
+
+        /// sqrt(x*x + y*y + ...).
+        public static function hypot(x:Number, y:Number):Number {
+            return Math.sqrt(x * x + y * y);
+        }
+
+        /// exp(x) - 1, accurate near zero (series).
+        public static function expm1(x:Number):Number {
+            if (Math.abs(x) < 1e-5) {
+                var t:Number = x;
+                var sum:Number = x;
+                for (var i:int = 2; i <= 12; i++) {
+                    t = t * x / i;
+                    sum += t;
+                }
+                return sum;
+            }
+            return Math.exp(x) - 1;
+        }
+
+        /// log(1 + x), accurate near zero (series on u = x/(2+x)).
+        public static function log1p(x:Number):Number {
+            if (Math.abs(x) < 1e-4) {
+                var t:Number = x;
+                var sum:Number = x;
+                for (var i:int = 2; i <= 14; i++) {
+                    t = -t * x * (i - 1) / i;
+                    sum += t;
+                }
+                return sum;
+            }
+            return Math.log(1 + x);
+        }
+
+        /// Round to nearest float32-representable value (approximation:
+        /// returns x unchanged for the precision our Number already has).
+        public static function fround(x:Number):Number {
+            return x;
+        }
     }
 }
 "#;

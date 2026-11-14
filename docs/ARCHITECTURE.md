@@ -578,8 +578,9 @@ crates/nova-swf/src/
 crates/nova-build/src/
   lib.rs                compile, link, bake, stats, warnings, generated
                         game.NovaGameData (scene ranges, collider/camera/
-                        emitter/tile-grid specs, convex-hull polygons) and
-                        transition-aware all-scene export
+                        emitter/tile-grid specs, convex-hull polygons),
+                        transition-aware all-scene export, SWF v13 minimum
+                        for script projects (playerglobal API gating)
   error.rs              BuildError
 
 crates/nova-as/src/

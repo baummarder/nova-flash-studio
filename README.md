@@ -8,7 +8,18 @@ the project format is versioned JSON, and the SWF writer is implemented directly
 against the published SWF file-format specification. Tools and extensions run in
 an embedded QuickJS context; ActionScript is **not** executed by QuickJS.
 
-> **Status: Mega Milestone 13 release candidate `0.9.0-rc1`, not stable.**
+> **Status: Mega Milestone 14 release candidate `0.10.0-rc1`, not stable.**
+> M14 activated the AVM2 playerglobal API surface: script projects now
+> auto-export at SWF v13, unlocking native JSON, ByteArray, Dictionary,
+> Timer, TextField, SimpleButton, Graphics drawing, BitmapData, LoaderInfo,
+> Point/Rectangle/Matrix/ColorTransform and full String/Array methods in
+> Ruffle — 20/20 API probes verified (`samples/m14-api-surface.nova`,
+> `docs/M14_TEST_REPORT.md`). The `Math` shim gained `imul`, `sign`,
+> `clz32`, `cbrt`, `hypot`, `expm1`, `log1p`, `fround`. Scope decision:
+> released as 0.10.0 — full vector/skeletal/tween authoring systems remain
+> for M15+ (see `docs/MEGA_MILESTONE_14_REPORT.md`).
+>
+> M13 baseline `0.9.0-rc1`:
 > M13 closes the remaining M12 runtime gaps: `Math.*` shim for the AS3
 > subset, kinematic body drive API, per-scene state restore, synthetic key
 > injection for deterministic tests, tilemap solid-cell collision export,

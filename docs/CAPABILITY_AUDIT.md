@@ -49,7 +49,10 @@ is claimed from documentation alone.
 
 - Editable text objects with font/size/color, baked to vector outlines on
   SWF export (device-font independent — actually a strength vs Flash).
-- No dynamic text fields / HTML text / TLF; input text not supported.
+- **M14**: runtime `flash.text.TextField`/`TextFormat` work natively in
+  Ruffle at SWF v13 (dynamic text verified); `DefineEditText`/font-embedding
+  *tags* for authored dynamic fields are still not exported.
+- No input text, no TLF.
 
 ## 7. Bitmap & audio import — ✅
 
@@ -85,10 +88,14 @@ is claimed from documentation alone.
 - Real recursive-descent AS3 subset → AVM2 ABC: classes, inheritance,
   packages, static/instance members, control flow, typed arithmetic,
   events. M10 fixed MultinameL/labels/dynamic-class bugs.
+- **M14**: script projects auto-export at SWF v13, unlocking the
+  playerglobal API surface in Ruffle — JSON, ByteArray+Endian,
+  Dictionary, Timer, TextField/TextFormat, SimpleButton, Graphics,
+  BitmapData/Bitmap, LoaderInfo, Point/Rectangle/Matrix/ColorTransform,
+  full String/Array methods (20/20 probes, `m14-api-surface`).
 - **Subset limits**: no interfaces, `switch`, `try/catch`, `for-in`,
-  closures as values, `Vector`, `ByteArray`, `JSON`, real `Math` (shim
-  provided since M13), no `XML`/`RegExp`/`Date`. Untested against large
-  real-world AS3 codebases.
+  closures as values, `Vector.<T>` syntax, package-level functions.
+  Untested against large real-world AS3 codebases.
 
 ## 12. Game engine & runtime — ✅
 

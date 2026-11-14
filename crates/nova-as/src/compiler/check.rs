@@ -1171,13 +1171,13 @@ impl Checker {
                             call: None,
                         };
                     }
-                    // M13: `Math` resolves to the gamekit Math.as shim class
-                    // (top-level, unnamed package) at runtime.
-                    if name == "Math" {
+                    // M13/M14: top-level playerglobal/gamekit classes resolve
+                    // as class references (`Math` shim, `JSON`, …).
+                    if let Some(class) = playerglobal_class(name) {
                         return ExprInfo {
-                            ty: Type::Class("Math".to_string()),
+                            ty: Type::Class(class.to_string()),
                             reference: Some(RefKind::ClassRef {
-                                class: "Math".to_string(),
+                                class: class.to_string(),
                             }),
                             call: None,
                         };
@@ -1235,12 +1235,12 @@ impl Checker {
             };
         }
 
-        // M13: `Math` resolves to the gamekit Math.as shim class.
-        if name == "Math" {
+        // M13/M14: `Math`/`JSON` resolve to playerglobal/gamekit classes.
+        if let Some(class) = playerglobal_class(name) {
             return ExprInfo {
-                ty: Type::Class("Math".to_string()),
+                ty: Type::Class(class.to_string()),
                 reference: Some(RefKind::ClassRef {
-                    class: "Math".to_string(),
+                    class: class.to_string(),
                 }),
                 call: None,
             };
@@ -1852,6 +1852,18 @@ fn assign_to_binary(op: AssignOp) -> BinaryOp {
 /// Free functions that the AVM2 global object provides. They are resolved as
 /// global functions even inside classes (where an otherwise unknown identifier
 /// would be treated as an inherited Flash member).
+/// Top-level classes that resolve without an import: the gamekit `Math`
+/// shim and playerglobal classes Ruffle provides natively (`JSON`).
+/// Anything listed here must exist at runtime — either as a compiled
+/// gamekit class or in the player's global scope.
+fn playerglobal_class(name: &str) -> Option<&'static str> {
+    match name {
+        "Math" => Some("Math"),
+        "JSON" => Some("JSON"),
+        _ => None,
+    }
+}
+
 fn builtin_global(name: &str) -> Option<Type> {
     match name {
         "trace" => Some(Type::Void),

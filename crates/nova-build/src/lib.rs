@@ -222,14 +222,15 @@ pub fn build_swf(project: &Project) -> Result<BuildOutput, BuildError> {
 
     let has_scripts = !compiled_scripts.is_empty();
     let requested_version = export.swf_version;
-    let swf_version = if has_scripts {
-        requested_version.max(10)
-    } else {
-        requested_version
-    };
+    // M14: playerglobal APIs used by modern AS3 (JSON, ByteArray helpers,
+    // flash.utils.*, flash.text.*, BitmapData, …) are gated at SWF v13 in
+    // Ruffle's playerglobals. Script projects therefore export at v13+;
+    // v10 remains the floor for trivial scripts but is raised automatically.
+    let min_script_version = if has_scripts { 13 } else { requested_version };
+    let swf_version = requested_version.max(min_script_version);
     if has_scripts && swf_version != requested_version {
         warnings.push(format!(
-            "SWF-Version von {requested_version} auf {swf_version} angehoben (DoABC2 benötigt Version 10)."
+            "SWF-Version von {requested_version} auf {swf_version} angehoben (DoABC2/playerglobal-APIs benötigen mindestens Version 13)."
         ));
     }
 

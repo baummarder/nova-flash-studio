@@ -182,8 +182,10 @@ impl SourceInfo {
 #[serde(rename_all = "camelCase")]
 pub struct ExportConfig {
     pub target: TargetRuntime,
-    /// SWF version. 10 is the safe baseline for AVM2 content; 9 is the first
-    /// AVM2-capable version.
+    /// SWF version. 13 is the M14 baseline for AVM2 content (playerglobal
+    /// APIs such as JSON are version-gated); lower values are raised
+    /// automatically when scripts are present. 9 is the first AVM2-capable
+    /// version for script-free AVM1 content.
     pub swf_version: u8,
     pub compression: SwfCompression,
     /// Reserved for the ActionScript compiler milestone. The exporter warns
@@ -200,7 +202,7 @@ impl Default for ExportConfig {
     fn default() -> Self {
         Self {
             target: TargetRuntime::Avm2,
-            swf_version: 10,
+            swf_version: 13,
             compression: SwfCompression::Zlib,
             include_scripts: true,
             export_all_scenes: false,

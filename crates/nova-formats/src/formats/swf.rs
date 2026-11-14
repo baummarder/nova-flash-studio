@@ -917,7 +917,8 @@ mod tests {
                 SwfCompression::Zlib => assert_eq!(signature, b"CWS"),
             }
             let imported = import(&output.bytes).unwrap();
-            assert_eq!(imported.report.source_version.as_deref(), Some("SWF 10"));
+            // Script projects are raised to SWF v13 for playerglobal APIs.
+            assert_eq!(imported.report.source_version.as_deref(), Some("SWF 13"));
             assert_eq!(imported.project.scenes[0].width, 550.0);
             assert_eq!(imported.project.scenes[0].height, 400.0);
             assert!((imported.project.scenes[0].fps - 24.0).abs() < 0.01);

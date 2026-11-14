@@ -1,0 +1,65 @@
+{
+ "format": "nova-flash-studio",
+ "formatVersion": 4,
+ "project": {
+  "id": "fe42de0e-36ad-4195-8e98-55059f41ddab",
+  "metadata": {
+   "name": "m14-probe",
+   "author": "",
+   "description": "",
+   "createdUnix": 0,
+   "modifiedUnix": 0
+  },
+  "scenes": [
+   {
+    "id": "651a4b63-c6f2-47fc-be94-697fe9ee645d",
+    "name": "Szene 1",
+    "width": 640.0,
+    "height": 360.0,
+    "background": {
+     "r": 0,
+     "g": 0,
+     "b": 0,
+     "a": 255
+    },
+    "fps": 30.0,
+    "layers": [
+     {
+      "id": "c7cd2b13-d20d-4052-b53d-eb15ee0bf3c9",
+      "name": "Ebene 1",
+      "visible": true,
+      "locked": false,
+      "kind": "normal",
+      "frames": [
+       {
+        "keyframe": true,
+        "objects": []
+       }
+      ]
+     }
+    ],
+    "game": null
+   }
+  ],
+  "symbols": [],
+  "assets": [],
+  "tilesets": [],
+  "scripts": [
+   {
+    "id": "5c850c9e-619e-49e8-80c6-0f07ea6c20a1",
+    "name": "Main.as",
+    "path": "scripts/Main.as",
+    "source": "package {\n    import flash.display.MovieClip;\n    import flash.utils.Timer;\n    import flash.events.TimerEvent;\n    import flash.utils.ByteArray;\n    import flash.utils.Dictionary;\n    import flash.geom.Point;\n    import flash.geom.Rectangle;\n    import flash.events.Event;\n\n    public dynamic class Main extends MovieClip {\n        private var frame:int = 0;\n        private var timer:Timer;\n        private var ba:ByteArray;\n        public function Main() {\n            addEventListener(\"enterFrame\", onTick);\n        }\n        private function onTick(e:Event):void {\n            frame++;\n            if (frame == 5) {\n                var o = JSON.parse(\"{\\\"a\\\":1,\\\"b\\\":[2,3]}\");\n                trace(\"JSON a=\" + o.a + \" b1=\" + o.b[1]);\n                trace(\"JSON str=\" + JSON.stringify({x:7}));\n                ba = new ByteArray();\n                ba.writeInt(258); ba.writeUTFBytes(\"hi\");\n                ba.position = 0;\n                trace(\"BA int=\" + ba.readInt() + \" s=\" + ba.readUTFBytes(2));\n                timer = new Timer(50, 2);\n                timer.addEventListener(TimerEvent.TIMER, onTimer);\n                timer.start();\n                var d = new Dictionary();\n                d[\"k\"] = 42;\n                trace(\"Dict=\" + d[\"k\"]);\n                var p = new Point(3, 4);\n                var r = new Rectangle(0,0,10,10);\n                trace(\"Pt=\" + p.x + \",\" + p.y + \" R=\" + r.width);\n            }\n            if (frame == 30) {\n                trace(\"M14PROBE DONE\");\n            }\n        }\n        private function onTimer(e:TimerEvent):void {\n            trace(\"timer tick\");\n        }\n    }\n}\n",
+    "provenance": "original_source"
+   }
+  ],
+  "export": {
+   "target": "avm2",
+   "swfVersion": 13,
+   "compression": "zlib",
+   "includeScripts": true,
+   "exportAllScenes": false
+  },
+  "activeScene": "651a4b63-c6f2-47fc-be94-697fe9ee645d"
+ }
+}

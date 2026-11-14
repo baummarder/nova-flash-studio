@@ -41,13 +41,15 @@ limited graphic-vs-movieclip typing).
 | | NØVA | Animate |
 |---|---|---|
 | Language | subset: classes, packages, typed arithmetic, events | full AS3 |
-| Standard library | none (Math shim, game.* kit) | complete playerglobal |
+| Standard library | playerglobal APIs work at SWF v13 (JSON, ByteArray, Timer, TextField, BitmapData, Graphics, SimpleButton, geom.*, String/Array); no Vector/try/for-in/package-functions | complete playerglobal |
 | Debugging | trace + Ruffle logs | debugger, breakpoints, profiler |
-| Target | AVM2/SWF10 via own compiler | same runtime, official compiler |
+| Target | AVM2/SWF13 via own compiler | same runtime, official compiler |
 
-**Verdict:** NØVA's compiler is real but covers maybe 15–20% of everyday
-AS3. Porting existing .fla code is not realistic; writing new game code
-against the documented subset works.
+**Verdict:** M14 closed most of the *runtime* gap — common playerglobal
+APIs verified working in Ruffle. Remaining compiler limits (`Vector.<T>`,
+`try/catch`, `for-in`, package functions, closures) plus missing authoring
+systems (bones, shape tweens, font/button tags) still make porting real
+Flash code impractical; new game code against the documented subset works.
 
 ## SWF export
 

@@ -33,7 +33,7 @@ fn demo_script_is_embedded_and_linked_to_its_object() {
 
     let buffer = swf::decompress_swf(output.bytes.as_slice()).expect("decompress");
     let parsed = parse(&buffer);
-    assert_eq!(parsed.header.version(), 10);
+    assert_eq!(parsed.header.version(), 13);
     assert!(parsed.header.is_action_script_3());
 
     let do_abc = do_abc2(&parsed);
@@ -112,13 +112,13 @@ fn unlinked_movieclip_script_becomes_the_document_class() {
         output
             .warnings
             .iter()
-            .any(|warning| warning.contains("Version 10")),
+            .any(|warning| warning.contains("Version 13")),
         "version bump must be reported: {:?}",
         output.warnings
     );
     let buffer = swf::decompress_swf(output.bytes.as_slice()).expect("decompress");
     let parsed = parse(&buffer);
-    assert_eq!(parsed.header.version(), 10);
+    assert_eq!(parsed.header.version(), 13);
     let links: Vec<_> = parsed
         .tags
         .iter()

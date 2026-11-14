@@ -31,7 +31,8 @@ Evidence-based support levels. "Preview" = editor simulation (`GameRuntime`),
 | Scene state persistence | yes | yes — per-scene body snapshots restored on revisit (`clearSceneStates` resets) | n/a | yes (`m13-runtime-features`) |
 | `exportAllScenes` concatenation | n/a | yes (frame labels = scene names) | n/a | yes |
 | AS3 document class (`Main.as`) | n/a | yes | yes | yes |
-| AS3 subset (no `for-in`, interfaces, `switch`, `try`, closures; `Math` via shim) | n/a | compiler-enforced | n/a | yes |
+| AS3 subset (no `for-in`, interfaces, `switch`, `try`, closures, `Vector.<T>`; `Math`/`JSON` resolve) | n/a | compiler-enforced | n/a | yes |
+| Playerglobal APIs at SWF v13+ (JSON, ByteArray, Dictionary, Timer, TextField, SimpleButton, Graphics, BitmapData, Point/Rectangle/Matrix/ColorTransform, LoaderInfo) | n/a | n/a | yes | yes (`m14-api-surface`, 20/20 probes) |
 | AVM1 target | n/a | yes (no AS3/gamekit) | n/a | yes |
 | Audio (SoundCue) | yes | exported | n/a | M9/M10 verified |
 | SWF signing | n/a | **no** — artifacts are unsigned | n/a | not claimed |
@@ -45,9 +46,16 @@ Evidence-based support levels. "Preview" = editor simulation (`GameRuntime`),
   (≤8192 cells/map); contacts merge into one pair per map object. Tile
   rotation/flip and per-layer collision masks are not modelled.
 - **`Math.*`**: shim covers common functions with approximations
-  (series-based trig/exp/log, deterministic LCG `random`/`setSeed`); it is
-  not bit-identical to Flash's `Math` and lacks `imul`, `fround`, `clz32`,
-  `sign`, `cbrt`, `expm1`, `log1p`, `hypot`.
+  (series-based trig/exp/log, deterministic LCG `random`/`setSeed`) plus
+  `imul`, `sign`, `clz32`, `cbrt`, `hypot`, `expm1`, `log1p`, `fround`
+  (M14); it is not bit-identical to Flash's `Math`.
+- **Playerglobal APIs**: available only at SWF v13+ (script projects are
+  auto-raised). Verified in Ruffle: JSON, ByteArray+Endian, Dictionary,
+  Timer/TimerEvent, TextField/TextFormat, SimpleButton (states;
+  `hitArea` unsupported), Graphics drawing, BitmapData/Bitmap,
+  LoaderInfo, Point/Rectangle/Matrix/ColorTransform, String/Array methods.
+  NOT available: `Vector.<T>` syntax, package-level functions
+  (`getQualifiedClassName`, …), `try/catch`, `for-in`, closures.
 - **Kinematic bodies**: `setBodyVelocity`/`getBodyVelocity` exist; kinematic
   bodies still produce no collision *response* on dynamics.
 - **Substepping**: physics runs 8 substeps/frame; colliders thinner than

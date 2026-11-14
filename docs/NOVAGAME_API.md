@@ -105,10 +105,14 @@ names for collision pairs), `key` (AVM2 keyCode for input events), `data`
 ## Limitations
 
 - `Math.*` is provided by the `scripts/Math.as` gamekit shim (approximate
-  series implementations, deterministic LCG `random`); uncommon functions
-  (`imul`, `fround`, `clz32`, `sign`, `cbrt`, `expm1`, `log1p`, `hypot`)
-  are missing. Other Flash builtins (`ByteArray`, `Vector`, `JSON`, …)
-  remain unavailable.
+  series implementations, deterministic LCG `random`, plus `imul`,
+  `sign`, `clz32`, `cbrt`, `hypot`, `expm1`, `log1p`, `fround`); uncommon
+  functions remain missing. At SWF v13+ (auto-raised for script projects)
+  the playerglobal `JSON`, `flash.utils.*`, `flash.text.*`,
+  `flash.display.*` and `flash.geom.*` classes also work natively in
+  Ruffle — see `docs/M14_TEST_REPORT.md` for the verified surface.
+  Still unsupported: `Vector.<T>`, package-level functions, `try/catch`,
+  `for-in`.
 - Tilemap collision covers solid cells only; tile flip/rotation and
   per-layer masks are not modelled.
 - Kinematic bodies have velocity but produce no collision response.

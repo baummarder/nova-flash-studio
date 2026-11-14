@@ -1,0 +1,65 @@
+{
+ "format": "nova-flash-studio",
+ "formatVersion": 4,
+ "project": {
+  "id": "5a5a2626-f48b-4bd3-9131-2e7fd6a6dcec",
+  "metadata": {
+   "name": "M14 API Surface",
+   "author": "",
+   "description": "",
+   "createdUnix": 0,
+   "modifiedUnix": 0
+  },
+  "scenes": [
+   {
+    "id": "bc9b938e-bc2c-4893-8b99-a3834e0df1a7",
+    "name": "Szene 1",
+    "width": 640.0,
+    "height": 360.0,
+    "background": {
+     "r": 18,
+     "g": 20,
+     "b": 26,
+     "a": 255
+    },
+    "fps": 30.0,
+    "layers": [
+     {
+      "id": "1b037a27-8759-41bb-bcca-42f2fcdb3e0b",
+      "name": "Ebene 1",
+      "visible": true,
+      "locked": false,
+      "kind": "normal",
+      "frames": [
+       {
+        "keyframe": true,
+        "objects": []
+       }
+      ]
+     }
+    ],
+    "game": null
+   }
+  ],
+  "symbols": [],
+  "assets": [],
+  "tilesets": [],
+  "scripts": [
+   {
+    "id": "17078ad3-fe82-43f7-bc61-b293fb4ae0d7",
+    "name": "Main.as",
+    "path": "scripts/Main.as",
+    "source": "package {\n    import flash.display.MovieClip;\n    import flash.display.Sprite;\n    import flash.display.SimpleButton;\n    import flash.display.Shape;\n    import flash.text.TextField;\n    import flash.text.TextFormat;\n    import flash.utils.Timer;\n    import flash.events.TimerEvent;\n    import flash.events.Event;\n    import flash.utils.ByteArray;\n    import flash.utils.Dictionary;\n    import flash.utils.Endian;\n    import flash.geom.Point;\n    import flash.geom.Rectangle;\n    import flash.geom.Matrix;\n    import flash.geom.ColorTransform;\n    import flash.geom.Transform;\n    import flash.display.BitmapData;\n    import flash.display.Bitmap;\n    import flash.display.Graphics;\n    import flash.display.LoaderInfo;\n\n    public dynamic class Main extends MovieClip {\n        private var frame:int = 0;\n        private var results:Object = {};\n\n        public function Main() {\n            addEventListener(\"enterFrame\", onTick);\n        }\n\n        private function ok(name:String, cond:Boolean):void {\n            results[name] = cond;\n            trace(\"M14 \" + name + \"=\" + cond);\n        }\n\n        private function onTick(e:Event):void {\n            frame++;\n            if (frame == 5) {\n                // --- JSON ---\n                var o = JSON.parse(\"{\\\"a\\\":1,\\\"b\\\":[2,3],\\\"s\\\":\\\"x\\\"}\");\n                ok(\"json\", o.a == 1 && o.b[1] == 3 && o.s == \"x\");\n                var js = JSON.stringify({x: 7, y: [1, 2]});\n                ok(\"jsonStr\", js.indexOf(\"\\\"x\\\":7\") >= 0);\n\n                // --- ByteArray ---\n                var ba = new ByteArray();\n                ba.endian = Endian.LITTLE_ENDIAN;\n                ba.writeInt(0x12345678);\n                ba.writeUTFBytes(\"hi\");\n                ba.position = 0;\n                ok(\"ba\", ba.readInt() == 0x12345678 && ba.readUTFBytes(2) == \"hi\");\n                ba.position = 0;\n                ba.endian = Endian.BIG_ENDIAN;\n                ok(\"baLen\", ba.length == 6);\n\n                // --- Dictionary / Point / Rectangle / Matrix / ColorTransform ---\n                var d = new Dictionary();\n                d[\"k\"] = 42;\n                ok(\"dict\", d[\"k\"] == 42);\n                var p = new Point(3, 4);\n                var p2 = p.clone();\n                ok(\"point\", p.x == 3 && p.y == 4 && p2.x == 3);\n                var r = new Rectangle(1, 2, 10, 20);\n                ok(\"rect\", r.width == 10 && r.contains(5, 5) && !r.contains(0, 0));\n                var m = new Matrix();\n                m.tx = 5; m.ty = 6;\n                var mp = m.transformPoint(new Point(0, 0));\n                ok(\"matrix\", mp.x == 5 && mp.y == 6);\n                var ct = new ColorTransform();\n                ct.redMultiplier = 0.5;\n                ok(\"colorXform\", ct.redMultiplier == 0.5);\n\n                // --- String / Array methods ---\n                var s = \"Hello World\";\n                ok(\"str\", s.charAt(0) == \"H\" && s.indexOf(\"World\") == 6\n                    && s.substr(0, 5) == \"Hello\" && s.toUpperCase() == \"HELLO WORLD\"\n                    && s.split(\" \").length == 2);\n                var a = [3, 1, 2];\n                a.push(4);\n                a.sort();\n                ok(\"array\", a.length == 4 && a[0] == 1 && a[3] == 4\n                    && a.indexOf(2) == 1 && a.join(\"-\") == \"1-2-3-4\");\n\n                // --- TextField (dynamic text) ---\n                var tf = new TextField();\n                tf.text = \"NOVA\";\n                var fmt = new TextFormat();\n                fmt.size = 24; fmt.color = 0xFF0000;\n                tf.defaultTextFormat = fmt;\n                addChild(tf);\n                ok(\"text\", tf.text == \"NOVA\" && tf.textWidth > 0);\n\n                // --- Timer ---\n                var timer = new Timer(40, 2);\n                timer.addEventListener(TimerEvent.TIMER, onTimer);\n                timer.start();\n\n                // --- SimpleButton ---\n                var btn = new SimpleButton();\n                var up = new Sprite(); up.graphics.beginFill(0x336699); up.graphics.drawRect(0, 0, 60, 20); up.graphics.endFill();\n                var over = new Sprite(); over.graphics.beginFill(0x66CCFF); over.graphics.drawRect(0, 0, 60, 20); over.graphics.endFill();\n                var down = new Sprite(); down.graphics.beginFill(0x223344); down.graphics.drawRect(0, 0, 60, 20); down.graphics.endFill();\n                var hit = new Sprite(); hit.graphics.beginFill(0xFFFFFF); hit.graphics.drawRect(0, 0, 60, 20); hit.graphics.endFill();\n                btn.upState = up; btn.overState = over; btn.downState = down;\n                btn.x = 100; btn.y = 100;\n                addChild(btn);\n                ok(\"button\", btn.upState == up && btn.hitTestPoint(110, 110));\n\n                // --- Graphics curve drawing ---\n                var g = new Shape();\n                g.graphics.lineStyle(2, 0x00FF00);\n                g.graphics.moveTo(0, 0);\n                g.graphics.lineTo(50, 0);\n                g.graphics.curveTo(80, 40, 100, 0);\n                g.graphics.endFill();\n                g.x = 200; g.y = 200;\n                addChild(g);\n                ok(\"graphics\", true);\n\n                // --- BitmapData ---\n                var bd = new BitmapData(8, 8, false, 0xFF0000);\n                bd.fillRect(new Rectangle(0, 0, 4, 8), 0x00FF00);\n                ok(\"bitmapData\", bd.getPixel(1, 1) == 0x00FF00);\n                var bmp = new Bitmap(bd);\n                addChild(bmp);\n                bmp.x = 400; bmp.y = 100;\n\n                // --- LoaderInfo via loaderInfo property ---\n                ok(\"loaderInfo\", loaderInfo != null && loaderInfo.width == 640);\n            }\n            if (frame == 40) {\n                trace(\"M14 ALL=true\");\n                trace(\"M14DONE\");\n            }\n        }\n        private function onTimer(e:TimerEvent):void {\n            trace(\"M14 timer=\" + e.target.repeatCount);\n        }\n    }\n}\n",
+    "provenance": "original_source"
+   }
+  ],
+  "export": {
+   "target": "avm2",
+   "swfVersion": 13,
+   "compression": "zlib",
+   "includeScripts": true,
+   "exportAllScenes": false
+  },
+  "activeScene": "bc9b938e-bc2c-4893-8b99-a3834e0df1a7"
+ }
+}
