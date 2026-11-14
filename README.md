@@ -8,7 +8,18 @@ the project format is versioned JSON, and the SWF writer is implemented directly
 against the published SWF file-format specification. Tools and extensions run in
 an embedded QuickJS context; ActionScript is **not** executed by QuickJS.
 
-> **Status: Mega Milestone 14 release candidate `0.10.0-rc1`, not stable.**
+> **Status: Mega Milestone 15 release candidate `0.11.0-rc1`, not stable.**
+> M15 added a working skeletal animation system: bone hierarchies with
+> parent/offset/length, FK rotation clips, two-bone analytic IK, rigid
+> part binding on symbol timelines, deterministic per-frame baked
+> matrices in exported sprites, an editor skeleton panel, and six AI
+> bone operations — all `.nova`-serializable and unit/integration
+> tested (`samples/m15-skeletal-animation.nova`,
+> `docs/M15_TEST_REPORT.md`). Known Ruffle limit: AVM2 scripts cannot
+> reach children of AVM1-style sprites (`getChildAt` returns null);
+> mesh skinning/weight painting remain out of scope.
+>
+> M14 baseline `0.10.0-rc1`:
 > M14 activated the AVM2 playerglobal API surface: script projects now
 > auto-export at SWF v13, unlocking native JSON, ByteArray, Dictionary,
 > Timer, TextField, SimpleButton, Graphics drawing, BitmapData, LoaderInfo,

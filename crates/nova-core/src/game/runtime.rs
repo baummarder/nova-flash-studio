@@ -788,6 +788,7 @@ mod tests {
                 }),
                 source_character: None,
                 particles: None,
+                bone: None,
             });
             project.scenes.push(scene);
         }
@@ -995,6 +996,7 @@ mod tests {
                 physics: None,
             }),
             particles: None,
+            bone: None,
         };
         // Inject the body directly into the runtime snapshot.
         let body = GameBody {
@@ -1063,6 +1065,7 @@ mod tests {
                 physics: None,
             }),
             particles: None,
+            bone: None,
         };
         runtime.bodies.push(GameBody {
             id: other.id,

@@ -1,5 +1,6 @@
 //! Serializable data model of a `.nova` project.
 
+mod bones;
 mod color;
 mod game;
 mod object;
@@ -10,6 +11,9 @@ mod tilemap;
 mod timeline;
 mod transform;
 
+pub use bones::{
+    Bone, BoneClip, BoneKey, BonePose, BoneTrack, IkKey, Skeleton, bind_transform, solve_two_bone,
+};
 pub use color::Rgba;
 pub use game::{
     BodyType, CameraConfig, CollisionShape, CollisionSpec, GameObjectConfig, GameSceneConfig,
@@ -29,6 +33,7 @@ pub use scene::{Layer, LayerKind, Scene};
 pub use text::{TextAlign, TextFont, TextObject};
 pub use tilemap::{TileLayer, TilemapData, Tileset};
 pub use timeline::{
-    Easing, Frame, ResolvedObject, SoundCue, Tween, TweenKind, resolve_scene, shapes_compatible,
+    Easing, Frame, ResolvedObject, SoundCue, Tween, TweenKind, resolve_scene, resolve_symbol_frame,
+    shapes_compatible,
 };
 pub use transform::Transform;

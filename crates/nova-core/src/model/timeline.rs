@@ -224,6 +224,45 @@ pub fn resolve_scene(scene: &Scene, frame: usize) -> Vec<ResolvedObject> {
     out
 }
 
+/// Resolves a symbol's timeline at `frame`, additionally applying the
+/// skeleton pose to objects bound via `ObjectInstance::bone`. Objects
+/// without a bone binding resolve exactly as [`resolve_scene`]. The clip
+/// named by `symbol.active_clip` is used; without one the rest pose
+/// applies (which still re-parents bound objects under their bones).
+pub fn resolve_symbol_frame(symbol: &super::Symbol, frame: usize) -> Vec<ResolvedObject> {
+    let mut objects = resolve_scene(&symbol.timeline, frame);
+    let Some(skeleton) = &symbol.skeleton else {
+        return objects;
+    };
+    let clip = symbol
+        .active_clip
+        .as_deref()
+        .and_then(|name| symbol.bone_clips.iter().find(|c| c.name == name));
+    let pose = skeleton.pose_at(clip, frame as u32);
+    if pose.is_empty() {
+        return objects;
+    }
+    let mut pose_map: std::collections::HashMap<Uuid, super::BonePose> =
+        std::collections::HashMap::new();
+    for (id, p) in pose {
+        pose_map.insert(id, p);
+    }
+    for object in &mut objects {
+        let Some(bone_id) = object.instance.bone else {
+            continue;
+        };
+        let Some(bp) = pose_map.get(&bone_id).copied() else {
+            continue;
+        };
+        let t = object.instance.transform;
+        let (nx, ny, nr) = super::bind_transform(bp, t.x, t.y, t.rotation);
+        object.instance.transform.x = nx;
+        object.instance.transform.y = ny;
+        object.instance.transform.rotation = nr;
+    }
+    objects
+}
+
 fn lerp_f32(a: f32, b: f32, t: f32) -> f32 {
     a + (b - a) * t
 }

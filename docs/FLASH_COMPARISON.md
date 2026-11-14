@@ -21,14 +21,16 @@ decisively for original vector artwork.
 | | NØVA | Animate |
 |---|---|---|
 | Keyframes | per-property, per-frame | same + motion presets, ease editor |
-| Shape tweens | no | yes (shape hints) |
+| Shape tweens | yes — rect/ellipse/path vertex interpolation + easing, baked (no shape hints, no MorphShape tags) | yes (shape hints, MorphShape) |
 | Motion tweens | position/scale/rotation/alpha/color | full transform + filters + 3D |
-| Inverse kinematics | no | bone/tool IK |
+| Inverse kinematics | two-bone analytic IK on skeletal rigs (M15); no pole constraints | bone/tool IK, constraints |
+| Skeletal animation | FK clips + rigid part binding, baked per-frame (M15); no mesh skinning/weight painting | full IK/constraints/mesh |
 | Onion skin | basic | full |
 | Nested timelines | symbols with own timelines | same, deeper nesting norms |
 
-**Verdict:** adequate for UI/game animation; far behind for character
-animation.
+**Verdict:** M15 added a working skeletal system (FK + two-bone IK,
+rigid binding, deterministic baked export). Still behind Animate on
+skin weighting, IK constraints, ease curves, and shape hints.
 
 ## MovieClips & symbols
 
@@ -48,7 +50,7 @@ limited graphic-vs-movieclip typing).
 **Verdict:** M14 closed most of the *runtime* gap — common playerglobal
 APIs verified working in Ruffle. Remaining compiler limits (`Vector.<T>`,
 `try/catch`, `for-in`, package functions, closures) plus missing authoring
-systems (bones, shape tweens, font/button tags) still make porting real
+systems (mesh skinning, font/button tags, MorphShape) still make porting real
 Flash code impractical; new game code against the documented subset works.
 
 ## SWF export

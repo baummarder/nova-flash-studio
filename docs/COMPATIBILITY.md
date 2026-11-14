@@ -30,6 +30,8 @@ Evidence-based support levels. "Preview" = editor simulation (`GameRuntime`),
 | `Math.*` in AS3 | n/a | yes — `scripts/Math.as` shim (sqrt/sin/cos/tan/asin/acos/atan/atan2/exp/log/pow/floor/ceil/round/trunc/abs/min/max/random + constants) | n/a | yes (`m13-runtime-features`) |
 | Scene state persistence | yes | yes — per-scene body snapshots restored on revisit (`clearSceneStates` resets) | n/a | yes (`m13-runtime-features`) |
 | `exportAllScenes` concatenation | n/a | yes (frame labels = scene names) | n/a | yes |
+| Skeletal animation (bone hierarchy, FK clips, rigid binding) | yes | yes — baked per-frame matrices in symbol sprites | metadata only | partial — matrices verified structurally; Ruffle plays the sprite but AVM2 cannot reach AVM1-style sprite children (`m15-skeletal-animation`) |
+| Two-bone IK | yes (solver) | yes (IK keys baked to rotations) | n/a | unit-tested (`solve_two_bone`) |
 | AS3 document class (`Main.as`) | n/a | yes | yes | yes |
 | AS3 subset (no `for-in`, interfaces, `switch`, `try`, closures, `Vector.<T>`; `Math`/`JSON` resolve) | n/a | compiler-enforced | n/a | yes |
 | Playerglobal APIs at SWF v13+ (JSON, ByteArray, Dictionary, Timer, TextField, SimpleButton, Graphics, BitmapData, Point/Rectangle/Matrix/ColorTransform, LoaderInfo) | n/a | n/a | yes | yes (`m14-api-surface`, 20/20 probes) |

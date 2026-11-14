@@ -1,0 +1,328 @@
+{
+ "format": "nova-flash-studio",
+ "formatVersion": 4,
+ "project": {
+  "id": "9e80da7b-f293-4486-8198-75384ee2a9a3",
+  "metadata": {
+   "name": "M15 Skeletal Animation",
+   "author": "",
+   "description": "",
+   "createdUnix": 0,
+   "modifiedUnix": 0
+  },
+  "scenes": [
+   {
+    "id": "b4ed18cf-4ebc-420b-b427-c15d10f72f13",
+    "name": "Szene 1",
+    "width": 640.0,
+    "height": 360.0,
+    "background": {
+     "r": 18,
+     "g": 20,
+     "b": 26,
+     "a": 255
+    },
+    "fps": 24.0,
+    "layers": [
+     {
+      "id": "75cae73e-ed9c-4a1b-9048-0e504126c302",
+      "name": "Ebene 1",
+      "visible": true,
+      "locked": false,
+      "kind": "normal",
+      "frames": [
+       {
+        "keyframe": true,
+        "objects": [
+         {
+          "id": "168079c1-d709-4af0-8d06-62a079b61e55",
+          "name": "Held",
+          "kind": {
+           "kind": "symbol",
+           "symbol": "c383bf32-295a-4a2f-badd-dee06cb61b30"
+          },
+          "transform": {
+           "x": 320.0,
+           "y": 180.0,
+           "scale_x": 1.0,
+           "scale_y": 1.0,
+           "rotation": 0.0
+          },
+          "fill": {
+           "r": 255,
+           "g": 255,
+           "b": 255,
+           "a": 255
+          }
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "game": null
+   }
+  ],
+  "symbols": [
+   {
+    "id": "c383bf32-295a-4a2f-badd-dee06cb61b30",
+    "name": "Held",
+    "kind": "movie_clip",
+    "width": 200.0,
+    "height": 200.0,
+    "fill": {
+     "r": 0,
+     "g": 0,
+     "b": 0,
+     "a": 0
+    },
+    "corner_radius": 0.0,
+    "timeline": {
+     "id": "9fce7e6f-1b37-4e7a-accd-a036db575612",
+     "name": "Held",
+     "width": 200.0,
+     "height": 200.0,
+     "background": {
+      "r": 0,
+      "g": 0,
+      "b": 0,
+      "a": 0
+     },
+     "fps": 24.0,
+     "layers": [
+      {
+       "id": "43857a71-f66f-4b6c-95a2-e7f85f9283c7",
+       "name": "Teile",
+       "visible": true,
+       "locked": false,
+       "kind": "normal",
+       "frames": [
+        {
+         "keyframe": true,
+         "objects": [
+          {
+           "id": "0f6177d5-a477-4f50-a5bb-831baba55cc0",
+           "name": "TorsoSegment",
+           "kind": {
+            "kind": "rect",
+            "width": 30.0,
+            "height": 80.0,
+            "corner_radius": 0.0
+           },
+           "transform": {
+            "x": 0.0,
+            "y": -40.0,
+            "scale_x": 1.0,
+            "scale_y": 1.0,
+            "rotation": 0.0
+           },
+           "fill": {
+            "r": 90,
+            "g": 140,
+            "b": 220,
+            "a": 255
+           },
+           "bone": "f38c45ed-3348-4ae3-b2a4-b4a338e6b0b9"
+          },
+          {
+           "id": "543a3086-fa0f-48a5-9479-34ac594844bb",
+           "name": "OberarmSegment",
+           "kind": {
+            "kind": "rect",
+            "width": 40.0,
+            "height": 24.0,
+            "corner_radius": 0.0
+           },
+           "transform": {
+            "x": 20.0,
+            "y": -12.0,
+            "scale_x": 1.0,
+            "scale_y": 1.0,
+            "rotation": 0.0
+           },
+           "fill": {
+            "r": 240,
+            "g": 160,
+            "b": 60,
+            "a": 255
+           },
+           "bone": "d726cd29-f58e-4a29-a774-8f287cbfd980"
+          },
+          {
+           "id": "233c4e73-6fe7-4b52-8d68-832bee941644",
+           "name": "UnterarmSegment",
+           "kind": {
+            "kind": "rect",
+            "width": 40.0,
+            "height": 20.0,
+            "corner_radius": 0.0
+           },
+           "transform": {
+            "x": 20.0,
+            "y": -10.0,
+            "scale_x": 1.0,
+            "scale_y": 1.0,
+            "rotation": 0.0
+           },
+           "fill": {
+            "r": 120,
+            "g": 200,
+            "b": 120,
+            "a": 255
+           },
+           "bone": "72c27a15-21ee-4162-8b36-09aadd2dc016"
+          }
+         ]
+        },
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {}
+       ]
+      }
+     ]
+    },
+    "skeleton": {
+     "bones": [
+      {
+       "id": "f38c45ed-3348-4ae3-b2a4-b4a338e6b0b9",
+       "name": "Torso",
+       "parent": null,
+       "x": 0.0,
+       "y": 0.0,
+       "length": 30.0,
+       "rotation": 0.0
+      },
+      {
+       "id": "d726cd29-f58e-4a29-a774-8f287cbfd980",
+       "name": "Oberarm",
+       "parent": "f38c45ed-3348-4ae3-b2a4-b4a338e6b0b9",
+       "x": 30.0,
+       "y": 0.0,
+       "length": 40.0,
+       "rotation": 0.0
+      },
+      {
+       "id": "72c27a15-21ee-4162-8b36-09aadd2dc016",
+       "name": "Unterarm",
+       "parent": "d726cd29-f58e-4a29-a774-8f287cbfd980",
+       "x": 40.0,
+       "y": 0.0,
+       "length": 40.0,
+       "rotation": 0.0
+      }
+     ]
+    },
+    "bone_clips": [
+     {
+      "name": "Schwung",
+      "frames": 24,
+      "looping": true,
+      "tracks": [
+       {
+        "bone": "d726cd29-f58e-4a29-a774-8f287cbfd980",
+        "keys": [
+         {
+          "frame": 0,
+          "rotation": 0.0
+         },
+         {
+          "frame": 12,
+          "rotation": -70.0
+         },
+         {
+          "frame": 24,
+          "rotation": 0.0
+         }
+        ]
+       },
+       {
+        "bone": "72c27a15-21ee-4162-8b36-09aadd2dc016",
+        "keys": [
+         {
+          "frame": 0,
+          "rotation": 20.0
+         },
+         {
+          "frame": 12,
+          "rotation": 60.0
+         },
+         {
+          "frame": 24,
+          "rotation": 20.0
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "name": "Greifen",
+      "frames": 24,
+      "looping": true,
+      "tracks": [
+       {
+        "bone": "72c27a15-21ee-4162-8b36-09aadd2dc016",
+        "ik": [
+         {
+          "frame": 0,
+          "x": 80.0,
+          "y": 30.0
+         },
+         {
+          "frame": 12,
+          "x": 60.0,
+          "y": -50.0
+         },
+         {
+          "frame": 24,
+          "x": 80.0,
+          "y": 30.0
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "active_clip": "Schwung"
+   }
+  ],
+  "assets": [],
+  "tilesets": [],
+  "scripts": [
+   {
+    "id": "29b057c9-885d-488f-8e9c-9660ac4e8fc4",
+    "name": "Main.as",
+    "path": "scripts/Main.as",
+    "source": "package {\n    import flash.display.MovieClip;\n    import flash.display.Sprite;\n    import flash.events.Event;\n\n    public dynamic class Main extends MovieClip {\n        private var frame:int = 0;\n        private var hero:Sprite;\n\n        public function Main() {\n            addEventListener(\"enterFrame\", onTick);\n        }\n\n        private function onTick(e:Event):void {\n            frame++;\n            if (hero == null && numChildren > 0) {\n                hero = getChildAt(numChildren - 1) as Sprite;\n            }\n            var probe:Boolean = (frame == 2 || frame == 8 || frame == 14 || frame == 20);\n            if (probe) {\n                if (hero != null) {\n                var upper = hero.getChildByName(\"OberarmSegment\");\n                var fore = hero.getChildByName(\"UnterarmSegment\");\n                var torso = hero.getChildByName(\"TorsoSegment\");\n                trace(\"M15 f\" + frame\n                    + \" torso=\" + torso.x.toFixed(1) + \",\" + torso.y.toFixed(1) + \":\" + torso.rotation.toFixed(1)\n                    + \" upper=\" + upper.x.toFixed(1) + \",\" + upper.y.toFixed(1) + \":\" + upper.rotation.toFixed(1)\n                    + \" fore=\" + fore.x.toFixed(1) + \",\" + fore.y.toFixed(1) + \":\" + fore.rotation.toFixed(1));\n                }\n            }\n            if (frame == 21) {\n                trace(\"M15DONE\");\n            }\n        }\n    }\n}\n",
+    "provenance": "original_source"
+   }
+  ],
+  "export": {
+   "target": "avm2",
+   "swfVersion": 13,
+   "compression": "zlib",
+   "includeScripts": true,
+   "exportAllScenes": false
+  },
+  "activeScene": "b4ed18cf-4ebc-420b-b427-c15d10f72f13"
+ }
+}

@@ -30,6 +30,11 @@ is claimed from documentation alone.
   alpha/color), motion paths, frame labels, playhead control, onion-skin
   style previews, audio sync markers.
 - SWF export bakes keyframes to PlaceObject/DefineSprite timelines.
+- Shape tweens (rect/ellipse/path vertex interpolation + easing) baked
+  per frame — deterministic, no MorphShape tags (M9).
+- **M15**: skeletal animation — bone hierarchies, FK clips, two-bone IK,
+  rigid part binding, per-frame baked matrices in the exported sprite,
+  editor skeleton panel, AI bone ops. No mesh skinning/weight painting.
 
 ## 4. Scenes & MovieClips — ✅
 

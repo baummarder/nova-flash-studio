@@ -169,7 +169,14 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
     let scene = project
         .edit_scene(state.edit_symbol)
         .expect("scene checked above");
-    let mut objects = nova_core::resolve_scene(scene, state.frame);
+    // Rigged symbol timelines resolve through the skeleton pose so bound
+    // parts follow their bones while scrubbing the timeline.
+    let mut objects = match state.edit_symbol.and_then(|id| project.symbol(id)) {
+        Some(symbol) if symbol.skeleton.is_some() => {
+            nova_core::resolve_symbol_frame(symbol, state.frame)
+        }
+        _ => nova_core::resolve_scene(scene, state.frame),
+    };
 
     // Game preview: simulated body positions replace authored transforms.
     if let Some(preview) = &state.game_preview {

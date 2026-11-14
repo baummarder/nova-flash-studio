@@ -2202,6 +2202,9 @@ fn symbol_properties(
         state.dirty = true;
     }
 
+    // --- Skelett (M15) -------------------------------------------------
+    bone_properties(ui, project, state, id);
+
     ui.add_space(6.0);
     ui.horizontal(|ui| {
         if ui
@@ -2237,6 +2240,179 @@ fn symbol_properties(
         .small()
         .color(theme::TEXT_FAINT),
     );
+}
+
+/// Compact skeleton editor for library symbols (M15): bone list with
+/// parent/offset/rotation, clip selector and clip creation. Binding of
+/// timeline objects to bones happens via the AI operations or by editing
+/// the `.nova` file; full weight painting is intentionally not implemented.
+fn bone_properties(ui: &mut Ui, project: &mut Project, state: &mut AppState, id: Uuid) {
+    let Some(symbol) = project.symbols.iter_mut().find(|s| s.id == id) else {
+        return;
+    };
+    theme::section(ui, "Skelett");
+    if symbol.skeleton.is_none() {
+        if ui.button("Skelett anlegen").clicked() {
+            symbol.skeleton = Some(nova_core::Skeleton::default());
+            project.touch();
+            state.dirty = true;
+        }
+        ui.label(
+            RichText::new("Knochenhierarchie für starre Teile-Bindung (FK/IK-Clips).")
+                .small()
+                .color(theme::TEXT_FAINT),
+        );
+        return;
+    }
+    let skeleton = symbol.skeleton.as_mut().unwrap();
+    // Precomputed parent candidates (index, id, name) — the bone list itself
+    // is borrowed mutably while editing, so candidates must be collected
+    // up-front.
+    let parent_options: Vec<(usize, Uuid, String)> = skeleton
+        .bones
+        .iter()
+        .enumerate()
+        .map(|(i, b)| (i, b.id, b.name.clone()))
+        .collect();
+    let mut bones_changed = false;
+    let mut remove_index: Option<usize> = None;
+    for (index, bone) in skeleton.bones.iter_mut().enumerate() {
+        egui::CollapsingHeader::new(format!("{} ({})", bone.name, index + 1))
+            .id_salt(("bone", index))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Name");
+                    bones_changed |= ui.text_edit_singleline(&mut bone.name).changed();
+                    if ui.small_button("Löschen").clicked() {
+                        remove_index = Some(index);
+                    }
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Elternknochen");
+                    egui::ComboBox::from_id_salt(("bone_parent", index))
+                        .selected_text(
+                            parent_options
+                                .iter()
+                                .find(|(_, id, _)| Some(*id) == bone.parent)
+                                .map(|(_, _, n)| n.clone())
+                                .unwrap_or_else(|| "—".into()),
+                        )
+                        .show_ui(ui, |ui| {
+                            if ui.selectable_label(bone.parent.is_none(), "—").clicked() {
+                                bone.parent = None;
+                                bones_changed = true;
+                            }
+                            for (bi, pid, pname) in &parent_options {
+                                if *bi == index {
+                                    continue;
+                                }
+                                if ui
+                                    .selectable_label(bone.parent == Some(*pid), pname)
+                                    .clicked()
+                                {
+                                    bone.parent = Some(*pid);
+                                    bones_changed = true;
+                                }
+                            }
+                        });
+                });
+                egui::Grid::new(("bone_grid", index))
+                    .num_columns(2)
+                    .show(ui, |ui| {
+                        for (label, value, range, speed) in [
+                            ("X", &mut bone.x, -8192.0..=8192.0, 1.0),
+                            ("Y", &mut bone.y, -8192.0..=8192.0, 1.0),
+                            ("Länge", &mut bone.length, 0.0..=8192.0, 1.0),
+                            ("Rotation", &mut bone.rotation, -3600.0..=3600.0, 1.0),
+                        ] {
+                            ui.label(label);
+                            bones_changed |= ui
+                                .add(egui::DragValue::new(value).range(range).speed(speed))
+                                .changed();
+                            ui.end_row();
+                        }
+                    });
+            });
+    }
+    if let Some(index) = remove_index {
+        let removed = skeleton.bones.remove(index);
+        for bone in &mut skeleton.bones {
+            if bone.parent == Some(removed.id) {
+                bone.parent = removed.parent;
+            }
+        }
+        for clip in &mut symbol.bone_clips {
+            clip.tracks.retain(|t| t.bone != removed.id);
+        }
+        bones_changed = true;
+    }
+
+    ui.horizontal(|ui| {
+        if ui.button("Knochen hinzufügen").clicked() {
+            let name = format!("Knochen {}", skeleton.bones.len() + 1);
+            skeleton
+                .bones
+                .push(nova_core::Bone::new(name, 0.0, 0.0, 40.0));
+            bones_changed = true;
+        }
+        ui.label(
+            RichText::new(format!("{} Knochen", skeleton.bones.len()))
+                .small()
+                .color(theme::TEXT_FAINT),
+        );
+    });
+
+    // Clips
+    theme::section(ui, "Bone-Clips");
+    let clip_names: Vec<String> = symbol.bone_clips.iter().map(|c| c.name.clone()).collect();
+    let mut clip_changed = false;
+    egui::Grid::new("clip_grid").num_columns(2).show(ui, |ui| {
+        ui.label("Aktiver Clip");
+        let current = symbol.active_clip.clone().unwrap_or_default();
+        egui::ComboBox::from_id_salt("active_clip")
+            .selected_text(if current.is_empty() {
+                "Ruhepose"
+            } else {
+                &current
+            })
+            .show_ui(ui, |ui| {
+                if ui
+                    .selectable_label(current.is_empty(), "Ruhepose")
+                    .clicked()
+                {
+                    symbol.active_clip = None;
+                    clip_changed = true;
+                }
+                for name in &clip_names {
+                    if ui
+                        .selectable_label(symbol.active_clip.as_deref() == Some(name), name)
+                        .clicked()
+                    {
+                        symbol.active_clip = Some(name.clone());
+                        clip_changed = true;
+                    }
+                }
+            });
+        ui.end_row();
+    });
+    ui.horizontal(|ui| {
+        let mut new_clip = String::new();
+        ui.add(egui::TextEdit::singleline(&mut new_clip).hint_text("Neuer Clip"));
+        if ui.button("Clip anlegen").clicked() && !new_clip.trim().is_empty() {
+            let name = new_clip.trim().to_string();
+            if !symbol.bone_clips.iter().any(|c| c.name == name) {
+                symbol
+                    .bone_clips
+                    .push(nova_core::BoneClip::new(name.clone(), 24));
+                symbol.active_clip = Some(name);
+                clip_changed = true;
+            }
+        }
+    });
+    if bones_changed || clip_changed {
+        project.touch();
+        state.dirty = true;
+    }
 }
 
 fn asset_properties(

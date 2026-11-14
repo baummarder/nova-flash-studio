@@ -548,6 +548,54 @@ pub enum ProjectOperation {
         name: Option<String>,
         path: String,
     },
+    /// Adds a bone to a library symbol's skeleton (created when missing).
+    AddBone {
+        symbol: String,
+        name: String,
+        x: f32,
+        y: f32,
+        length: f32,
+        #[serde(default)]
+        parent: Option<String>,
+        #[serde(default)]
+        rotation: Option<f32>,
+    },
+    /// Sets or clears the parent of a bone inside a symbol skeleton.
+    SetBoneParent {
+        symbol: String,
+        bone: String,
+        #[serde(default)]
+        parent: Option<String>,
+    },
+    /// Adds a bone animation clip (created when missing) to a symbol.
+    AddBoneClip {
+        symbol: String,
+        name: String,
+        #[serde(default)]
+        frames: Option<u32>,
+        #[serde(default)]
+        looping: Option<bool>,
+    },
+    /// Adds or replaces an FK rotation key on a bone track.
+    AddBoneKey {
+        symbol: String,
+        clip: String,
+        bone: String,
+        frame: u32,
+        rotation: f32,
+    },
+    /// Binds an object inside a symbol timeline to a bone.
+    BindObjectToBone {
+        symbol: String,
+        object: String,
+        bone: String,
+    },
+    /// Selects the bone clip baked into exports/preview for a symbol.
+    SetSymbolClip {
+        symbol: String,
+        #[serde(default)]
+        clip: Option<String>,
+    },
     /// Builds a small playable level in one transaction: scene (created when
     /// missing), world bounds + spawn, tileset, tilemap with painted strokes,
     /// placed game objects and camera follow.
@@ -1692,6 +1740,262 @@ fn apply_one(
             project.touch();
             Ok(format!(
                 "Spielkonfiguration für Szene '{scene_name}' gesetzt"
+            ))
+        }
+        ProjectOperation::AddBone {
+            symbol,
+            name,
+            x,
+            y,
+            length,
+            parent,
+            rotation,
+        } => {
+            check_size(*length, 1.0, "Knochen")?;
+            if !x.is_finite() || !y.is_finite() {
+                return Err(OperationError::invalid(
+                    "Knochenposition muss endlich sein.",
+                ));
+            }
+            let symbol = symbol_mut(project, symbol)?;
+            let symbol_name = symbol.name.clone();
+            let skeleton = symbol
+                .skeleton
+                .get_or_insert_with(nova_core::Skeleton::default);
+            if skeleton.bones.iter().any(|b| b.name == name.trim()) {
+                return Err(OperationError::invalid(format!(
+                    "Knochen '{name}' existiert im Symbol '{symbol_name}' bereits.",
+                    symbol_name = symbol.name
+                )));
+            }
+            let mut bone = nova_core::Bone::new(name.trim(), *x, *y, *length);
+            if let Some(rot) = rotation {
+                if !rot.is_finite() {
+                    return Err(OperationError::invalid(
+                        "Knochenrotation muss endlich sein.",
+                    ));
+                }
+                bone.rotation = *rot;
+            }
+            if let Some(parent_name) = parent.as_deref().map(str::trim).filter(|p| !p.is_empty()) {
+                let parent_id = skeleton
+                    .bones
+                    .iter()
+                    .find(|b| b.name == parent_name)
+                    .map(|b| b.id)
+                    .ok_or_else(|| {
+                        OperationError::invalid(format!(
+                            "Elternknochen '{parent_name}' existiert nicht."
+                        ))
+                    })?;
+                bone.parent = Some(parent_id);
+            }
+            let bone_name = bone.name.clone();
+            skeleton.bones.push(bone);
+            project.touch();
+            Ok(format!(
+                "Knochen '{bone_name}' zum Skelett von Symbol '{symbol_name}' hinzugefügt"
+            ))
+        }
+        ProjectOperation::SetBoneParent {
+            symbol,
+            bone,
+            parent,
+        } => {
+            let symbol = symbol_mut(project, symbol)?;
+            let symbol_name = symbol.name.clone();
+            let skeleton = symbol
+                .skeleton
+                .as_mut()
+                .ok_or_else(|| OperationError::invalid("Das Symbol hat kein Skelett."))?;
+            let bone_id = skeleton
+                .bones
+                .iter()
+                .find(|b| b.name == bone.trim())
+                .map(|b| b.id)
+                .ok_or_else(|| {
+                    OperationError::invalid(format!("Knochen '{bone}' existiert nicht."))
+                })?;
+            let parent_id = match parent.as_deref().map(str::trim).filter(|p| !p.is_empty()) {
+                Some(parent_name) => Some(
+                    skeleton
+                        .bones
+                        .iter()
+                        .find(|b| b.name == parent_name)
+                        .map(|b| b.id)
+                        .ok_or_else(|| {
+                            OperationError::invalid(format!(
+                                "Elternknochen '{parent_name}' existiert nicht."
+                            ))
+                        })?,
+                ),
+                None => None,
+            };
+            if parent_id == Some(bone_id) {
+                return Err(OperationError::invalid(
+                    "Ein Knochen kann nicht sein eigener Elternteil sein.",
+                ));
+            }
+            if let Some(pid) = parent_id {
+                // Cycle check: parent must not descend from this bone.
+                let mut cursor = Some(pid);
+                while let Some(id) = cursor {
+                    if id == bone_id {
+                        return Err(OperationError::invalid(
+                            "Knochenhierarchie würde einen Zyklus erzeugen.",
+                        ));
+                    }
+                    cursor = skeleton
+                        .bones
+                        .iter()
+                        .find(|b| b.id == id)
+                        .and_then(|b| b.parent);
+                }
+            }
+            let target = skeleton.bones.iter_mut().find(|b| b.id == bone_id).unwrap();
+            target.parent = parent_id;
+            project.touch();
+            Ok(format!(
+                "Elternknochen von '{bone}' in Symbol '{symbol_name}' aktualisiert"
+            ))
+        }
+        ProjectOperation::AddBoneClip {
+            symbol,
+            name,
+            frames,
+            looping,
+        } => {
+            let symbol = symbol_mut(project, symbol)?;
+            let symbol_name = symbol.name.clone();
+            let clip_name = name.trim();
+            if clip_name.is_empty() || clip_name.chars().count() > 80 {
+                return Err(OperationError::invalid("Clip-Name ist leer oder zu lang."));
+            }
+            let clip = match symbol.bone_clips.iter_mut().find(|c| c.name == clip_name) {
+                Some(existing) => existing,
+                None => {
+                    symbol
+                        .bone_clips
+                        .push(nova_core::BoneClip::new(clip_name, frames.unwrap_or(24)));
+                    symbol.bone_clips.last_mut().unwrap()
+                }
+            };
+            if let Some(f) = frames {
+                clip.frames = (*f).max(1);
+            }
+            if let Some(l) = looping {
+                clip.looping = *l;
+            }
+            // Keep the authored timeline at least as long as the clip so the
+            // editor and the exporter bake every clip frame.
+            symbol.timeline.ensure_frame_count(clip.frames as usize);
+            project.touch();
+            Ok(format!(
+                "Bone-Clip '{clip_name}' in Symbol '{symbol_name}' angelegt"
+            ))
+        }
+        ProjectOperation::AddBoneKey {
+            symbol,
+            clip,
+            bone,
+            frame,
+            rotation,
+        } => {
+            if !rotation.is_finite() {
+                return Err(OperationError::invalid(
+                    "Knochenrotation muss endlich sein.",
+                ));
+            }
+            let symbol = symbol_mut(project, symbol)?;
+            let symbol_name = symbol.name.clone();
+            let clip_ref = symbol
+                .bone_clips
+                .iter_mut()
+                .find(|c| c.name == clip.trim())
+                .ok_or_else(|| {
+                    OperationError::invalid(format!("Clip '{clip}' existiert nicht."))
+                })?;
+            let skeleton = symbol
+                .skeleton
+                .as_ref()
+                .ok_or_else(|| OperationError::invalid("Das Symbol hat kein Skelett."))?;
+            let bone_id = skeleton
+                .bones
+                .iter()
+                .find(|b| b.name == bone.trim())
+                .map(|b| b.id)
+                .ok_or_else(|| {
+                    OperationError::invalid(format!("Knochen '{bone}' existiert nicht."))
+                })?;
+            let track = match clip_ref.tracks.iter_mut().find(|t| t.bone == bone_id) {
+                Some(t) => t,
+                None => {
+                    clip_ref.tracks.push(nova_core::BoneTrack {
+                        bone: bone_id,
+                        keys: Vec::new(),
+                        ik: Vec::new(),
+                    });
+                    clip_ref.tracks.last_mut().unwrap()
+                }
+            };
+            match track.keys.iter_mut().find(|k| k.frame == *frame) {
+                Some(k) => k.rotation = *rotation,
+                None => {
+                    track.keys.push(nova_core::BoneKey {
+                        frame: *frame,
+                        rotation: *rotation,
+                    });
+                    track.keys.sort_by_key(|k| k.frame);
+                }
+            }
+            project.touch();
+            Ok(format!(
+                "FK-Key Frame {frame} für Knochen '{bone}' in Clip '{clip}' (Symbol '{symbol_name}') gesetzt"
+            ))
+        }
+        ProjectOperation::BindObjectToBone {
+            symbol,
+            object,
+            bone,
+        } => {
+            let symbol = symbol_mut(project, symbol)?;
+            let symbol_name = symbol.name.clone();
+            let skeleton = symbol
+                .skeleton
+                .as_ref()
+                .ok_or_else(|| OperationError::invalid("Das Symbol hat kein Skelett."))?;
+            let bone_id = skeleton
+                .bones
+                .iter()
+                .find(|b| b.name == bone.trim())
+                .map(|b| b.id)
+                .ok_or_else(|| {
+                    OperationError::invalid(format!("Knochen '{bone}' existiert nicht."))
+                })?;
+            let target = find_object_mut_in_scene(&mut symbol.timeline, object)?;
+            target.bone = Some(bone_id);
+            project.touch();
+            Ok(format!(
+                "Objekt '{object}' in Symbol '{symbol_name}' an Knochen '{bone}' gebunden"
+            ))
+        }
+        ProjectOperation::SetSymbolClip { symbol, clip } => {
+            let symbol = symbol_mut(project, symbol)?;
+            let symbol_name = symbol.name.clone();
+            match clip.as_deref().map(str::trim).filter(|c| !c.is_empty()) {
+                Some(name) => {
+                    if !symbol.bone_clips.iter().any(|c| c.name == name) {
+                        return Err(OperationError::invalid(format!(
+                            "Clip '{name}' existiert nicht; lege ihn mit add_bone_clip an."
+                        )));
+                    }
+                    symbol.active_clip = Some(name.to_string());
+                }
+                None => symbol.active_clip = None,
+            }
+            project.touch();
+            Ok(format!(
+                "Aktiver Bone-Clip von Symbol '{symbol_name}' aktualisiert"
             ))
         }
         ProjectOperation::InstallGameKit => {
@@ -3018,6 +3322,41 @@ fn timeline_mut<'a>(
     scene_mut(project, scene)
 }
 
+/// Resolves a library symbol by name for skeleton operations.
+fn symbol_mut<'a>(project: &'a mut Project, name: &str) -> Result<&'a mut Symbol, OperationError> {
+    let needle = name.trim();
+    project
+        .symbols
+        .iter_mut()
+        .find(|candidate| candidate.name == needle)
+        .ok_or_else(|| OperationError::invalid(format!("Symbol '{needle}' existiert nicht.")))
+}
+
+/// Finds the single object named `needle` inside a (symbol) timeline and
+/// returns a mutable reference to it.
+fn find_object_mut_in_scene<'a>(
+    scene: &'a mut nova_core::Scene,
+    needle: &str,
+) -> Result<&'a mut ObjectInstance, OperationError> {
+    let name = needle.trim();
+    let mut found: Option<&mut ObjectInstance> = None;
+    for layer in &mut scene.layers {
+        for frame in &mut layer.frames {
+            for object in &mut frame.objects {
+                if object.name == name {
+                    if found.is_some() {
+                        return Err(OperationError::invalid(format!(
+                            "Objektname '{name}' ist nicht eindeutig."
+                        )));
+                    }
+                    found = Some(object);
+                }
+            }
+        }
+    }
+    found.ok_or_else(|| OperationError::invalid(format!("Objekt '{name}' existiert nicht.")))
+}
+
 fn scene_mut<'a>(
     project: &'a mut Project,
     selector: Option<&str>,
@@ -4225,5 +4564,76 @@ mod tests {
         }
         assert_eq!(map.layers[0].cells[0], 0, "source cleared");
         project.validate().expect("project valid");
+    }
+
+    #[test]
+    fn bone_operations_build_a_working_rig() {
+        let mut project = Project::new_empty("Rig-Test");
+        let symbol_id = project.add_symbol("Char", nova_core::SymbolKind::MovieClip);
+        let ops = vec![
+            ProjectOperation::AddBone {
+                symbol: "Char".into(),
+                name: "Root".into(),
+                x: 0.0,
+                y: 0.0,
+                length: 30.0,
+                parent: None,
+                rotation: None,
+            },
+            ProjectOperation::AddBone {
+                symbol: "Char".into(),
+                name: "Arm".into(),
+                x: 30.0,
+                y: 0.0,
+                length: 40.0,
+                parent: Some("Root".into()),
+                rotation: Some(0.0),
+            },
+            ProjectOperation::AddBoneClip {
+                symbol: "Char".into(),
+                name: "Wave".into(),
+                frames: Some(12),
+                looping: Some(true),
+            },
+            ProjectOperation::AddBoneKey {
+                symbol: "Char".into(),
+                clip: "Wave".into(),
+                bone: "Arm".into(),
+                frame: 0,
+                rotation: 0.0,
+            },
+            ProjectOperation::AddBoneKey {
+                symbol: "Char".into(),
+                clip: "Wave".into(),
+                bone: "Arm".into(),
+                frame: 12,
+                rotation: -90.0,
+            },
+            ProjectOperation::SetSymbolClip {
+                symbol: "Char".into(),
+                clip: Some("Wave".into()),
+            },
+        ];
+        let summaries = apply_operations(&mut project, &ops).expect("ops apply");
+        assert_eq!(summaries.len(), 6);
+        let symbol = project.symbol(symbol_id).unwrap();
+        assert_eq!(symbol.skeleton.as_ref().unwrap().bones.len(), 2);
+        assert_eq!(symbol.bone_clips[0].tracks[0].keys.len(), 2);
+        assert_eq!(symbol.active_clip.as_deref(), Some("Wave"));
+        // The clip ensured the timeline is at least 12 frames long.
+        assert!(symbol.timeline.frame_count() >= 12);
+        // Root -> Arm -> Root would create a cycle and must be rejected.
+        let bad = vec![ProjectOperation::SetBoneParent {
+            symbol: "Char".into(),
+            bone: "Root".into(),
+            parent: Some("Arm".into()),
+        }];
+        assert!(apply_operations(&mut project, &bad).is_err());
+        // Unknown clip for set_symbol_clip must fail cleanly.
+        let bad_clip = vec![ProjectOperation::SetSymbolClip {
+            symbol: "Char".into(),
+            clip: Some("Missing".into()),
+        }];
+        assert!(apply_operations(&mut project, &bad_clip).is_err());
     }
 }

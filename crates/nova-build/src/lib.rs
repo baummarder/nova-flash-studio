@@ -1058,7 +1058,16 @@ impl CharacterTables {
                 symbol.name
             ));
         }
-        let frame_count = symbol.frame_count().max(1);
+        // M15: a rigged symbol's sprite length covers the active bone clip
+        // even when the authored timeline is shorter — held frames resolve
+        // the last keyframe and the skeleton supplies the motion.
+        let clip_frames = symbol
+            .active_clip
+            .as_deref()
+            .and_then(|name| symbol.bone_clips.iter().find(|c| c.name == name))
+            .map(|clip| clip.frames as usize)
+            .unwrap_or(0);
+        let frame_count = symbol.frame_count().max(1).max(clip_frames);
         let mut tags = Vec::new();
         let mut previous_depths = 0usize;
         let mut warned_timeline_sound = false;
@@ -1114,9 +1123,10 @@ impl CharacterTables {
                     }
                 }
             }
-            let objects = resolve_scene(&symbol.timeline, frame_index);
+            let objects = nova_core::resolve_symbol_frame(symbol, frame_index);
             let mut next_depth: u16 = 1;
             let mut layer_depths: HashMap<usize, u16> = HashMap::new();
+            let mut used_names: HashMap<String, u32> = HashMap::new();
             for object in &objects {
                 let Some(character) =
                     self.character_for(project, &object.instance, movie, warnings, stats)?
@@ -1135,7 +1145,13 @@ impl CharacterTables {
                     transform.x,
                     transform.y,
                 );
-                let mut place = PlaceObject::new(depth).character(character).matrix(matrix);
+                // M15: named instances inside symbols (stable across frames)
+                // so scripts can reach rigged parts via getChildByName.
+                let name = unique_name(&object.instance.name, depth, &mut used_names);
+                let mut place = PlaceObject::new(depth)
+                    .character(character)
+                    .matrix(matrix)
+                    .named(name);
                 if object.layer_kind == LayerKind::Mask {
                     let target = object
                         .layer_index

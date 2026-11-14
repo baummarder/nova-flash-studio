@@ -551,7 +551,10 @@ crates/nova-core/src/
   model/project.rs      Project, metadata, scripts, assets, export config, save/load
   model/scene.rs        Scene, Layer, layer kinds, frame count
   model/timeline.rs     Frame, Tween, Easing, resolve_scene
-  model/object.rs       ObjectInstance, ObjectKind, Symbol
+  model/object.rs       ObjectInstance, ObjectKind, Symbol (incl. skeleton,
+                        bone_clips, active_clip)
+  model/bones.rs        M15 rig model: Bone/Skeleton/BoneClip/BoneTrack,
+                        FK+IK pose evaluation, bind_transform, two-bone IK
   model/transform.rs    center-origin transform + matrix/lerp
   model/color.rs        RGBA, hex, lerp
   model/game.rs         game metadata (collision, physics, camera, input,

@@ -399,6 +399,12 @@ Unterstützte Projektoperationen (nur diese, jeweils mit "op"):
 - {"op":"place_bitmap","asset":"Hintergrund","name":"BG","x":275,"y":200,"scene":"optional","symbol":"optional","layer":"optional"}
 - {"op":"place_sound_cue","asset":"Musik","frame":1,"scene":"optional","symbol":"optional","layer":"optional","event":true}
 - {"op":"add_script","path":"scripts/Neu.as","source":"vollständiger ActionScript-3-Quelltext"}
+- {"op":"add_bone","symbol":"Held","name":"Oberarm","x":0,"y":0,"length":40,"parent":"optional Knochenname","rotation":0}
+- {"op":"set_bone_parent","symbol":"Held","bone":"Unterarm","parent":"Oberarm"}
+- {"op":"add_bone_clip","symbol":"Held","name":"Schwung","frames":24,"looping":true}
+- {"op":"add_bone_key","symbol":"Held","clip":"Schwung","bone":"Oberarm","frame":0,"rotation":0}
+- {"op":"bind_object_to_bone","symbol":"Held","object":"ArmSegment","bone":"Oberarm"}
+- {"op":"set_symbol_clip","symbol":"Held","clip":"Schwung"}
 Szene und Symbol-Timeline werden über Namen ausgewählt; "symbol" zielt auf eine Bibliotheks-Timeline, "scene" auf eine Szene, ohne Auswahl gilt die aktive Szene. Asset-Pfade sind relativ zum Projektordner (png/jpg/jpeg/gif, wav/mp3). Neue Skripte müssen unter scripts/ liegen und auf .as enden. Neue Skripte müssen unter scripts/ liegen und auf .as enden. Keine Lösch-, Umbenennungs- oder Überschreiboperationen für bestehende Inhalte erfinden. Die Operationen werden erst nach ausdrücklicher Bestätigung transaktional angewendet."##;
 
 #[derive(Debug, Clone, PartialEq)]

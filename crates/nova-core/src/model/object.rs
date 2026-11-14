@@ -184,6 +184,11 @@ pub struct ObjectInstance {
     /// `.nova` but not reproduced by the SWF exporter.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub particles: Option<crate::model::ParticleEmitter>,
+    /// Optional bone binding (format v4): when set inside a rigged symbol
+    /// timeline, the object's transform is composed with the bone's world
+    /// pose (`crate::model::bind_transform`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bone: Option<Uuid>,
 }
 
 impl ObjectInstance {
@@ -203,6 +208,7 @@ impl ObjectInstance {
             source_character: None,
             game: None,
             particles: None,
+            bone: None,
         }
     }
 
@@ -342,6 +348,15 @@ pub struct Symbol {
     pub corner_radius: f32,
     #[serde(default = "default_symbol_timeline")]
     pub timeline: Scene,
+    /// Optional bone hierarchy for skeletal animation (format v4).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub skeleton: Option<crate::model::Skeleton>,
+    /// Named skeletal animation clips evaluated over the symbol timeline.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub bone_clips: Vec<crate::model::BoneClip>,
+    /// Clip baked into exports/preview when set; `None` = rest pose.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub active_clip: Option<String>,
 }
 
 impl Symbol {
@@ -385,6 +400,9 @@ impl Symbol {
             fill,
             corner_radius: 0.0,
             timeline,
+            skeleton: None,
+            bone_clips: Vec::new(),
+            active_clip: None,
         }
     }
 
