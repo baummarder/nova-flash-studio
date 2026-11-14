@@ -74,3 +74,27 @@ contributed to the change.
    mention the participation in the commit body and tell the user a verified
    GitHub identity is missing — do NOT invent one.
 4. If unsure whether an identity is valid, omit the trailer and ask.
+
+## Local commit permissions
+
+Devin MAY create local git commits autonomously once a task is fully
+implemented.
+
+### Requirements before committing
+
+- Relevant tests and builds MUST have been run first.
+- `git status` and `git diff` MUST be reviewed before every commit.
+- Commit ONLY changes belonging to the current task; never sweep up
+  unrelated or pre-existing modifications.
+- Use meaningful commit messages.
+- If Devin actually contributed, use its verified co-author identity
+  (see Verified identities).
+- All existing rules for OpenCode, DeepSeek and other agents still apply.
+
+### Boundaries
+
+- Local commits are allowed.
+- `git push` still requires explicit user approval.
+- No releases or publishing without approval.
+- No history rewrites or force pushes.
+- On unexpected changes or unclear attribution, STOP and ask the user.
