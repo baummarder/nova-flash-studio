@@ -44,10 +44,41 @@ pub struct LineStyle {
     pub color: Color,
 }
 
+/// One gradient colour stop (SWF `GRADIENTRECORD`): `ratio` is the
+/// position 0..=255 along the ramp.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GradientRecord {
+    pub ratio: u8,
+    pub color: Color,
+}
+
+/// Fill styles supported by `DefineShape3`. Solid colours keep the
+/// original behaviour; gradients map to SWF fill types 0x10 (linear) and
+/// 0x12 (radial). Focal gradients (0x13) are not emitted.
+#[derive(Debug, Clone, PartialEq)]
+pub enum FillStyle {
+    Solid(Color),
+    /// Gradient-space to shape-space transform plus the colour ramp.
+    LinearGradient {
+        matrix: crate::types::Matrix,
+        records: Vec<GradientRecord>,
+    },
+    RadialGradient {
+        matrix: crate::types::Matrix,
+        records: Vec<GradientRecord>,
+    },
+}
+
+impl FillStyle {
+    pub fn solid(color: Color) -> Self {
+        Self::Solid(color)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Shape {
     pub bounds: Rect,
-    pub fills: Vec<Color>,
+    pub fills: Vec<FillStyle>,
     pub lines: Vec<LineStyle>,
     pub paths: Vec<ShapePath>,
 }
@@ -94,7 +125,7 @@ impl Shape {
         }
         Self {
             bounds: Rect::new(-hw, hw, -hh, hh),
-            fills: vec![fill],
+            fills: vec![FillStyle::Solid(fill)],
             lines: Vec::new(),
             paths: vec![ShapePath {
                 fill: Some(1),
@@ -134,7 +165,7 @@ impl Shape {
         }
         Self {
             bounds: Rect::centered(width_px, height_px),
-            fills: vec![fill],
+            fills: vec![FillStyle::Solid(fill)],
             lines: Vec::new(),
             paths: vec![ShapePath {
                 fill: Some(1),
@@ -240,7 +271,37 @@ impl Shape {
     }
 }
 
-fn write_fill_array(w: &mut BitWriter, fills: &[Color]) {
+fn write_u8_bits(w: &mut BitWriter, value: u8) {
+    w.write_bits(value as u32, 8);
+}
+
+fn write_color_bits(w: &mut BitWriter, color: Color) {
+    for byte in color.to_bytes() {
+        write_u8_bits(w, byte);
+    }
+}
+
+fn write_gradient(
+    w: &mut BitWriter,
+    fill_type: u8,
+    matrix: crate::types::Matrix,
+    records: &[GradientRecord],
+) {
+    w.write_bytes(&[fill_type]);
+    matrix.write(w);
+    // GRADIENT header: 4 pad bits + 4-bit (count-1), MSB first.
+    let count = records.len().min(16) as u32;
+    w.write_bits(0, 4);
+    w.write_bits(count.saturating_sub(1), 4);
+    for record in records.iter().take(16) {
+        write_u8_bits(w, record.ratio);
+        write_color_bits(w, record.color);
+    }
+    // Fill-style entries are byte structures; realign for the next entry.
+    w.align();
+}
+
+fn write_fill_array(w: &mut BitWriter, fills: &[FillStyle]) {
     if fills.len() >= 0xff {
         w.write_bytes(&[0xff]);
         w.write_bytes(&(fills.len() as u16).to_le_bytes());
@@ -248,9 +309,21 @@ fn write_fill_array(w: &mut BitWriter, fills: &[Color]) {
         w.write_bytes(&[fills.len() as u8]);
     }
     for fill in fills {
-        // FILLSTYLE: type 0x00 = solid, then RGBA.
-        w.write_bytes(&[0x00]);
-        w.write_bytes(&fill.to_bytes());
+        match fill {
+            FillStyle::Solid(color) => {
+                // FILLSTYLE: type 0x00 = solid, then RGBA.
+                w.write_bytes(&[0x00]);
+                w.write_bytes(&color.to_bytes());
+            }
+            FillStyle::LinearGradient { matrix, records } => {
+                // 0x10 = linear gradient.
+                write_gradient(w, 0x10, *matrix, records);
+            }
+            FillStyle::RadialGradient { matrix, records } => {
+                // 0x12 = radial gradient.
+                write_gradient(w, 0x12, *matrix, records);
+            }
+        }
     }
 }
 

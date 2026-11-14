@@ -10,8 +10,8 @@
 //! and has no network access.
 
 use nova_core::{
-    Asset, AssetKind, Easing, LayerKind, ObjectInstance, Project, Rgba, Script, SoundCue, Symbol,
-    SymbolKind, Tween,
+    Asset, AssetKind, Easing, LayerKind, ObjectInstance, ObjectKind, Project, Rgba, Script,
+    SoundCue, Symbol, SymbolKind, Tween,
 };
 use serde::{Deserialize, Serialize};
 
@@ -609,6 +609,69 @@ pub enum ProjectOperation {
         symbol: String,
         #[serde(default)]
         clip: Option<String>,
+    },
+    /// Duplicates a bone clip under a new name (M17 clip management).
+    DuplicateBoneClip {
+        symbol: String,
+        clip: String,
+        name: String,
+    },
+    /// Renames a bone clip; `active_clip` follows the rename.
+    RenameBoneClip {
+        symbol: String,
+        clip: String,
+        name: String,
+    },
+    /// Applies or updates a gradient fill on every path of a Path object.
+    /// Omitted fields keep their current values; `stops` replaces the ramp
+    /// with `[position, "#rrggbb"]` pairs.
+    SetPathGradient {
+        name: String,
+        #[serde(default)]
+        scene: Option<String>,
+        #[serde(default)]
+        symbol: Option<String>,
+        #[serde(default)]
+        kind: Option<nova_core::GradientKind>,
+        #[serde(default)]
+        angle: Option<f32>,
+        #[serde(default)]
+        center_x: Option<f32>,
+        #[serde(default)]
+        center_y: Option<f32>,
+        #[serde(default)]
+        radius: Option<f32>,
+        #[serde(default)]
+        stops: Option<Vec<(f32, String)>>,
+    },
+    /// Real polygon boolean operation between two Path objects. The
+    /// result replaces the target's paths; the `with` object is kept.
+    BooleanPathOperation {
+        target: String,
+        with: String,
+        operation: nova_core::BoolOp,
+        #[serde(default)]
+        scene: Option<String>,
+        #[serde(default)]
+        symbol: Option<String>,
+    },
+    /// Auto-binds every vertex of a Path object to its nearest bone
+    /// (weight 1.0) so the object becomes a skinned mesh.
+    BindMeshToSkeleton {
+        symbol: String,
+        object: String,
+    },
+    /// Sets one vertex weight and renormalizes the vertex. `path` selects
+    /// the sub-path index (default 0); `vertex` is the flat skinning-point
+    /// index (anchors + curve control points, see PathShape::skinning_points).
+    SetVertexWeight {
+        symbol: String,
+        object: String,
+        #[serde(default)]
+        path: Option<usize>,
+        vertex: usize,
+        bone: String,
+        weight: f32,
     },
     /// Builds a small playable level in one transaction: scene (created when
     /// missing), world bounds + spawn, tileset, tilemap with painted strokes,
@@ -2078,6 +2141,289 @@ fn apply_one(
             project.touch();
             Ok(format!(
                 "Aktiver Bone-Clip von Symbol '{symbol_name}' aktualisiert"
+            ))
+        }
+        ProjectOperation::DuplicateBoneClip { symbol, clip, name } => {
+            let new_name = name.trim();
+            if new_name.is_empty() || new_name.chars().count() > 80 {
+                return Err(OperationError::invalid(
+                    "Clipname muss 1 bis 80 Zeichen enthalten.",
+                ));
+            }
+            let symbol = symbol_mut(project, symbol)?;
+            let symbol_name = symbol.name.clone();
+            if symbol.bone_clips.iter().any(|c| c.name == new_name) {
+                return Err(OperationError::invalid(format!(
+                    "Clip '{new_name}' existiert bereits."
+                )));
+            }
+            let source = symbol
+                .bone_clips
+                .iter()
+                .find(|c| c.name == clip.trim())
+                .ok_or_else(|| {
+                    OperationError::invalid(format!("Clip '{}' existiert nicht.", clip.trim()))
+                })?
+                .clone();
+            let mut copy = source;
+            copy.name = new_name.to_string();
+            symbol.bone_clips.push(copy);
+            project.touch();
+            Ok(format!(
+                "Clip '{clip}' als '{new_name}' dupliziert (Symbol '{symbol_name}')"
+            ))
+        }
+        ProjectOperation::RenameBoneClip { symbol, clip, name } => {
+            let new_name = name.trim();
+            if new_name.is_empty() || new_name.chars().count() > 80 {
+                return Err(OperationError::invalid(
+                    "Clipname muss 1 bis 80 Zeichen enthalten.",
+                ));
+            }
+            let symbol = symbol_mut(project, symbol)?;
+            let symbol_name = symbol.name.clone();
+            if symbol.bone_clips.iter().any(|c| c.name == new_name) {
+                return Err(OperationError::invalid(format!(
+                    "Clip '{new_name}' existiert bereits."
+                )));
+            }
+            let clip_ref = symbol
+                .bone_clips
+                .iter_mut()
+                .find(|c| c.name == clip.trim())
+                .ok_or_else(|| {
+                    OperationError::invalid(format!("Clip '{}' existiert nicht.", clip.trim()))
+                })?;
+            let old = std::mem::replace(&mut clip_ref.name, new_name.to_string());
+            if symbol.active_clip.as_deref() == Some(old.as_str()) {
+                symbol.active_clip = Some(new_name.to_string());
+            }
+            project.touch();
+            Ok(format!(
+                "Clip '{old}' in '{new_name}' umbenannt (Symbol '{symbol_name}')"
+            ))
+        }
+        ProjectOperation::SetPathGradient {
+            name,
+            scene,
+            symbol,
+            kind,
+            angle,
+            center_x,
+            center_y,
+            radius,
+            stops,
+        } => {
+            let timeline = timeline_mut(project, scene.as_deref(), symbol.as_deref())?;
+            let object = find_object_mut_in_scene(timeline, name)?;
+            let ObjectKind::Path { paths, .. } = &mut object.kind else {
+                return Err(OperationError::invalid(format!(
+                    "Objekt '{name}' ist kein Pfadobjekt."
+                )));
+            };
+            let parsed_stops: Option<Vec<nova_core::GradientStop>> = stops
+                .as_ref()
+                .map(|list| {
+                    list.iter()
+                        .map(|(pos, color)| {
+                            Ok(nova_core::GradientStop {
+                                position: *pos,
+                                color: parse_color(color)?,
+                            })
+                        })
+                        .collect::<Result<Vec<_>, OperationError>>()
+                })
+                .transpose()?;
+            for path in paths.iter_mut() {
+                let existing = path.gradient.take();
+                let mut gradient = existing.unwrap_or_else(|| nova_core::Gradient {
+                    kind: nova_core::GradientKind::Linear,
+                    stops: vec![
+                        nova_core::GradientStop {
+                            position: 0.0,
+                            color: path.fill,
+                        },
+                        nova_core::GradientStop {
+                            position: 1.0,
+                            color: Rgba::WHITE,
+                        },
+                    ],
+                    angle: 0.0,
+                    center_x: 0.0,
+                    center_y: 0.0,
+                    radius: 50.0,
+                });
+                if let Some(k) = kind {
+                    gradient.kind = *k;
+                }
+                if let Some(a) = angle {
+                    if !a.is_finite() {
+                        return Err(OperationError::invalid("Gradientwinkel muss endlich sein."));
+                    }
+                    gradient.angle = *a;
+                }
+                for (field, value) in [
+                    (&mut gradient.center_x, center_x),
+                    (&mut gradient.center_y, center_y),
+                    (&mut gradient.radius, radius),
+                ] {
+                    if let Some(v) = value {
+                        if !v.is_finite() {
+                            return Err(OperationError::invalid(
+                                "Gradientwerte müssen endlich sein.",
+                            ));
+                        }
+                        *field = *v;
+                    }
+                }
+                if let Some(new_stops) = &parsed_stops {
+                    if new_stops.len() < 2 {
+                        return Err(OperationError::invalid(
+                            "Ein Gradient benötigt mindestens zwei Stops.",
+                        ));
+                    }
+                    for stop in new_stops {
+                        if !(0.0..=1.0).contains(&stop.position) {
+                            return Err(OperationError::invalid(
+                                "Stop-Positionen müssen zwischen 0 und 1 liegen.",
+                            ));
+                        }
+                    }
+                    gradient.stops = new_stops.clone();
+                }
+                gradient
+                    .stops
+                    .sort_by(|a, b| a.position.total_cmp(&b.position));
+                path.gradient = Some(gradient);
+            }
+            project.touch();
+            Ok(format!("Verlauf auf '{name}' angewendet"))
+        }
+        ProjectOperation::BooleanPathOperation {
+            target,
+            with,
+            operation,
+            scene,
+            symbol,
+        } => {
+            let timeline = timeline_mut(project, scene.as_deref(), symbol.as_deref())?;
+            let (clip_paths, clip_transform) = {
+                let other = find_object_mut_in_scene(timeline, with)?;
+                let ObjectKind::Path { paths, .. } = &other.kind else {
+                    return Err(OperationError::invalid(format!(
+                        "Objekt '{with}' ist kein Pfadobjekt."
+                    )));
+                };
+                (paths.clone(), other.transform)
+            };
+            let target_obj = find_object_mut_in_scene(timeline, target)?;
+            let ObjectKind::Path { paths, .. } = &mut target_obj.kind else {
+                return Err(OperationError::invalid(format!(
+                    "Objekt '{target}' ist kein Pfadobjekt."
+                )));
+            };
+            let target_transform = target_obj.transform;
+            *paths = nova_core::boolean_path_objects(
+                paths,
+                &target_transform,
+                &clip_paths,
+                &clip_transform,
+                *operation,
+            );
+            project.touch();
+            Ok(format!(
+                "Boolean-Operation '{}' auf '{target}' mit '{with}' angewendet",
+                operation.label()
+            ))
+        }
+        ProjectOperation::BindMeshToSkeleton { symbol, object } => {
+            let symbol = symbol_mut(project, symbol)?;
+            let symbol_name = symbol.name.clone();
+            let Some(skeleton) = symbol.skeleton.clone() else {
+                return Err(OperationError::invalid(
+                    "Das Symbol hat kein Skelett; lege Knochen mit add_bone an.",
+                ));
+            };
+            let target = find_object_mut_in_scene(&mut symbol.timeline, object)?;
+            let ObjectKind::Path { paths, .. } = &mut target.kind else {
+                return Err(OperationError::invalid(format!(
+                    "Objekt '{object}' ist kein Pfadobjekt."
+                )));
+            };
+            let transform = target.transform;
+            for path in paths.iter_mut() {
+                let points = path.skinning_points();
+                let weights = nova_core::auto_skin_weights(&skeleton, &transform, &points);
+                path.skin = Some(nova_core::SkinData { weights });
+            }
+            project.touch();
+            Ok(format!(
+                "Mesh-Bindung für '{object}' in Symbol '{symbol_name}' erstellt (nächster Knochen pro Vertex)"
+            ))
+        }
+        ProjectOperation::SetVertexWeight {
+            symbol,
+            object,
+            path,
+            vertex,
+            bone,
+            weight,
+        } => {
+            if !weight.is_finite() || *weight < 0.0 {
+                return Err(OperationError::invalid(
+                    "Gewicht muss eine nicht-negative endliche Zahl sein.",
+                ));
+            }
+            let symbol = symbol_mut(project, symbol)?;
+            let symbol_name = symbol.name.clone();
+            let Some(skeleton) = symbol.skeleton.as_ref() else {
+                return Err(OperationError::invalid("Das Symbol hat kein Skelett."));
+            };
+            let bone_id = skeleton
+                .bones
+                .iter()
+                .find(|b| b.name == bone.trim())
+                .map(|b| b.id)
+                .ok_or_else(|| {
+                    OperationError::invalid(format!("Knochen '{bone}' existiert nicht."))
+                })?;
+            let target = find_object_mut_in_scene(&mut symbol.timeline, object)?;
+            let ObjectKind::Path { paths, .. } = &mut target.kind else {
+                return Err(OperationError::invalid(format!(
+                    "Objekt '{object}' ist kein Pfadobjekt."
+                )));
+            };
+            let index = path.unwrap_or(0);
+            let path_ref = paths.get_mut(index).ok_or_else(|| {
+                OperationError::invalid(format!("Pfadindex {index} existiert nicht."))
+            })?;
+            let count = path_ref.skinning_points().len();
+            if *vertex >= count {
+                return Err(OperationError::invalid(format!(
+                    "Vertex {vertex} existiert nicht (Pfad hat {count} Punkte)."
+                )));
+            }
+            if path_ref.skin.is_none() {
+                path_ref.skin = Some(nova_core::SkinData {
+                    weights: vec![Vec::new(); count],
+                });
+            }
+            let skin = path_ref.skin.as_mut().unwrap();
+            if skin.weights.len() < count {
+                skin.weights.resize(count, Vec::new());
+            }
+            let vertex_weights = &mut skin.weights[*vertex];
+            vertex_weights.retain(|w| w.bone != bone_id);
+            if *weight > 0.0 {
+                vertex_weights.push(nova_core::SkinWeight {
+                    bone: bone_id,
+                    weight: *weight,
+                });
+            }
+            nova_core::normalize_weights(vertex_weights);
+            project.touch();
+            Ok(format!(
+                "Vertex-{vertex}-Gewicht für Knochen '{bone}' in '{object}' (Symbol '{symbol_name}') gesetzt"
             ))
         }
         ProjectOperation::InstallGameKit => {

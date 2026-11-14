@@ -29,13 +29,117 @@ pub enum PathCommand {
         x: f32,
         y: f32,
     },
+    /// Cubic Bézier segment with two control points (M17). SWF only stores
+    /// quadratic curves, so the exporter converts cubics to quadratic
+    /// chains; the editor and `.nova` format keep the exact cubic form.
+    CubicTo {
+        c1_x: f32,
+        c1_y: f32,
+        c2_x: f32,
+        c2_y: f32,
+        x: f32,
+        y: f32,
+    },
+}
+
+impl PathCommand {
+    /// Endpoint of the command in local coordinates (`MoveTo`/`LineTo`
+    /// return their point, curves return `x`/`y`).
+    pub fn end_point(&self) -> Option<(f32, f32)> {
+        match *self {
+            Self::MoveTo { x, y } | Self::LineTo { x, y } => Some((x, y)),
+            Self::CurveTo { x, y, .. } => Some((x, y)),
+            Self::CubicTo { x, y, .. } => Some((x, y)),
+        }
+    }
+
+    /// Number of weightable points this command contributes to a skinned
+    /// path: anchor + control points (MoveTo/LineTo = 1, CurveTo = 2,
+    /// CubicTo = 3). Skin weights are indexed in command order.
+    pub fn weight_points(&self) -> usize {
+        match self {
+            Self::MoveTo { .. } | Self::LineTo { .. } => 1,
+            Self::CurveTo { .. } => 2,
+            Self::CubicTo { .. } => 3,
+        }
+    }
+}
+
+/// Gradient fill kinds supported by the vector model (M17).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum GradientKind {
+    /// Direction given by `angle` degrees (0 = left→right).
+    #[default]
+    Linear,
+    /// Radial falloff around (`center_x`, `center_y`), radius = `radius`.
+    Radial,
+}
+
+/// One colour stop of a [`Gradient`]. `position` is normalized 0..=1.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GradientStop {
+    pub position: f32,
+    pub color: Rgba,
+}
+
+/// Gradient fill for a [`PathShape`]. Coordinates are in the object's
+/// local, centre-based space; `angle` applies to linear gradients,
+/// `center`/`radius` to radial ones. SWF exports native gradient fills.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Gradient {
+    pub kind: GradientKind,
+    pub stops: Vec<GradientStop>,
+    /// Linear direction in degrees; 0 points along +x.
+    #[serde(default)]
+    pub angle: f32,
+    /// Radial centre in local coordinates.
+    #[serde(default)]
+    pub center_x: f32,
+    #[serde(default)]
+    pub center_y: f32,
+    /// Radial radius in local pixels.
+    #[serde(default = "default_gradient_radius")]
+    pub radius: f32,
+}
+
+fn default_gradient_radius() -> f32 {
+    50.0
+}
+
+/// One bone influence on a skinned path vertex (M17 mesh skinning).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkinWeight {
+    pub bone: Uuid,
+    pub weight: f32,
+}
+
+/// Per-vertex bone weights for a [`PathShape`]. `weights[i]` holds the
+/// influences of the i-th weightable point (see
+/// [`PathCommand::weight_points`]) and is normalized to sum 1.0 at
+/// evaluation time, so slightly off data still deforms predictably.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SkinData {
+    pub weights: Vec<Vec<SkinWeight>>,
 }
 
 /// A filled sub-path of an imported vector shape.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PathShape {
     pub fill: Rgba,
+    /// Optional gradient fill; when present it replaces `fill` visually
+    /// (the solid colour stays as fallback for formats without gradient
+    /// support).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gradient: Option<Gradient>,
     pub commands: Vec<PathCommand>,
+    /// Optional vertex bone weights for mesh skinning (M17).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub skin: Option<SkinData>,
 }
 
 /// Normalised crop rectangle for a bitmap instance.
@@ -82,7 +186,52 @@ impl BitmapCrop {
 
 impl PathShape {
     pub fn new(fill: Rgba, commands: Vec<PathCommand>) -> Self {
-        Self { fill, commands }
+        Self {
+            fill,
+            gradient: None,
+            commands,
+            skin: None,
+        }
+    }
+
+    /// All weightable points of this path in command order (local
+    /// coordinates): anchors plus curve control points. The i-th entry
+    /// corresponds to `SkinData::weights[i]`.
+    pub fn skinning_points(&self) -> Vec<(f32, f32)> {
+        let mut points = Vec::new();
+        let mut cursor = (0.0f32, 0.0f32);
+        for command in &self.commands {
+            match *command {
+                PathCommand::MoveTo { x, y } | PathCommand::LineTo { x, y } => {
+                    cursor = (x, y);
+                    points.push(cursor);
+                }
+                PathCommand::CurveTo {
+                    control_x,
+                    control_y,
+                    x,
+                    y,
+                } => {
+                    points.push((control_x, control_y));
+                    cursor = (x, y);
+                    points.push(cursor);
+                }
+                PathCommand::CubicTo {
+                    c1_x,
+                    c1_y,
+                    c2_x,
+                    c2_y,
+                    x,
+                    y,
+                } => {
+                    points.push((c1_x, c1_y));
+                    points.push((c2_x, c2_y));
+                    cursor = (x, y);
+                    points.push(cursor);
+                }
+            }
+        }
+        points
     }
 }
 

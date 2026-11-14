@@ -1,0 +1,508 @@
+{
+ "format": "nova-flash-studio",
+ "formatVersion": 4,
+ "project": {
+  "id": "2fa301f3-50cd-4b6b-a228-a0cd7cb23053",
+  "metadata": {
+   "name": "M17 Vector & Skinning",
+   "author": "",
+   "description": "",
+   "createdUnix": 0,
+   "modifiedUnix": 0
+  },
+  "scenes": [
+   {
+    "id": "541f599b-b83d-4e6c-a9b0-faded25d4e1d",
+    "name": "Szene 1",
+    "width": 640.0,
+    "height": 360.0,
+    "background": {
+     "r": 18,
+     "g": 20,
+     "b": 26,
+     "a": 255
+    },
+    "fps": 24.0,
+    "layers": [
+     {
+      "id": "948e8cf0-c2b4-476e-8af3-1f65c59fba2a",
+      "name": "Ebene 1",
+      "visible": true,
+      "locked": false,
+      "kind": "normal",
+      "frames": [
+       {
+        "keyframe": true,
+        "objects": [
+         {
+          "id": "c4f0a5f5-3ed5-4517-bd04-f48b78f34690",
+          "name": "GradientCard",
+          "kind": {
+           "kind": "path",
+           "width": 160.0,
+           "height": 90.0,
+           "paths": [
+            {
+             "fill": {
+              "r": 255,
+              "g": 255,
+              "b": 255,
+              "a": 255
+             },
+             "gradient": {
+              "kind": "linear",
+              "angle": 35.0,
+              "stops": [
+               {
+                "position": 0.0,
+                "color": {
+                 "r": 255,
+                 "g": 80,
+                 "b": 40,
+                 "a": 255
+                }
+               },
+               {
+                "position": 0.55,
+                "color": {
+                 "r": 255,
+                 "g": 200,
+                 "b": 60,
+                 "a": 255
+                }
+               },
+               {
+                "position": 1.0,
+                "color": {
+                 "r": 40,
+                 "g": 160,
+                 "b": 255,
+                 "a": 255
+                }
+               }
+              ]
+             },
+             "commands": [
+              {
+               "kind": "move_to",
+               "x": -80.0,
+               "y": -45.0
+              },
+              {
+               "kind": "line_to",
+               "x": 80.0,
+               "y": -45.0
+              },
+              {
+               "kind": "line_to",
+               "x": 80.0,
+               "y": 45.0
+              },
+              {
+               "kind": "line_to",
+               "x": -80.0,
+               "y": 45.0
+              },
+              {
+               "kind": "line_to",
+               "x": -80.0,
+               "y": -45.0
+              }
+             ]
+            }
+           ]
+          },
+          "transform": {
+           "x": 320.0,
+           "y": 60.0,
+           "scale_x": 1.0,
+           "scale_y": 1.0,
+           "rotation": 0.0
+          },
+          "fill": {
+           "r": 255,
+           "g": 255,
+           "b": 255,
+           "a": 255
+          }
+         },
+         {
+          "id": "be9e1f66-7b5e-43ea-9207-fe6da0e885ef",
+          "name": "Held",
+          "kind": {
+           "kind": "symbol",
+           "symbol": "f6acc827-0610-40b5-9acf-8c356938c908"
+          },
+          "transform": {
+           "x": 320.0,
+           "y": 240.0,
+           "scale_x": 1.0,
+           "scale_y": 1.0,
+           "rotation": 0.0
+          },
+          "fill": {
+           "r": 255,
+           "g": 255,
+           "b": 255,
+           "a": 255
+          }
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "game": null
+   }
+  ],
+  "symbols": [
+   {
+    "id": "f6acc827-0610-40b5-9acf-8c356938c908",
+    "name": "Held",
+    "kind": "movie_clip",
+    "width": 200.0,
+    "height": 200.0,
+    "fill": {
+     "r": 0,
+     "g": 0,
+     "b": 0,
+     "a": 0
+    },
+    "corner_radius": 0.0,
+    "timeline": {
+     "id": "397c5d92-22e6-4206-99f0-1ae7046b4e94",
+     "name": "Held",
+     "width": 200.0,
+     "height": 200.0,
+     "background": {
+      "r": 0,
+      "g": 0,
+      "b": 0,
+      "a": 0
+     },
+     "fps": 24.0,
+     "layers": [
+      {
+       "id": "66583189-30ea-4161-a787-09fa3b391519",
+       "name": "Teile",
+       "visible": true,
+       "locked": false,
+       "kind": "normal",
+       "frames": [
+        {
+         "keyframe": true,
+         "objects": [
+          {
+           "id": "e59d3c18-4e45-4155-a5d1-d3754091724f",
+           "name": "TorsoSegment",
+           "kind": {
+            "kind": "rect",
+            "width": 30.0,
+            "height": 80.0,
+            "corner_radius": 0.0
+           },
+           "transform": {
+            "x": 0.0,
+            "y": -40.0,
+            "scale_x": 1.0,
+            "scale_y": 1.0,
+            "rotation": 0.0
+           },
+           "fill": {
+            "r": 90,
+            "g": 140,
+            "b": 220,
+            "a": 255
+           },
+           "bone": "a6dd2b92-0656-4112-b06f-844c54a7eddd"
+          },
+          {
+           "id": "3c7a9511-623f-4d56-b31e-d07d75267585",
+           "name": "OberarmSegment",
+           "kind": {
+            "kind": "rect",
+            "width": 40.0,
+            "height": 24.0,
+            "corner_radius": 0.0
+           },
+           "transform": {
+            "x": 20.0,
+            "y": -12.0,
+            "scale_x": 1.0,
+            "scale_y": 1.0,
+            "rotation": 0.0
+           },
+           "fill": {
+            "r": 240,
+            "g": 160,
+            "b": 60,
+            "a": 255
+           },
+           "bone": "d9bc8029-cea7-4bcc-8b12-f853d59d1e48"
+          },
+          {
+           "id": "8a08ee5d-8ae5-45f5-a112-61cee01433f9",
+           "name": "UnterarmSegment",
+           "kind": {
+            "kind": "rect",
+            "width": 40.0,
+            "height": 20.0,
+            "corner_radius": 0.0
+           },
+           "transform": {
+            "x": 20.0,
+            "y": -10.0,
+            "scale_x": 1.0,
+            "scale_y": 1.0,
+            "rotation": 0.0
+           },
+           "fill": {
+            "r": 120,
+            "g": 200,
+            "b": 120,
+            "a": 255
+           },
+           "bone": "da090ad3-09af-4209-98dc-c16580898890"
+          },
+          {
+           "id": "00150848-040f-46db-8910-9afb8bd34301",
+           "name": "ArmMesh",
+           "kind": {
+            "kind": "path",
+            "width": 80.0,
+            "height": 22.0,
+            "paths": [
+             {
+              "fill": {
+               "r": 255,
+               "g": 220,
+               "b": 80,
+               "a": 255
+              },
+              "commands": [
+               {
+                "kind": "move_to",
+                "x": -40.0,
+                "y": -9.0
+               },
+               {
+                "kind": "line_to",
+                "x": 0.0,
+                "y": -11.0
+               },
+               {
+                "kind": "line_to",
+                "x": 40.0,
+                "y": -9.0
+               },
+               {
+                "kind": "line_to",
+                "x": 40.0,
+                "y": 9.0
+               },
+               {
+                "kind": "line_to",
+                "x": 0.0,
+                "y": 11.0
+               },
+               {
+                "kind": "line_to",
+                "x": -40.0,
+                "y": 9.0
+               },
+               {
+                "kind": "line_to",
+                "x": -40.0,
+                "y": -9.0
+               }
+              ],
+              "skin": {
+               "weights": [
+                [
+                 {
+                  "bone": "a6dd2b92-0656-4112-b06f-844c54a7eddd",
+                  "weight": 1.0
+                 }
+                ],
+                [
+                 {
+                  "bone": "d9bc8029-cea7-4bcc-8b12-f853d59d1e48",
+                  "weight": 1.0
+                 }
+                ],
+                [
+                 {
+                  "bone": "da090ad3-09af-4209-98dc-c16580898890",
+                  "weight": 1.0
+                 }
+                ],
+                [
+                 {
+                  "bone": "da090ad3-09af-4209-98dc-c16580898890",
+                  "weight": 1.0
+                 }
+                ],
+                [
+                 {
+                  "bone": "d9bc8029-cea7-4bcc-8b12-f853d59d1e48",
+                  "weight": 1.0
+                 }
+                ],
+                [
+                 {
+                  "bone": "a6dd2b92-0656-4112-b06f-844c54a7eddd",
+                  "weight": 1.0
+                 }
+                ],
+                [
+                 {
+                  "bone": "a6dd2b92-0656-4112-b06f-844c54a7eddd",
+                  "weight": 1.0
+                 }
+                ]
+               ]
+              }
+             }
+            ]
+           },
+           "transform": {
+            "x": 55.0,
+            "y": 0.0,
+            "scale_x": 1.0,
+            "scale_y": 1.0,
+            "rotation": 0.0
+           },
+           "fill": {
+            "r": 255,
+            "g": 220,
+            "b": 80,
+            "a": 255
+           }
+          }
+         ]
+        },
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {}
+       ]
+      }
+     ]
+    },
+    "skeleton": {
+     "bones": [
+      {
+       "id": "a6dd2b92-0656-4112-b06f-844c54a7eddd",
+       "name": "Torso",
+       "parent": null,
+       "x": 0.0,
+       "y": 0.0,
+       "length": 30.0,
+       "rotation": 0.0
+      },
+      {
+       "id": "d9bc8029-cea7-4bcc-8b12-f853d59d1e48",
+       "name": "Oberarm",
+       "parent": "a6dd2b92-0656-4112-b06f-844c54a7eddd",
+       "x": 30.0,
+       "y": 0.0,
+       "length": 40.0,
+       "rotation": 0.0
+      },
+      {
+       "id": "da090ad3-09af-4209-98dc-c16580898890",
+       "name": "Unterarm",
+       "parent": "d9bc8029-cea7-4bcc-8b12-f853d59d1e48",
+       "x": 40.0,
+       "y": 0.0,
+       "length": 40.0,
+       "rotation": 0.0
+      }
+     ]
+    },
+    "bone_clips": [
+     {
+      "name": "Schwung",
+      "frames": 24,
+      "looping": true,
+      "tracks": [
+       {
+        "bone": "d9bc8029-cea7-4bcc-8b12-f853d59d1e48",
+        "keys": [
+         {
+          "frame": 0,
+          "rotation": 0.0
+         },
+         {
+          "frame": 12,
+          "rotation": -70.0
+         },
+         {
+          "frame": 24,
+          "rotation": 0.0
+         }
+        ]
+       },
+       {
+        "bone": "da090ad3-09af-4209-98dc-c16580898890",
+        "keys": [
+         {
+          "frame": 0,
+          "rotation": 20.0
+         },
+         {
+          "frame": 12,
+          "rotation": 60.0
+         },
+         {
+          "frame": 24,
+          "rotation": 20.0
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "active_clip": "Schwung"
+   }
+  ],
+  "assets": [],
+  "tilesets": [],
+  "scripts": [
+   {
+    "id": "d18a3d08-2242-4e3a-ad1f-a8fb6ae18271",
+    "name": "Main.as",
+    "path": "scripts/Main.as",
+    "source": "package {\n    import flash.display.MovieClip;\n    import flash.display.Sprite;\n    import flash.events.Event;\n\n    public dynamic class Main extends MovieClip {\n        private var frame:int = 0;\n\n        public function Main() {\n            addEventListener(\"enterFrame\", onTick);\n        }\n\n        private function onTick(e:Event):void {\n            frame++;\n            if (frame == 21) {\n                trace(\"M17DONE\");\n            }\n        }\n    }\n}\n",
+    "provenance": "original_source"
+   }
+  ],
+  "export": {
+   "target": "avm2",
+   "swfVersion": 13,
+   "compression": "zlib",
+   "includeScripts": true,
+   "exportAllScenes": false
+  },
+  "activeScene": "541f599b-b83d-4e6c-a9b0-faded25d4e1d"
+ }
+}

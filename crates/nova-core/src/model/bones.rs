@@ -12,6 +12,8 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use super::object::SkinWeight;
+
 /// One joint in a [`Skeleton`]. `parent == None` marks a root bone whose
 /// `(x, y)` is in skeleton space.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -567,6 +569,92 @@ pub fn bind_transform(pose: BonePose, lx: f32, ly: f32, lrot: f32) -> (f32, f32,
     (pose.x + rx, pose.y + ry, pose.rotation + lrot)
 }
 
+/// Linear-blend skinning of one vertex (M17). `p` is a point in skeleton
+/// space; the result is the weighted sum over `weights` of each bone's
+/// bind→current delta transform:
+/// `p' = joint_cur + R(cur_rot - bind_rot) · (p - joint_bind)`.
+/// Weights are normalized defensively; bones missing from either pose are
+/// skipped and remaining weights renormalized. Deterministic.
+pub fn skin_vertex(
+    bind: &[(Uuid, BonePose)],
+    cur: &[(Uuid, BonePose)],
+    p: (f32, f32),
+    weights: &[SkinWeight],
+) -> (f32, f32) {
+    let find = |poses: &[(Uuid, BonePose)], id: Uuid| {
+        poses.iter().find(|(bid, _)| *bid == id).map(|(_, p)| *p)
+    };
+    let mut sum = 0.0f32;
+    let mut out = (0.0f32, 0.0f32);
+    for w in weights {
+        if w.weight <= 0.0 {
+            continue;
+        }
+        let (Some(b), Some(c)) = (find(bind, w.bone), find(cur, w.bone)) else {
+            continue;
+        };
+        let (dx, dy) = (p.0 - b.x, p.1 - b.y);
+        let delta = c.rotation - b.rotation;
+        let (rx, ry) = rotate_point(0.0, 0.0, delta, dx, dy);
+        out.0 += w.weight * (c.x + rx);
+        out.1 += w.weight * (c.y + ry);
+        sum += w.weight;
+    }
+    if sum > 1e-6 {
+        (out.0 / sum, out.1 / sum)
+    } else {
+        p
+    }
+}
+
+/// Auto-binding (M17): assigns every vertex to its nearest bone joint in
+/// bind pose, producing weight-1.0 entries. `points` are object-local
+/// coordinates; `transform` maps them into skeleton space (the symbol
+/// timeline space the skeleton lives in).
+pub fn auto_skin_weights(
+    skeleton: &Skeleton,
+    transform: &super::Transform,
+    points: &[(f32, f32)],
+) -> Vec<Vec<SkinWeight>> {
+    let bind = skeleton.pose_at(None, 0);
+    let to_world = |p: (f32, f32)| -> (f32, f32) {
+        let (sx, sy) = (p.0 * transform.scale_x, p.1 * transform.scale_y);
+        let rad = transform.rotation.to_radians();
+        let (s, c) = rad.sin_cos();
+        (transform.x + sx * c - sy * s, transform.y + sx * s + sy * c)
+    };
+    points
+        .iter()
+        .map(|&p| {
+            let world = to_world(p);
+            let nearest = bind
+                .iter()
+                .min_by(|(_, a), (_, b)| {
+                    let da = (a.x - world.0).powi(2) + (a.y - world.1).powi(2);
+                    let db = (b.x - world.0).powi(2) + (b.y - world.1).powi(2);
+                    da.total_cmp(&db)
+                })
+                .map(|(id, _)| *id);
+            match nearest {
+                Some(bone) => vec![SkinWeight { bone, weight: 1.0 }],
+                None => Vec::new(),
+            }
+        })
+        .collect()
+}
+
+/// Normalizes a vertex's bone weights to sum 1.0. Empty or all-zero
+/// weight lists stay empty (the vertex then keeps its bind position).
+pub fn normalize_weights(weights: &mut Vec<SkinWeight>) {
+    weights.retain(|w| w.weight > 0.0);
+    let sum: f32 = weights.iter().map(|w| w.weight).sum();
+    if sum > 1e-6 {
+        for w in weights.iter_mut() {
+            w.weight /= sum;
+        }
+    }
+}
+
 /// Two-bone analytic IK: rotates `bone` and its `parent` so the tip of
 /// `bone` (at distance `bone_len` from the bone joint along its direction)
 /// reaches `target` in skeleton space. Returns (bone_rot, parent_rot)
@@ -805,6 +893,158 @@ mod tests {
             (tx - 60.0).abs() < 3.0 && (ty - (-60.0)).abs() < 3.0,
             "tip ({tx},{ty}) should reach (60,-60)"
         );
+    }
+
+    #[test]
+    fn skin_vertex_single_bone_follows_pose() {
+        use super::SkinWeight;
+        let bind = vec![(
+            Uuid::nil(),
+            BonePose {
+                x: 0.0,
+                y: 0.0,
+                rotation: 0.0,
+            },
+        )];
+        let cur = vec![(
+            Uuid::nil(),
+            BonePose {
+                x: 10.0,
+                y: 0.0,
+                rotation: 0.0,
+            },
+        )];
+        let weights = vec![SkinWeight {
+            bone: Uuid::nil(),
+            weight: 1.0,
+        }];
+        // Point 5px right of the joint moves with the bone.
+        let (x, y) = skin_vertex(&bind, &cur, (5.0, 0.0), &weights);
+        assert!((x - 15.0).abs() < 1e-4 && y.abs() < 1e-4);
+    }
+
+    #[test]
+    fn skin_vertex_blends_two_bones() {
+        use super::SkinWeight;
+        let a = Uuid::from_u128(1);
+        let b = Uuid::from_u128(2);
+        let bind = vec![
+            (
+                a,
+                BonePose {
+                    x: 0.0,
+                    y: 0.0,
+                    rotation: 0.0,
+                },
+            ),
+            (
+                b,
+                BonePose {
+                    x: 10.0,
+                    y: 0.0,
+                    rotation: 0.0,
+                },
+            ),
+        ];
+        let cur = vec![
+            (
+                a,
+                BonePose {
+                    x: 10.0,
+                    y: 0.0,
+                    rotation: 0.0,
+                },
+            ),
+            (
+                b,
+                BonePose {
+                    x: 10.0,
+                    y: 0.0,
+                    rotation: 0.0,
+                },
+            ),
+        ];
+        // Point at origin: bone a pulls it +10, bone b pulls it 0 -> 5.
+        let weights = vec![
+            SkinWeight {
+                bone: a,
+                weight: 0.5,
+            },
+            SkinWeight {
+                bone: b,
+                weight: 0.5,
+            },
+        ];
+        let (x, _) = skin_vertex(&bind, &cur, (0.0, 0.0), &weights);
+        assert!((x - 5.0).abs() < 1e-4, "blend midpoint, got {x}");
+    }
+
+    #[test]
+    fn skin_vertex_missing_bone_is_identity() {
+        use super::SkinWeight;
+        let bind = vec![(
+            Uuid::nil(),
+            BonePose {
+                x: 0.0,
+                y: 0.0,
+                rotation: 0.0,
+            },
+        )];
+        let cur = Vec::new();
+        let weights = vec![SkinWeight {
+            bone: Uuid::nil(),
+            weight: 1.0,
+        }];
+        let p = (3.0, 4.0);
+        assert_eq!(skin_vertex(&bind, &cur, p, &weights), p);
+    }
+
+    #[test]
+    fn normalize_weights_scales_to_one() {
+        let mut weights = vec![
+            super::SkinWeight {
+                bone: Uuid::nil(),
+                weight: 2.0,
+            },
+            super::SkinWeight {
+                bone: Uuid::from_u128(9),
+                weight: 2.0,
+            },
+        ];
+        super::normalize_weights(&mut weights);
+        let sum: f32 = weights.iter().map(|w| w.weight).sum();
+        assert!((sum - 1.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn auto_skin_assigns_nearest_bone() {
+        let mut rig = Skeleton {
+            bones: vec![
+                Bone {
+                    id: Uuid::from_u128(1),
+                    name: "A".into(),
+                    parent: None,
+                    x: 0.0,
+                    y: 0.0,
+                    length: 10.0,
+                    rotation: 0.0,
+                },
+                Bone {
+                    id: Uuid::from_u128(2),
+                    name: "B".into(),
+                    parent: None,
+                    x: 100.0,
+                    y: 0.0,
+                    length: 10.0,
+                    rotation: 0.0,
+                },
+            ],
+        };
+        let t = super::super::Transform::at(0.0, 0.0);
+        let weights = super::auto_skin_weights(&rig, &t, &[(1.0, 0.0), (99.0, 0.0)]);
+        assert_eq!(weights[0][0].bone, Uuid::from_u128(1));
+        assert_eq!(weights[1][0].bone, Uuid::from_u128(2));
+        rig.bones.clear();
     }
 
     #[test]

@@ -906,6 +906,7 @@ mod tests {
                         control_y,
                         ..
                     } => (control_x, control_y),
+                    PathCommand::CubicTo { c1_x, c1_y, .. } => (c1_x, c1_y),
                 };
                 assert!(x.abs() <= width / 2.0 + 2.0);
                 assert!(y.abs() <= height / 2.0 + 2.0);

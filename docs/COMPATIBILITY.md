@@ -33,6 +33,10 @@ Evidence-based support levels. "Preview" = editor simulation (`GameRuntime`),
 | Skeletal animation (bone hierarchy, FK clips, rigid binding) | yes | yes — baked per-frame matrices in symbol sprites | metadata only | partial — matrices verified structurally; Ruffle plays the sprite but AVM2 cannot reach AVM1-style sprite children (`m15-skeletal-animation`) |
 | Two-bone IK | yes (solver) | yes (IK keys baked to rotations) | n/a | unit-tested (`solve_two_bone`) |
 | Multi-bone chain IK (FABRIK + pole) | yes | yes (IK keys baked to rotations) | n/a | unit-tested (`fabrik_solve`, `chain_ik_*`) |
+| Mesh skinning (vertex weights, LBS deform) | yes | yes — deformed paths baked to per-frame DefineShape variants | metadata only (`skin` field) | unit-tested (`skin_vertex`, `auto_skin_*`); structural shapes verified (`m17-vector-skinning`) |
+| Weight painting | yes ("Gewichte" tool) | n/a (data persists in `.nova`) | metadata only | editor-level |
+| Gradient fills (linear/radial, multi-stop) | yes (fan approx.) | yes — native gradient fill styles | n/a | yes (`m17-vector-skinning` + swf-parser test) |
+| Boolean path ops (union/intersect/subtract/XOR) | yes | yes (result baked as polygon paths) | n/a | unit-tested (`boolop`) |
 | AS3 document class (`Main.as`) | n/a | yes | yes | yes |
 | AS3 subset (no `for-in`, interfaces, `switch`, `try`, closures, `Vector.<T>`; `Math`/`JSON` resolve) | n/a | compiler-enforced | n/a | yes |
 | Playerglobal APIs at SWF v13+ (JSON, ByteArray, Dictionary, Timer, TextField, SimpleButton, Graphics, BitmapData, Point/Rectangle/Matrix/ColorTransform, LoaderInfo) | n/a | n/a | yes | yes (`m14-api-surface`, 20/20 probes) |
@@ -66,3 +70,14 @@ Evidence-based support levels. "Preview" = editor simulation (`GameRuntime`),
 - **Dynamic class fields**: `#1056 Cannot create property` errors appear if
   a document class is not `dynamic` while the timeline places named
   children — use `public dynamic class Main`.
+- **Boolean ops**: operate on flattened polygons (`i_overlay`, EvenOdd);
+  curves are approximated before the operation, results contain only
+  straight segments. Transform-aware via `boolean_path_objects`.
+- **Cubic Bézier**: `PathCommand::CubicTo` is `.nova`-native; SWF export
+  approximates cubics by adaptive quadratic chains (SWF has no cubic
+  records). XFL export flattens them to points.
+- **Gradients**: linear/radial with up to 16 stops. Focal gradients
+  (SWF 0x13) are not produced; the editor preview uses a convex
+  triangle-fan approximation while SWF export is exact.
+- **Skinning**: path objects only (`PathShape.skin`), LBS deformation
+  baked per frame at export; no dual-quaternion, no morph targets.

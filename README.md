@@ -8,17 +8,24 @@ the project format is versioned JSON, and the SWF writer is implemented directly
 against the published SWF file-format specification. Tools and extensions run in
 an embedded QuickJS context; ActionScript is **not** executed by QuickJS.
 
-> **Status: Mega Milestone 16 release candidate `0.12.0-rc1`, not stable.**
-> M16 added real visual authoring workflows: an interactive **Pen tool**
-> (click = corner anchor, drag = curve anchor, click-on-start closes,
-> Enter finishes), path node **insert/delete** in the path editor,
-> a visible **bone overlay** with draggable joints for rigged symbols,
-> and **multi-bone FABRIK chain IK** with pole targets plus a new
-> `add_ik_key` AI operation — all deterministic and unit/integration
-> tested. A pre-existing pencil/brush double-transform bug was fixed.
-> Still out of scope: mesh skinning/weight painting, gradients,
-> font/button/morph-shape tags, cubic bezier handles, and the AS3
-> subset limits (`Vector.<T>`, `try/catch`, `for-in`).
+> **Status: Mega Milestone 17 release candidate `0.13.0-rc1`, not stable.**
+> M17 added professional vector and animation workflows: **cubic Bézier
+> segments** with smooth/independent handle modes (Alt = independent),
+> **native SWF gradient fills** (linear + radial, multiple stops,
+> exported as real gradient fill styles), **true polygon Boolean
+> operations** (union/intersect/subtract/XOR with holes, transform-aware
+> via `i_overlay`), and **mesh skinning with weight painting** (LBS
+> vertex deformation baked per frame, auto-bind, normalised weights,
+> "Gewichte" tool with bone-coloured vertex dots) — all `.nova`-serializable,
+> AI-operable and Ruffle-verified (`samples/m17-vector-skinning.nova`).
+> Still out of scope: animation constraints/limits, morph shapes, focal
+> gradients, native cubic curves in SWF (approximated by quadratics),
+> and the AS3 subset limits (`Vector.<T>`, `try/catch`, `for-in`).
+>
+> M16 baseline `0.12.0-rc1`: real visual authoring workflows — interactive
+> Pen tool, path node insert/delete, bone overlay with draggable joints,
+> multi-bone FABRIK chain IK with pole targets, `add_ik_key` AI op, and a
+> pencil/brush double-transform fix.
 >
 > M15 baseline `0.11.0-rc1`:
 > M15 added a working skeletal animation system: bone hierarchies with
@@ -485,6 +492,14 @@ have context menus for keyframe operations.
   both SWF and XFL export. Tilemaps bake to `DefineBitsLossless2` on SWF
   export and PNG library items on XFL; particles remain preview/`.nova`-native
   and warn on export.
+- **Vector & animation pro (M17)** — cubic Bézier segments with
+  smooth/independent handle editing, native SWF gradient fills
+  (linear/radial, multi-stop), real polygon Boolean operations
+  (union/intersect/subtract/XOR with holes, transform-aware), mesh
+  skinning with normalised multi-bone vertex weights, a weight-painting
+  tool with bone-coloured vertex visualisation, auto-bind, bone-clip
+  duplicate/rename, and typed AI operations for gradients, booleans,
+  mesh binding and vertex weights.
 - **Packaging** — custom Windows icon/version resource embedding, Windows ZIP
   script, a self-contained branded setup wizard with per-user/all-users
   install, custom directory, optional file associations, uninstaller and

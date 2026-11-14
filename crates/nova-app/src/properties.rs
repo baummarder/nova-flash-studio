@@ -1399,6 +1399,11 @@ fn object_properties(
         }
     }
 
+    // Vector tools: gradient, boolean ops, skinning (M17) --------------
+    if let ObjectKind::Path { paths, .. } = &instance.kind {
+        vector_section(ui, project, state, layer_id, id, paths);
+    }
+
     // Game components ---------------------------------------------------
     ui.add_space(4.0);
     theme::section(ui, "Spiel");
@@ -2536,4 +2541,424 @@ fn asset_properties(
 #[allow(dead_code)]
 pub fn color_hex(color: Rgba) -> String {
     color.to_hex()
+}
+
+// ---------------------------------------------------------------- M17 vector
+
+/// Vector section for Path objects: gradient fill, real boolean ops and
+/// mesh-skinning controls. Edits write straight into the governing object.
+fn vector_section(
+    ui: &mut Ui,
+    project: &mut Project,
+    state: &mut AppState,
+    layer_id: Uuid,
+    object_id: Uuid,
+    paths: &[nova_core::PathShape],
+) {
+    ui.add_space(4.0);
+    theme::section(ui, "Vektor");
+
+    // -- Gradient ------------------------------------------------------
+    let has_gradient = paths.iter().all(|p| p.gradient.is_some());
+    let mut gradient_on = has_gradient;
+    if ui
+        .checkbox(&mut gradient_on, "Verlauf füllen")
+        .on_hover_text("Linearer oder radialer Farbverlauf (SWF-Export: native Gradient-Fills)")
+        .changed()
+    {
+        if let Some(scene) = project.edit_scene_mut(state.edit_symbol)
+            && let Some(object) =
+                util::governing_object_mut(scene, layer_id, state.frame, object_id)
+            && let ObjectKind::Path { paths, .. } = &mut object.kind
+        {
+            for path in paths.iter_mut() {
+                if gradient_on {
+                    if path.gradient.is_none() {
+                        path.gradient = Some(nova_core::Gradient {
+                            kind: nova_core::GradientKind::Linear,
+                            stops: vec![
+                                nova_core::GradientStop {
+                                    position: 0.0,
+                                    color: path.fill,
+                                },
+                                nova_core::GradientStop {
+                                    position: 1.0,
+                                    color: Rgba::WHITE,
+                                },
+                            ],
+                            angle: 0.0,
+                            center_x: 0.0,
+                            center_y: 0.0,
+                            radius: 50.0,
+                        });
+                    }
+                } else {
+                    path.gradient = None;
+                }
+            }
+            project.touch();
+            state.dirty = true;
+        }
+    }
+    if gradient_on {
+        // Edit the first path's gradient; committed to all paths below.
+        let first = paths.first().and_then(|p| p.gradient.clone());
+        if let Some(mut gradient) = first {
+            let mut angle_changed = false;
+            let mut radial_changed = false;
+            egui::Grid::new("gradient_grid")
+                .num_columns(2)
+                .spacing(egui::vec2(8.0, 6.0))
+                .show(ui, |ui| {
+                    ui.label("Typ");
+                    let mut is_radial = gradient.kind == nova_core::GradientKind::Radial;
+                    if ui
+                        .checkbox(&mut is_radial, "Radial")
+                        .on_hover_text("Linear = Richtung, Radial = zentrisch")
+                        .changed()
+                    {
+                        gradient.kind = if is_radial {
+                            nova_core::GradientKind::Radial
+                        } else {
+                            nova_core::GradientKind::Linear
+                        };
+                        radial_changed = true;
+                    }
+                    ui.end_row();
+                    ui.label("Winkel");
+                    if ui
+                        .add(
+                            egui::DragValue::new(&mut gradient.angle)
+                                .range(-360.0..=360.0)
+                                .speed(1.0)
+                                .suffix("°"),
+                        )
+                        .changed()
+                    {
+                        angle_changed = true;
+                    }
+                    ui.end_row();
+                    if gradient.kind == nova_core::GradientKind::Radial {
+                        ui.label("Mitte X");
+                        ui.add(egui::DragValue::new(&mut gradient.center_x).speed(1.0));
+                        ui.end_row();
+                        ui.label("Mitte Y");
+                        ui.add(egui::DragValue::new(&mut gradient.center_y).speed(1.0));
+                        ui.end_row();
+                        ui.label("Radius");
+                        ui.add(
+                            egui::DragValue::new(&mut gradient.radius)
+                                .range(1.0..=4096.0)
+                                .speed(1.0)
+                                .suffix(" px"),
+                        );
+                        ui.end_row();
+                    }
+                });
+            // Stops editor -------------------------------------------------
+            ui.label(RichText::new("Farbstopps").small().color(theme::TEXT_DIM));
+            let mut stop_changed = false;
+            let mut remove_index: Option<usize> = None;
+            for (index, stop) in gradient.stops.iter_mut().enumerate() {
+                ui.horizontal(|ui| {
+                    ui.label(format!("#{}", index + 1));
+                    if ui
+                        .add(
+                            egui::DragValue::new(&mut stop.position)
+                                .range(0.0..=1.0)
+                                .speed(0.01)
+                                .fixed_decimals(2),
+                        )
+                        .changed()
+                    {
+                        stop_changed = true;
+                    }
+                    let mut color = util::to_color32(stop.color);
+                    if ui.color_edit_button_srgba(&mut color).changed() {
+                        stop.color = Rgba::rgba(color.r(), color.g(), color.b(), color.a());
+                        stop_changed = true;
+                    }
+                    if ui
+                        .small_button("×")
+                        .on_hover_text("Stopp entfernen")
+                        .clicked()
+                    {
+                        remove_index = Some(index);
+                    }
+                });
+            }
+            ui.horizontal(|ui| {
+                if ui.button("+ Stopp").clicked() && gradient.stops.len() < 16 {
+                    let pos = if gradient.stops.len() >= 2 {
+                        gradient
+                            .stops
+                            .windows(2)
+                            .map(|w| (w[0].position + w[1].position) / 2.0)
+                            .fold(0.5f32, |acc, v| {
+                                if (v - 0.5).abs() < (acc - 0.5).abs() {
+                                    v
+                                } else {
+                                    acc
+                                }
+                            })
+                    } else {
+                        0.5
+                    };
+                    let a = gradient
+                        .stops
+                        .first()
+                        .map(|s| s.color)
+                        .unwrap_or(Rgba::WHITE);
+                    let b = gradient
+                        .stops
+                        .last()
+                        .map(|s| s.color)
+                        .unwrap_or(Rgba::BLACK);
+                    gradient.stops.push(nova_core::GradientStop {
+                        position: pos.clamp(0.0, 1.0),
+                        color: Rgba::rgba(
+                            ((a.r as f32 + b.r as f32) / 2.0) as u8,
+                            ((a.g as f32 + b.g as f32) / 2.0) as u8,
+                            ((a.b as f32 + b.b as f32) / 2.0) as u8,
+                            255,
+                        ),
+                    });
+                    gradient
+                        .stops
+                        .sort_by(|a, b| a.position.total_cmp(&b.position));
+                    stop_changed = true;
+                }
+            });
+            if let Some(index) = remove_index {
+                if gradient.stops.len() > 2 {
+                    gradient.stops.remove(index);
+                    stop_changed = true;
+                }
+            }
+            gradient
+                .stops
+                .sort_by(|a, b| a.position.total_cmp(&b.position));
+            let dirty = angle_changed || radial_changed || stop_changed;
+            if dirty
+                && let Some(scene) = project.edit_scene_mut(state.edit_symbol)
+                && let Some(object) =
+                    util::governing_object_mut(scene, layer_id, state.frame, object_id)
+                && let ObjectKind::Path { paths, .. } = &mut object.kind
+            {
+                for path in paths.iter_mut() {
+                    if let Some(stored) = &mut path.gradient {
+                        *stored = gradient.clone();
+                    }
+                }
+                project.touch();
+                state.dirty = true;
+            }
+        }
+    }
+
+    // -- Boolean ops ----------------------------------------------------
+    ui.label(RichText::new("Boolean").small().color(theme::TEXT_DIM));
+    let others: Vec<(Uuid, String)> = project
+        .edit_scene(state.edit_symbol)
+        .map(|scene| {
+            scene
+                .layers
+                .iter()
+                .flat_map(|layer| layer.frames.iter())
+                .flat_map(|frame| frame.objects.iter())
+                .filter(|o| o.id != object_id && matches!(o.kind, ObjectKind::Path { .. }))
+                .map(|o| (o.id, o.name.clone()))
+                .collect()
+        })
+        .unwrap_or_default();
+    if others.is_empty() {
+        ui.label(
+            RichText::new("Kein zweites Pfadobjekt für Boolean-Operationen.")
+                .small()
+                .color(theme::TEXT_FAINT),
+        );
+    } else {
+        let selected = state
+            .selection
+            .object_ids()
+            .iter()
+            .copied()
+            .find(|id| others.iter().any(|(oid, _)| oid == id))
+            .unwrap_or(others[0].0);
+        let mut combo_id = selected;
+        let combo_label = others
+            .iter()
+            .find(|(id, _)| *id == combo_id)
+            .map(|(_, n)| n.clone())
+            .unwrap_or_default();
+        egui::ComboBox::from_id_salt("bool_target")
+            .selected_text(combo_label)
+            .show_ui(ui, |ui| {
+                for (id, name) in &others {
+                    ui.selectable_value(&mut combo_id, *id, name);
+                }
+            });
+        ui.horizontal_wrapped(|ui| {
+            for (op, label) in [
+                (nova_core::BoolOp::Union, "Vereinigung"),
+                (nova_core::BoolOp::Intersect, "Schnitt"),
+                (nova_core::BoolOp::Subtract, "Subtrahieren"),
+                (nova_core::BoolOp::Exclude, "Ausschluss"),
+            ] {
+                if ui.button(label).clicked() {
+                    apply_boolean(project, state, layer_id, object_id, combo_id, op);
+                }
+            }
+        });
+        ui.label(
+            RichText::new(
+                "Ergebnis ersetzt die Pfade des Zielobjekts; der zweite Operand bleibt erhalten.",
+            )
+            .small()
+            .color(theme::TEXT_FAINT),
+        );
+    }
+
+    // -- Skinning --------------------------------------------------------
+    let skeleton_available = state
+        .edit_symbol
+        .and_then(|id| project.symbol(id))
+        .and_then(|s| s.skeleton.as_ref())
+        .is_some();
+    if skeleton_available {
+        ui.label(RichText::new("Skinning").small().color(theme::TEXT_DIM));
+        let skinned = paths.iter().filter(|p| p.skin.is_some()).count();
+        ui.label(
+            RichText::new(format!("{skinned} von {} Teilpfaden gebunden", paths.len()))
+                .small()
+                .color(theme::TEXT_FAINT),
+        );
+        if ui
+            .button("Mesh-Bindung erstellen")
+            .on_hover_text("Weist jedem Vertex den nächsten Knochen (Gewicht 1.0) zu")
+            .clicked()
+        {
+            bind_mesh(project, state, layer_id, object_id);
+        }
+        if let Some(symbol) = state
+            .edit_symbol
+            .and_then(|id| project.symbol(id))
+            .and_then(|s| s.skeleton.as_ref())
+        {
+            let bone_names: Vec<(Uuid, String)> = symbol
+                .bones
+                .iter()
+                .map(|b| (b.id, b.name.clone()))
+                .collect();
+            let mut bone = state.skin_bone;
+            let label = bone
+                .and_then(|id| bone_names.iter().find(|(bid, _)| *bid == id))
+                .map(|(_, n)| n.clone())
+                .unwrap_or_else(|| "Knochen wählen".to_string());
+            egui::ComboBox::from_id_salt("skin_bone")
+                .selected_text(label)
+                .show_ui(ui, |ui| {
+                    for (id, name) in &bone_names {
+                        ui.selectable_value(&mut bone, Some(*id), name);
+                    }
+                });
+            if bone != state.skin_bone {
+                state.skin_bone = bone;
+            }
+            ui.horizontal(|ui| {
+                ui.label("Pinselradius");
+                ui.add(
+                    egui::DragValue::new(&mut state.skin_radius)
+                        .range(4.0..=200.0)
+                        .speed(1.0)
+                        .suffix(" px"),
+                );
+            });
+            ui.label(
+                RichText::new(
+                    "Werkzeug „Gewichte“ aktivieren und auf dem Pfad malen; Shift entfernt Gewicht.",
+                )
+                .small()
+                .color(theme::TEXT_FAINT),
+            );
+        }
+    }
+}
+
+/// Applies a boolean op between the selected object and `other_id`,
+/// replacing the target's path list.
+fn apply_boolean(
+    project: &mut Project,
+    state: &mut AppState,
+    layer_id: Uuid,
+    target_id: Uuid,
+    other_id: Uuid,
+    op: nova_core::BoolOp,
+) {
+    let frame = state.frame;
+    let Some(scene) = project.edit_scene_mut(state.edit_symbol) else {
+        return;
+    };
+    let clip = scene
+        .layers
+        .iter()
+        .find(|layer| layer.id == layer_id)
+        .and_then(|layer| layer.last_keyframe_at_or_before(frame))
+        .and_then(|ki| {
+            scene
+                .layers
+                .iter()
+                .find(|layer| layer.id == layer_id)
+                .map(|layer| &layer.frames[ki])
+        })
+        .and_then(|frame| frame.objects.iter().find(|o| o.id == other_id))
+        .and_then(|o| match &o.kind {
+            ObjectKind::Path { paths, .. } => Some((paths.clone(), o.transform)),
+            _ => None,
+        });
+    let Some((clip_paths, clip_transform)) = clip else {
+        return;
+    };
+    let Some(object) = util::governing_object_mut(scene, layer_id, frame, target_id) else {
+        return;
+    };
+    let ObjectKind::Path { paths, .. } = &mut object.kind else {
+        return;
+    };
+    let target_transform = object.transform;
+    *paths =
+        nova_core::boolean_path_objects(paths, &target_transform, &clip_paths, &clip_transform, op);
+    project.touch();
+    state.dirty = true;
+    state.set_status(format!("Boolean-Operation {}", op.label()));
+}
+
+/// Auto-binds all path vertices of the object to their nearest bone.
+fn bind_mesh(project: &mut Project, state: &mut AppState, layer_id: Uuid, object_id: Uuid) {
+    let frame = state.frame;
+    let Some(skeleton) = state
+        .edit_symbol
+        .and_then(|id| project.symbol(id))
+        .and_then(|s| s.skeleton.clone())
+    else {
+        return;
+    };
+    let Some(scene) = project.edit_scene_mut(state.edit_symbol) else {
+        return;
+    };
+    let Some(object) = util::governing_object_mut(scene, layer_id, frame, object_id) else {
+        return;
+    };
+    let ObjectKind::Path { paths, .. } = &mut object.kind else {
+        return;
+    };
+    let transform = object.transform;
+    for path in paths.iter_mut() {
+        let points = path.skinning_points();
+        let weights = nova_core::auto_skin_weights(&skeleton, &transform, &points);
+        path.skin = Some(nova_core::SkinData { weights });
+    }
+    project.touch();
+    state.dirty = true;
+    state.set_status("Mesh-Bindung erstellt".to_string());
 }

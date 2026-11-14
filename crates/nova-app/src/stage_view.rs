@@ -128,10 +128,14 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
             }
         }
         crate::state::Tool::PathEdit => {
-            path_edit_input(project, state, &view, &response);
+            let alt = ui.input(|input| input.modifiers.alt);
+            path_edit_input(project, state, &view, &response, alt);
         }
         crate::state::Tool::Pen => {
             pen_input(ui, project, state, &view, &response);
+        }
+        crate::state::Tool::SkinPaint => {
+            skin_paint_input(ui, project, state, &view, &response);
         }
         _ => {
             draw_tool_input(ui, project, state, &view, &response, shift);
@@ -272,6 +276,7 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
         draw_draft(&painter, &view, draft, state.new_object_color);
     }
     draw_pen_preview(&painter, &view, state);
+    draw_skin_paint_overlay(&painter, &view, project, state);
     if state.tool == crate::state::Tool::Select {
         draw_transform_handles(&painter, &view, project, state);
     }
@@ -557,8 +562,8 @@ fn draw_tilemap(
         return; // texture still decoding
     };
     let tex_size = texture.size();
-    if tex_size[0] <= 0
-        || tex_size[1] <= 0
+    if tex_size[0] == 0
+        || tex_size[1] == 0
         || tileset.tile_width == 0
         || tileset.tile_height == 0
         || tileset.columns == 0
@@ -655,10 +660,11 @@ fn draw_paths(
     paths: &[PathShape],
 ) {
     for path in paths {
-        let points = path_points(instance, path)
+        let local_points = path_local_points(path);
+        let points: Vec<Pos2> = path_points(instance, path)
             .into_iter()
             .map(|point| view.to_screen(point))
-            .collect::<Vec<_>>();
+            .collect();
         if points.len() < 3 {
             continue;
         }
@@ -666,22 +672,132 @@ fn draw_paths(
         if fill.a() == 0 {
             continue;
         }
-        painter.add(Shape::convex_polygon(points, fill, Stroke::NONE));
+        match &path.gradient {
+            Some(gradient) => {
+                draw_gradient_mesh(painter, instance, &points, &local_points, gradient);
+            }
+            None => {
+                painter.add(Shape::convex_polygon(points, fill, Stroke::NONE));
+            }
+        }
     }
 }
 
+/// Samples a [`nova_core::Gradient`] at a local-space point. Mirrors the
+/// SWF export mapping: linear ramps span the bounds projection along
+/// `angle`, radial gradients use `radius` around `center`.
+fn gradient_color_at(
+    gradient: &nova_core::Gradient,
+    instance: &nova_core::ObjectInstance,
+    local: egui::Vec2,
+) -> Color32 {
+    let t = match gradient.kind {
+        nova_core::GradientKind::Linear => {
+            let theta = gradient.angle.to_radians();
+            let (ux, uy) = (theta.cos(), theta.sin());
+            // Object bounds for the ramp extent.
+            let (w, h) = match &instance.kind {
+                ObjectKind::Path { width, height, .. } => (*width, *height),
+                _ => (100.0, 100.0),
+            };
+            let ex = (w.abs() * ux.abs() + h.abs() * uy.abs()) / 2.0;
+            if ex < 1e-4 {
+                0.0
+            } else {
+                ((local.x * ux + local.y * uy) + ex) / (2.0 * ex)
+            }
+        }
+        nova_core::GradientKind::Radial => {
+            let radius = gradient.radius.max(1.0);
+            let dx = local.x - gradient.center_x;
+            let dy = local.y - gradient.center_y;
+            (dx * dx + dy * dy).sqrt() / radius
+        }
+    }
+    .clamp(0.0, 1.0);
+    let mut stops = gradient.stops.clone();
+    stops.sort_by(|a, b| a.position.total_cmp(&b.position));
+    if stops.is_empty() {
+        return Color32::WHITE;
+    }
+    if t <= stops[0].position {
+        return util::to_color32(stops[0].color);
+    }
+    for pair in stops.windows(2) {
+        let (a, b) = (pair[0], pair[1]);
+        if t <= b.position {
+            let f = if (b.position - a.position).abs() < 1e-6 {
+                0.0
+            } else {
+                (t - a.position) / (b.position - a.position)
+            };
+            let ca = util::to_color32(a.color);
+            let cb = util::to_color32(b.color);
+            return Color32::from_rgba_unmultiplied(
+                lerp_u8(ca.r(), cb.r(), f),
+                lerp_u8(ca.g(), cb.g(), f),
+                lerp_u8(ca.b(), cb.b(), f),
+                lerp_u8(ca.a(), cb.a(), f),
+            );
+        }
+    }
+    util::to_color32(stops.last().unwrap().color)
+}
+
+fn lerp_u8(a: u8, b: u8, t: f32) -> u8 {
+    (a as f32 + (b as f32 - a as f32) * t)
+        .round()
+        .clamp(0.0, 255.0) as u8
+}
+
+/// Draws a gradient-filled path as a vertex-coloured triangle fan. This is
+/// a preview approximation — it shares the convex-polygon limitation of
+/// the solid fill renderer.
+fn draw_gradient_mesh(
+    painter: &egui::Painter,
+    instance: &nova_core::ObjectInstance,
+    screen: &[Pos2],
+    local: &[egui::Vec2],
+    gradient: &nova_core::Gradient,
+) {
+    if screen.len() < 3 || screen.len() != local.len() {
+        return;
+    }
+    let mut mesh = egui::Mesh::default();
+    for (index, point) in screen.iter().enumerate() {
+        mesh.vertices.push(egui::epaint::Vertex {
+            pos: *point,
+            uv: egui::Pos2::ZERO,
+            color: gradient_color_at(gradient, instance, local[index]),
+        });
+    }
+    for index in 1..screen.len() - 1 {
+        mesh.indices
+            .extend_from_slice(&[0, index as u32 + 1, index as u32]);
+    }
+    painter.add(egui::Shape::mesh(mesh));
+}
+
 fn path_points(instance: &nova_core::ObjectInstance, path: &PathShape) -> Vec<Pos2> {
+    path_local_points(path)
+        .iter()
+        .map(|point| util::stage_point(instance, *point))
+        .collect()
+}
+
+/// Flattened path vertices in raw object-local coordinates (no transform).
+fn path_local_points(path: &PathShape) -> Vec<egui::Vec2> {
     let mut points = Vec::new();
     let mut cursor = egui::Vec2::ZERO;
     for command in &path.commands {
         match *command {
             PathCommand::MoveTo { x, y } => {
                 cursor = egui::vec2(x, y);
-                points.push(util::stage_point(instance, cursor));
+                points.push(cursor);
             }
             PathCommand::LineTo { x, y } => {
                 cursor = egui::vec2(x, y);
-                points.push(util::stage_point(instance, cursor));
+                points.push(cursor);
             }
             PathCommand::CurveTo {
                 control_x,
@@ -695,8 +811,31 @@ fn path_points(instance: &nova_core::ObjectInstance, path: &PathShape) -> Vec<Po
                 for step in 1..=8 {
                     let t = step as f32 / 8.0;
                     let one = 1.0 - t;
-                    let local = start * (one * one) + control * (2.0 * one * t) + end * (t * t);
-                    points.push(util::stage_point(instance, local));
+                    points.push(start * (one * one) + control * (2.0 * one * t) + end * (t * t));
+                }
+                cursor = end;
+            }
+            PathCommand::CubicTo {
+                c1_x,
+                c1_y,
+                c2_x,
+                c2_y,
+                x,
+                y,
+            } => {
+                let start = cursor;
+                let c1 = egui::vec2(c1_x, c1_y);
+                let c2 = egui::vec2(c2_x, c2_y);
+                let end = egui::vec2(x, y);
+                for step in 1..=12 {
+                    let t = step as f32 / 12.0;
+                    let mt = 1.0 - t;
+                    points.push(
+                        start * (mt * mt * mt)
+                            + c1 * (3.0 * mt * mt * t)
+                            + c2 * (3.0 * mt * t * t)
+                            + end * (t * t * t),
+                    );
                 }
                 cursor = end;
             }
@@ -826,6 +965,7 @@ fn tool_strip(ui: &mut Ui, state: &mut AppState, actions: &mut Vec<UiAction>) {
             crate::state::Tool::Fill,
             crate::state::Tool::PathEdit,
             crate::state::Tool::Pen,
+            crate::state::Tool::SkinPaint,
         ] {
             let selected = state.tool == tool;
             if ui
@@ -1238,6 +1378,7 @@ fn path_edit_input(
     state: &mut AppState,
     view: &View,
     response: &egui::Response,
+    independent_handles: bool,
 ) {
     let _ = project;
     if response.drag_started_by(egui::PointerButton::Primary) {
@@ -1250,7 +1391,7 @@ fn path_edit_input(
     if state.node_drag.is_some() && response.dragged_by(egui::PointerButton::Primary) {
         if let (Some(pointer), Some(node)) = (response.interact_pointer_pos(), state.node_drag) {
             let stage = view.to_stage(pointer);
-            move_node(project, state, node, stage);
+            move_node(project, state, node, stage, independent_handles);
             state.dirty = true;
         }
     }
@@ -1438,6 +1579,8 @@ fn commit_pen(project: &mut Project, state: &mut AppState, closed: bool) {
         (max.y - min.y).max(1.0),
         vec![PathShape {
             fill: state.new_object_color,
+            gradient: None,
+            skin: None,
             commands,
         }],
         state.new_object_color,
@@ -1600,6 +1743,8 @@ fn commit_draft(project: &mut Project, state: &mut AppState) {
                 (max.y - min.y).max(1.0),
                 vec![PathShape {
                     fill: state.new_object_color,
+                    gradient: None,
+                    skin: None,
                     commands,
                 }],
                 state.new_object_color,
@@ -1719,6 +1864,175 @@ fn fill_object(project: &mut Project, state: &mut AppState, object: &nova_core::
     project.touch();
     state.dirty = true;
     state.set_status(format!("{name} gefüllt"));
+}
+
+// --------------------------------------------------------- weight painting
+
+/// Weight-paint input: drag over a skinned path object adds (LMB) or
+/// removes (Shift) weight for `state.skin_bone` on every path vertex
+/// inside `state.skin_radius` screen pixels. Weights are renormalized
+/// per vertex after each stroke event.
+fn skin_paint_input(
+    ui: &mut Ui,
+    project: &mut Project,
+    state: &mut AppState,
+    view: &View,
+    response: &egui::Response,
+) {
+    if state.skin_bone.is_none() {
+        return;
+    }
+    if !response.dragged_by(egui::PointerButton::Primary) {
+        return;
+    }
+    let Some(pointer) = response.interact_pointer_pos() else {
+        return;
+    };
+    let ids = state.selection.object_ids();
+    if ids.len() != 1 {
+        return;
+    }
+    let remove = ui.input(|i| i.modifiers.shift);
+    let delta = if remove { -0.15 } else { 0.15 };
+    let bone = state.skin_bone.unwrap();
+    let radius = state.skin_radius;
+    paint_weights(project, state, view, ids[0], pointer, radius, bone, delta);
+}
+
+/// Applies a weight delta to all skinning points of the selected object
+/// within `radius` screen px of `pointer`.
+fn paint_weights(
+    project: &mut Project,
+    state: &mut AppState,
+    view: &View,
+    object_id: Uuid,
+    pointer: Pos2,
+    radius: f32,
+    bone: Uuid,
+    delta: f32,
+) {
+    let frame = state.frame;
+    let Some(scene) = project.edit_scene_mut(state.edit_symbol) else {
+        return;
+    };
+    let Some(layer) = scene.layers.iter_mut().find(|layer| {
+        layer
+            .frames
+            .iter()
+            .any(|f| f.objects.iter().any(|o| o.id == object_id))
+    }) else {
+        return;
+    };
+    let Some(key_index) = layer.last_keyframe_at_or_before(frame) else {
+        return;
+    };
+    let Some(object) = layer.frames[key_index]
+        .objects
+        .iter_mut()
+        .find(|o| o.id == object_id)
+    else {
+        return;
+    };
+    let instance = object.clone();
+    let ObjectKind::Path { paths, .. } = &mut object.kind else {
+        return;
+    };
+    let mut changed = false;
+    for path in paths.iter_mut() {
+        let points = path.skinning_points();
+        if points.is_empty() {
+            continue;
+        }
+        // Ensure weight storage exists.
+        if path.skin.is_none() {
+            path.skin = Some(nova_core::SkinData {
+                weights: vec![Vec::new(); points.len()],
+            });
+        }
+        let skin = path.skin.as_mut().unwrap();
+        if skin.weights.len() < points.len() {
+            skin.weights.resize(points.len(), Vec::new());
+        }
+        for (index, point) in points.iter().enumerate() {
+            let stage = util::stage_point(&instance, egui::vec2(point.0, point.1));
+            let screen = view.to_screen(stage);
+            if screen.distance(pointer) > radius {
+                continue;
+            }
+            let vertex_weights = &mut skin.weights[index];
+            match vertex_weights.iter_mut().find(|w| w.bone == bone) {
+                Some(w) => w.weight = (w.weight + delta).max(0.0),
+                None if delta > 0.0 => vertex_weights.push(nova_core::SkinWeight {
+                    bone,
+                    weight: delta,
+                }),
+                None => {}
+            }
+            vertex_weights.retain(|w| w.weight > 0.0);
+            nova_core::normalize_weights(vertex_weights);
+            changed = true;
+        }
+    }
+    if changed {
+        project.touch();
+        state.dirty = true;
+    }
+}
+
+// ------------------------------------------------------ skin paint overlay
+
+/// Draws skinned path vertices as dots (coloured by dominant bone) while
+/// the weight-paint tool is active.
+fn draw_skin_paint_overlay(
+    painter: &egui::Painter,
+    view: &View,
+    project: &Project,
+    state: &AppState,
+) {
+    if state.tool != crate::state::Tool::SkinPaint {
+        return;
+    }
+    let ids = state.selection.object_ids();
+    if ids.len() != 1 {
+        return;
+    }
+    let Some(resolved) = state.resolved_object(project, ids[0]) else {
+        return;
+    };
+    let ObjectKind::Path { paths, .. } = &resolved.instance.kind else {
+        return;
+    };
+    for path in paths {
+        let Some(skin) = &path.skin else {
+            continue;
+        };
+        let points = path.skinning_points();
+        for (index, point) in points.iter().enumerate() {
+            let stage = util::stage_point(&resolved.instance, egui::vec2(point.0, point.1));
+            let screen = view.to_screen(stage);
+            let dominant = skin
+                .weights
+                .get(index)
+                .and_then(|ws| {
+                    ws.iter()
+                        .max_by(|a, b| a.weight.total_cmp(&b.weight))
+                        .map(|w| w.bone)
+                })
+                .unwrap_or(Uuid::nil());
+            let color = bone_color(dominant);
+            painter.circle_filled(screen, 3.0, color);
+        }
+    }
+}
+
+/// Deterministic colour per bone id for weight visualisation.
+fn bone_color(id: Uuid) -> Color32 {
+    let bytes = id.as_bytes();
+    Color32::from_rgb(
+        80 + bytes[0] % 160,
+        80 + bytes[4] % 160,
+        80 + bytes[8] % 160,
+    )
 }
 
 // ------------------------------------------------------------ bone overlay
@@ -1892,6 +2206,18 @@ fn path_nodes(
                     ));
                     nodes.push((path_index, command_index, 1, Pos2::new(x, y)));
                 }
+                PathCommand::CubicTo {
+                    c1_x,
+                    c1_y,
+                    c2_x,
+                    c2_y,
+                    x,
+                    y,
+                } => {
+                    nodes.push((path_index, command_index, 0, Pos2::new(c1_x, c1_y)));
+                    nodes.push((path_index, command_index, 1, Pos2::new(c2_x, c2_y)));
+                    nodes.push((path_index, command_index, 2, Pos2::new(x, y)));
+                }
             }
         }
     }
@@ -1926,7 +2252,13 @@ fn node_at(
     best.map(|(_, node)| node)
 }
 
-fn move_node(project: &mut Project, state: &AppState, node: crate::state::NodeDrag, stage: Pos2) {
+fn move_node(
+    project: &mut Project,
+    state: &AppState,
+    node: crate::state::NodeDrag,
+    stage: Pos2,
+    independent_handles: bool,
+) {
     let Some(resolved) = state.resolved_object(project, node.object) else {
         return;
     };
@@ -1977,6 +2309,36 @@ fn move_node(project: &mut Project, state: &AppState, node: crate::state::NodeDr
                 *py = y;
             }
         }
+        PathCommand::CubicTo {
+            c1_x,
+            c1_y,
+            c2_x,
+            c2_y,
+            x: px,
+            y: py,
+        } => match node.slot {
+            0 => {
+                *c1_x = x;
+                *c1_y = y;
+                if !independent_handles {
+                    // Smooth mode: mirror c2 around the anchor point.
+                    *c2_x = 2.0 * *px - x;
+                    *c2_y = 2.0 * *py - y;
+                }
+            }
+            1 => {
+                *c2_x = x;
+                *c2_y = y;
+                if !independent_handles {
+                    *c1_x = 2.0 * *px - x;
+                    *c1_y = 2.0 * *py - y;
+                }
+            }
+            _ => {
+                *px = x;
+                *py = y;
+            }
+        },
     }
 }
 
@@ -2015,8 +2377,10 @@ fn segment_at(
         let mut cursor = egui::Vec2::ZERO;
         for (command_index, command) in path.commands.iter().enumerate() {
             let end = match *command {
-                PathCommand::MoveTo { x, y } | PathCommand::LineTo { x, y } => egui::vec2(x, y),
-                PathCommand::CurveTo { x, y, .. } => egui::vec2(x, y),
+                PathCommand::MoveTo { x, y }
+                | PathCommand::LineTo { x, y }
+                | PathCommand::CurveTo { x, y, .. }
+                | PathCommand::CubicTo { x, y, .. } => egui::vec2(x, y),
             };
             let is_line = matches!(command, PathCommand::LineTo { .. });
             if is_line {

@@ -553,9 +553,12 @@ crates/nova-core/src/
   model/timeline.rs     Frame, Tween, Easing, resolve_scene
   model/object.rs       ObjectInstance, ObjectKind, Symbol (incl. skeleton,
                         bone_clips, active_clip)
-  model/bones.rs        M15/M16 rig model: Bone/Skeleton/BoneClip/BoneTrack,
-                        FK+IK pose evaluation, bind_transform, two-bone IK,
-                        FABRIK chain solver + pole mirroring
+  model/bones.rs        M15/M16/M17 rig model: Bone/Skeleton/BoneClip/
+                        BoneTrack, FK+IK pose evaluation, bind_transform,
+                        two-bone IK, FABRIK chain solver + pole mirroring,
+                        skin_vertex LBS, auto_skin_weights, normalize_weights
+  model/boolop.rs       M17 polygon Boolean ops via i_overlay
+                        (boolean_paths / boolean_path_objects, transform-aware)
   model/transform.rs    center-origin transform + matrix/lerp
   model/color.rs        RGBA, hex, lerp
   model/game.rs         game metadata (collision, physics, camera, input,

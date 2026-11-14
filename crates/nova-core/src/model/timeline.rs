@@ -244,8 +244,8 @@ pub fn resolve_symbol_frame(symbol: &super::Symbol, frame: usize) -> Vec<Resolve
     }
     let mut pose_map: std::collections::HashMap<Uuid, super::BonePose> =
         std::collections::HashMap::new();
-    for (id, p) in pose {
-        pose_map.insert(id, p);
+    for (id, p) in &pose {
+        pose_map.insert(*id, *p);
     }
     for object in &mut objects {
         let Some(bone_id) = object.instance.bone else {
@@ -260,7 +260,103 @@ pub fn resolve_symbol_frame(symbol: &super::Symbol, frame: usize) -> Vec<Resolve
         object.instance.transform.y = ny;
         object.instance.transform.rotation = nr;
     }
+    // Mesh skinning (M17): path vertices weighted to bones deform with the
+    // pose. Bind pose = rest skeleton; vertex coordinates are object-local,
+    // so they are mapped into skeleton space, skinned, and mapped back.
+    let needs_skin = objects.iter().any(|o| {
+        matches!(&o.instance.kind, ObjectKind::Path { paths, .. }
+            if paths.iter().any(|p| p.skin.is_some()))
+    });
+    if needs_skin {
+        let bind = skeleton.pose_at(None, 0);
+        for object in &mut objects {
+            deform_skinned_object(object, &bind, &pose);
+        }
+    }
     objects
+}
+
+/// Applies linear-blend skinning to every skinned path of `object`.
+/// `bind`/`cur` are skeleton-space poses; the object's own transform maps
+/// local vertices into that space and back.
+fn deform_skinned_object(
+    object: &mut ResolvedObject,
+    bind: &[(Uuid, super::BonePose)],
+    cur: &[(Uuid, super::BonePose)],
+) {
+    let ObjectKind::Path { paths, .. } = &mut object.instance.kind else {
+        return;
+    };
+    let t = object.instance.transform;
+    let to_world = |p: (f32, f32)| -> (f32, f32) {
+        let (sx, sy) = (p.0 * t.scale_x, p.1 * t.scale_y);
+        let rad = t.rotation.to_radians();
+        let (s, c) = rad.sin_cos();
+        (t.x + sx * c - sy * s, t.y + sx * s + sy * c)
+    };
+    let to_local = |p: (f32, f32)| -> (f32, f32) {
+        let dx = p.0 - t.x;
+        let dy = p.1 - t.y;
+        let rad = (-t.rotation).to_radians();
+        let (s, c) = rad.sin_cos();
+        let rx = dx * c - dy * s;
+        let ry = dx * s + dy * c;
+        let sx = if t.scale_x.abs() < 1e-4 {
+            if t.scale_x < 0.0 { -1e-4 } else { 1e-4 }
+        } else {
+            t.scale_x
+        };
+        let sy = if t.scale_y.abs() < 1e-4 {
+            if t.scale_y < 0.0 { -1e-4 } else { 1e-4 }
+        } else {
+            t.scale_y
+        };
+        (rx / sx, ry / sy)
+    };
+    for path in paths.iter_mut() {
+        let Some(skin) = &path.skin else {
+            continue;
+        };
+        let mut weights_iter = skin.weights.iter();
+        let mut next_weight = || weights_iter.next();
+        path.commands.iter_mut().for_each(|command| {
+            let mut deform = |x: &mut f32, y: &mut f32| {
+                if let Some(w) = next_weight() {
+                    let world = to_world((*x, *y));
+                    let skinned = super::skin_vertex(bind, cur, world, w);
+                    let local = to_local(skinned);
+                    *x = local.0;
+                    *y = local.1;
+                }
+            };
+            match command {
+                super::PathCommand::MoveTo { x, y } | super::PathCommand::LineTo { x, y } => {
+                    deform(x, y)
+                }
+                super::PathCommand::CurveTo {
+                    control_x,
+                    control_y,
+                    x,
+                    y,
+                } => {
+                    deform(control_x, control_y);
+                    deform(x, y);
+                }
+                super::PathCommand::CubicTo {
+                    c1_x,
+                    c1_y,
+                    c2_x,
+                    c2_y,
+                    x,
+                    y,
+                } => {
+                    deform(c1_x, c1_y);
+                    deform(c2_x, c2_y);
+                    deform(x, y);
+                }
+            }
+        });
+    }
 }
 
 fn lerp_f32(a: f32, b: f32, t: f32) -> f32 {
@@ -375,11 +471,38 @@ fn lerp_shape_kind(a: &ObjectKind, b: &ObjectKind, t: f32) -> Option<ObjectKind>
                             x: lerp_f32(ax, bx, t),
                             y: lerp_f32(ay, by, t),
                         },
+                        (
+                            super::PathCommand::CubicTo {
+                                c1_x: a1x,
+                                c1_y: a1y,
+                                c2_x: a2x,
+                                c2_y: a2y,
+                                x: ax,
+                                y: ay,
+                            },
+                            super::PathCommand::CubicTo {
+                                c1_x: b1x,
+                                c1_y: b1y,
+                                c2_x: b2x,
+                                c2_y: b2y,
+                                x: bx,
+                                y: by,
+                            },
+                        ) => super::PathCommand::CubicTo {
+                            c1_x: lerp_f32(a1x, b1x, t),
+                            c1_y: lerp_f32(a1y, b1y, t),
+                            c2_x: lerp_f32(a2x, b2x, t),
+                            c2_y: lerp_f32(a2y, b2y, t),
+                            x: lerp_f32(ax, bx, t),
+                            y: lerp_f32(ay, by, t),
+                        },
                         _ => *left,
                     })
                     .collect();
                 paths.push(super::PathShape {
                     fill: lerp_color(left.fill, right.fill, t),
+                    gradient: left.gradient.clone(),
+                    skin: left.skin.clone(),
                     commands,
                 });
             }

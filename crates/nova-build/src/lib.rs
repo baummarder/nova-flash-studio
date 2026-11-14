@@ -23,7 +23,7 @@ use nova_core::{
     AssetKind, BodyType, CodeProvenance, CollisionShape, LayerKind, ObjectKind, PathCommand,
     Project, Rgba, Scene, SoundCue, SwfCompression, SymbolId, TargetRuntime, resolve_scene,
 };
-use nova_swf::shape::{Command, Point, Shape, ShapePath};
+use nova_swf::shape::{Command, FillStyle, GradientRecord, Point, Shape, ShapePath};
 use nova_swf::types::{Color, Matrix, PlaceObject, Rect as SwfRect};
 use nova_swf::{Compression, Movie, Tag};
 
@@ -1609,28 +1609,58 @@ fn path_shape(width: f32, height: f32, paths: &[nova_core::PathShape]) -> Shape 
     let mut shape_paths = Vec::new();
     for path in paths {
         let fill_index = fills.len() + 1;
-        fills.push(to_color(path.fill));
-        let commands = path
-            .commands
-            .iter()
-            .map(|command| match *command {
+        fills.push(match &path.gradient {
+            Some(gradient) => gradient_fill_style(gradient, width, height),
+            None => FillStyle::Solid(to_color(path.fill)),
+        });
+        let mut commands = Vec::with_capacity(path.commands.len());
+        // Track the current pen position for cubic subdivision.
+        let mut pen = (0.0f32, 0.0f32);
+        for command in &path.commands {
+            match *command {
                 PathCommand::MoveTo { x, y } => {
-                    Command::MoveTo(Point::new(to_twips(x), to_twips(y)))
+                    pen = (x, y);
+                    commands.push(Command::MoveTo(Point::new(to_twips(x), to_twips(y))));
                 }
                 PathCommand::LineTo { x, y } => {
-                    Command::LineTo(Point::new(to_twips(x), to_twips(y)))
+                    pen = (x, y);
+                    commands.push(Command::LineTo(Point::new(to_twips(x), to_twips(y))));
                 }
                 PathCommand::CurveTo {
                     control_x,
                     control_y,
                     x,
                     y,
-                } => Command::CurveTo {
-                    control: Point::new(to_twips(control_x), to_twips(control_y)),
-                    to: Point::new(to_twips(x), to_twips(y)),
-                },
-            })
-            .collect();
+                } => {
+                    pen = (x, y);
+                    commands.push(Command::CurveTo {
+                        control: Point::new(to_twips(control_x), to_twips(control_y)),
+                        to: Point::new(to_twips(x), to_twips(y)),
+                    });
+                }
+                PathCommand::CubicTo {
+                    c1_x,
+                    c1_y,
+                    c2_x,
+                    c2_y,
+                    x,
+                    y,
+                } => {
+                    // SWF shape records only store quadratic curves; cubic
+                    // segments are approximated by adaptive quadratic
+                    // chains (de Casteljau subdivision).
+                    for (cx, cy, tx, ty) in
+                        cubic_to_quadratics(pen, (c1_x, c1_y), (c2_x, c2_y), (x, y))
+                    {
+                        commands.push(Command::CurveTo {
+                            control: Point::new(to_twips(cx), to_twips(cy)),
+                            to: Point::new(to_twips(tx), to_twips(ty)),
+                        });
+                    }
+                    pen = (x, y);
+                }
+            }
+        }
         shape_paths.push(ShapePath {
             fill: Some(fill_index as u16),
             line: None,
@@ -1638,7 +1668,7 @@ fn path_shape(width: f32, height: f32, paths: &[nova_core::PathShape]) -> Shape 
         });
     }
     if fills.is_empty() {
-        fills.push(Color::WHITE);
+        fills.push(FillStyle::Solid(Color::WHITE));
         shape_paths.push(ShapePath {
             fill: Some(1),
             line: None,
@@ -1657,6 +1687,110 @@ fn path_shape(width: f32, height: f32, paths: &[nova_core::PathShape]) -> Shape 
         lines: Vec::new(),
         paths: shape_paths,
     }
+}
+
+/// Maps a model [`nova_core::Gradient`] to a SWF gradient fill style.
+/// The gradient space is the object's local, centre-based bounds:
+/// linear ramps span the projection of the bounds along `angle`, radial
+/// gradients are centred on (`center_x`,`center_y`) with `radius`.
+fn gradient_fill_style(gradient: &nova_core::Gradient, width: f32, height: f32) -> FillStyle {
+    let records: Vec<GradientRecord> = gradient
+        .stops
+        .iter()
+        .map(|stop| GradientRecord {
+            ratio: (stop.position.clamp(0.0, 1.0) * 255.0).round() as u8,
+            color: to_color(stop.color),
+        })
+        .collect();
+    let matrix = match gradient.kind {
+        nova_core::GradientKind::Linear => {
+            let theta = gradient.angle.to_radians();
+            let (ux, uy) = (theta.cos(), theta.sin());
+            // Half-extents of the bounds projected onto ramp/perp axes.
+            let ex = (width.abs() * ux.abs() + height.abs() * uy.abs()) / 2.0;
+            let ey = (width.abs() * uy.abs() + height.abs() * ux.abs()) / 2.0;
+            // u = ramp dir, v = perpendicular; gradient x in [0,1] maps
+            // to -ex..+ex along u, y in [0,1] to -ey..+ey along v.
+            Matrix {
+                a: ux * 2.0 * ex,
+                b: uy * 2.0 * ex,
+                c: -uy * 2.0 * ey,
+                d: ux * 2.0 * ey,
+                tx: 0.0,
+                ty: 0.0,
+            }
+        }
+        nova_core::GradientKind::Radial => Matrix {
+            a: gradient.radius.max(1.0),
+            b: 0.0,
+            c: 0.0,
+            d: gradient.radius.max(1.0),
+            tx: gradient.center_x,
+            ty: gradient.center_y,
+        },
+    };
+    match gradient.kind {
+        nova_core::GradientKind::Linear => FillStyle::LinearGradient { matrix, records },
+        nova_core::GradientKind::Radial => FillStyle::RadialGradient { matrix, records },
+    }
+}
+
+/// Approximates a cubic Bézier `p0..p3` by quadratic segments
+/// `(control, to)` pairs. Uses recursive de Casteljau subdivision with a
+/// distance-based flatness test; deterministic (fixed depth cap).
+fn cubic_to_quadratics(
+    p0: (f32, f32),
+    c1: (f32, f32),
+    c2: (f32, f32),
+    p3: (f32, f32),
+) -> Vec<(f32, f32, f32, f32)> {
+    let mut out = Vec::new();
+    subdivide_cubic(p0, c1, c2, p3, 0, &mut out);
+    out
+}
+
+fn subdivide_cubic(
+    p0: (f32, f32),
+    c1: (f32, f32),
+    c2: (f32, f32),
+    p3: (f32, f32),
+    depth: u32,
+    out: &mut Vec<(f32, f32, f32, f32)>,
+) {
+    // Flatness: max distance of control points from the chord.
+    let chord = (p3.0 - p0.0, p3.1 - p0.1);
+    let chord_len = (chord.0 * chord.0 + chord.1 * chord.1).sqrt();
+    let dist = |p: (f32, f32)| -> f32 {
+        if chord_len < 1e-6 {
+            return ((p.0 - p0.0).powi(2) + (p.1 - p0.1).powi(2)).sqrt();
+        }
+        ((p.0 - p0.0) * chord.1 - (p.1 - p0.1) * chord.0).abs() / chord_len
+    };
+    let flat = dist(c1).max(dist(c2)) < 0.6 && depth >= 2 || depth >= 5;
+    if flat {
+        // Quadratic control = intersection of endpoint tangents.
+        let t1 = (p0.0 + (c1.0 - p0.0), p0.1 + (c1.1 - p0.1));
+        let t2 = (p3.0 + (c2.0 - p3.0), p3.1 + (c2.1 - p3.1));
+        let d1 = (t1.0 - p0.0, t1.1 - p0.1);
+        let d2 = (t2.0 - p3.0, t2.1 - p3.1);
+        let denom = d1.0 * d2.1 - d1.1 * d2.0;
+        let ctrl = if denom.abs() < 1e-6 {
+            ((c1.0 + c2.0) / 2.0, (c1.1 + c2.1) / 2.0)
+        } else {
+            // Intersect line(p0, d1) with line(p3, d2).
+            let t = ((p3.0 - p0.0) * d2.1 - (p3.1 - p0.1) * d2.0) / denom;
+            (p0.0 + d1.0 * t, p0.1 + d1.1 * t)
+        };
+        out.push((ctrl.0, ctrl.1, p3.0, p3.1));
+        return;
+    }
+    // de Casteljau split at t=0.5.
+    let mid = |a: (f32, f32), b: (f32, f32)| ((a.0 + b.0) / 2.0, (a.1 + b.1) / 2.0);
+    let (a, b, c) = (mid(p0, c1), mid(c1, c2), mid(c2, p3));
+    let (d, e) = (mid(a, b), mid(b, c));
+    let m = mid(d, e);
+    subdivide_cubic(p0, a, d, m, depth + 1, out);
+    subdivide_cubic(m, e, c, p3, depth + 1, out);
 }
 
 fn to_twips(value: f32) -> i32 {
@@ -2281,6 +2415,84 @@ mod tests {
         assert!(info.has_tag(nova_swf::tags::TAG_SYMBOL_CLASS));
         assert_eq!(output.stats.embedded_scripts, 1);
         assert!(output.stats.abc_bytes > 0);
+    }
+
+    #[test]
+    fn gradient_path_exports_native_gradient_fill() {
+        let mut project = Project::demo();
+        project.export.compression = nova_core::SwfCompression::None;
+        // Give the first path object a linear gradient.
+        let scene = project.active_scene_mut().unwrap();
+        // Ensure a Path object exists (demo may only have primitives).
+        if !scene.layers[0].frames[0]
+            .objects
+            .iter()
+            .any(|o| matches!(o.kind, nova_core::ObjectKind::Path { .. }))
+        {
+            let (hw, hh) = (30.0f32, 30.0f32);
+            scene.layers[0].frames[0]
+                .objects
+                .push(nova_core::ObjectInstance::path(
+                    "GradientShape",
+                    200.0,
+                    200.0,
+                    60.0,
+                    60.0,
+                    vec![nova_core::PathShape::new(
+                        nova_core::Rgba::WHITE,
+                        vec![
+                            nova_core::PathCommand::MoveTo { x: -hw, y: -hh },
+                            nova_core::PathCommand::LineTo { x: hw, y: -hh },
+                            nova_core::PathCommand::LineTo { x: hw, y: hh },
+                            nova_core::PathCommand::LineTo { x: -hw, y: hh },
+                            nova_core::PathCommand::LineTo { x: -hw, y: -hh },
+                        ],
+                    )],
+                    nova_core::Rgba::WHITE,
+                ));
+        }
+        let object = scene.layers[0].frames[0]
+            .objects
+            .iter_mut()
+            .find(|o| matches!(o.kind, nova_core::ObjectKind::Path { .. }))
+            .expect("path object present");
+        let nova_core::ObjectKind::Path { paths, .. } = &mut object.kind else {
+            unreachable!()
+        };
+        for path in paths.iter_mut() {
+            path.gradient = Some(nova_core::Gradient {
+                kind: nova_core::GradientKind::Linear,
+                stops: vec![
+                    nova_core::GradientStop {
+                        position: 0.0,
+                        color: nova_core::Rgba::rgb(255, 0, 0),
+                    },
+                    nova_core::GradientStop {
+                        position: 1.0,
+                        color: nova_core::Rgba::rgb(0, 0, 255),
+                    },
+                ],
+                angle: 45.0,
+                center_x: 0.0,
+                center_y: 0.0,
+                radius: 50.0,
+            });
+        }
+        let output = build_swf(&project).unwrap();
+        let info = nova_swf::inspect(&output.bytes).unwrap();
+        assert!(info.warnings.is_empty(), "{:?}", info.warnings);
+        // Parse with the reference SWF reader: a real gradient fill must
+        // be present in a DefineShape tag.
+        let buf = swf::decompress_swf(&mut std::io::Cursor::new(&output.bytes)).unwrap();
+        let parsed = swf::parse_swf(&buf).unwrap();
+        let has_gradient = parsed.tags.iter().any(|tag| {
+            matches!(tag, swf::Tag::DefineShape(shape)
+            if shape.styles.fill_styles.iter().any(|f| matches!(
+                f,
+                swf::FillStyle::LinearGradient(_) | swf::FillStyle::RadialGradient(_)
+            )))
+        });
+        assert!(has_gradient, "SWF must contain a native gradient fill");
     }
 
     #[test]

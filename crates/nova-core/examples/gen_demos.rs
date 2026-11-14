@@ -472,6 +472,8 @@ fn masks_and_tweens_demo(dir: &std::path::Path) {
         height: 80.0,
         paths: vec![PathShape {
             fill: Rgba::rgb(120, 220, 140),
+            gradient: None,
+            skin: None,
             commands: vec![
                 PathCommand::MoveTo { x: -40.0, y: -40.0 },
                 PathCommand::LineTo { x: 40.0, y: -40.0 },

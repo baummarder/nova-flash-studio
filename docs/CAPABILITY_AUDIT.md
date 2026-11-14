@@ -21,6 +21,12 @@ is claimed from documentation alone.
 - Rectangle (corner radius), ellipse, imported vector paths (`Path` with
   `PathShape` fills/strokes), symbol instances, bitmap objects, editable
   text (baked to paths on export), tilemaps.
+- **M17**: cubic Bézier commands (`CubicTo`) with smooth/independent
+  handle editing, native linear/radial gradient fills (multi-stop,
+  exported as SWF gradient fill styles), real polygon Boolean ops
+  (union/intersect/subtract/XOR incl. holes via `i_overlay`,
+  transform-aware), and mesh skinning with weight painting on path
+  vertices.
 - Selection/marquee, property editing, fill/stroke editing — editor-level,
   exercised daily by the milestone demos.
 
@@ -38,6 +44,10 @@ is claimed from documentation alone.
 - **M16**: multi-bone FABRIK chain IK + pole targets (`IkKey.poleX/Y`),
   `add_ik_key` AI op; visual pen tool, path node insert/delete,
   bone overlay with draggable joints in the stage view.
+- **M17**: mesh skinning with normalised multi-bone vertex weights
+  (LBS, baked per frame), auto-bind, weight-painting tool with
+  bone-coloured vertex dots, bone-clip duplicate/rename, and
+  animation constraints remain 🟡 (not implemented).
 
 ## 4. Scenes & MovieClips — ✅
 

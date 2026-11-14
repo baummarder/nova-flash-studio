@@ -1,6 +1,7 @@
 //! Serializable data model of a `.nova` project.
 
 mod bones;
+mod boolop;
 mod color;
 mod game;
 mod object;
@@ -12,8 +13,10 @@ mod timeline;
 mod transform;
 
 pub use bones::{
-    Bone, BoneClip, BoneKey, BonePose, BoneTrack, IkKey, Skeleton, bind_transform, solve_two_bone,
+    Bone, BoneClip, BoneKey, BonePose, BoneTrack, IkKey, Skeleton, auto_skin_weights,
+    bind_transform, normalize_weights, skin_vertex, solve_two_bone,
 };
+pub use boolop::{BoolOp, boolean_path_objects, boolean_paths};
 pub use color::Rgba;
 pub use game::{
     BodyType, CameraConfig, CollisionShape, CollisionSpec, GameObjectConfig, GameSceneConfig,
@@ -21,8 +24,8 @@ pub use game::{
     WorldConfig,
 };
 pub use object::{
-    BitmapCrop, ObjectInstance, ObjectKind, PathCommand, PathShape, ScriptId, Symbol, SymbolId,
-    SymbolKind,
+    BitmapCrop, Gradient, GradientKind, GradientStop, ObjectInstance, ObjectKind, PathCommand,
+    PathShape, ScriptId, SkinData, SkinWeight, Symbol, SymbolId, SymbolKind,
 };
 pub use project::{
     Asset, AssetKind, CURRENT_FORMAT_VERSION, CodeProvenance, ExportConfig, Metadata, NovaFile,

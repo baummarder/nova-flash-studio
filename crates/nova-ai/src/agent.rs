@@ -404,6 +404,12 @@ Unterstützte Projektoperationen (nur diese, jeweils mit "op"):
 - {"op":"add_bone_clip","symbol":"Held","name":"Schwung","frames":24,"looping":true}
 - {"op":"add_bone_key","symbol":"Held","clip":"Schwung","bone":"Oberarm","frame":0,"rotation":0}
 - {"op":"add_ik_key","symbol":"Held","clip":"Schwung","bone":"Hand","frame":0,"x":120,"y":-40,"pole_x":0,"pole_y":80}
+- {"op":"duplicate_bone_clip","symbol":"Held","clip":"Schwung","name":"Schwung2"}
+- {"op":"rename_bone_clip","symbol":"Held","clip":"Schwung2","name":"SchwungB"}
+- {"op":"set_path_gradient","name":"Shape","kind":"linear","angle":45,"stops":[[0.0,"#ff0000"],[1.0,"#0000ff"]]}
+- {"op":"boolean_path_operation","target":"A","with":"B","operation":"union"}
+- {"op":"bind_mesh_to_skeleton","symbol":"Held","object":"ArmSegment"}
+- {"op":"set_vertex_weight","symbol":"Held","object":"ArmSegment","vertex":3,"bone":"Oberarm","weight":0.8}
 - {"op":"bind_object_to_bone","symbol":"Held","object":"ArmSegment","bone":"Oberarm"}
 - {"op":"set_symbol_clip","symbol":"Held","clip":"Schwung"}
 Szene und Symbol-Timeline werden über Namen ausgewählt; "symbol" zielt auf eine Bibliotheks-Timeline, "scene" auf eine Szene, ohne Auswahl gilt die aktive Szene. Asset-Pfade sind relativ zum Projektordner (png/jpg/jpeg/gif, wav/mp3). Neue Skripte müssen unter scripts/ liegen und auf .as enden. Neue Skripte müssen unter scripts/ liegen und auf .as enden. Keine Lösch-, Umbenennungs- oder Überschreiboperationen für bestehende Inhalte erfinden. Die Operationen werden erst nach ausdrücklicher Bestätigung transaktional angewendet."##;

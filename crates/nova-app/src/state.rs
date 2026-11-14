@@ -196,6 +196,8 @@ pub enum Tool {
     Fill,
     PathEdit,
     Pen,
+    /// Paints vertex bone weights on skinned path objects (M17).
+    SkinPaint,
 }
 
 impl Tool {
@@ -209,6 +211,7 @@ impl Tool {
             Self::Fill => "Füllen",
             Self::PathEdit => "Pfad",
             Self::Pen => "Stift",
+            Self::SkinPaint => "Gewichte",
         }
     }
 
@@ -223,6 +226,9 @@ impl Tool {
             Self::PathEdit => "Pfadknoten des ausgewählten Objekts bearbeiten.",
             Self::Pen => {
                 "Anker setzen: Klick = Ecke, Ziehen = Kurve. Enter/Doppelklick = fertig, Klick auf Startpunkt = schließen, Esc = abbrechen."
+            }
+            Self::SkinPaint => {
+                "Knochengewicht auf Pfadpunkte malen (Linke Maustaste = hinzufügen, Shift = entfernen). Knochen und Radius in den Eigenschaften wählen."
             }
         }
     }
@@ -557,6 +563,10 @@ pub struct AppState {
     pub pen: Option<PenDraft>,
     /// Bone-joint drag while a rigged symbol timeline is being edited.
     pub bone_drag: Option<Uuid>,
+    /// Bone selected for weight painting (SkinPaint tool).
+    pub skin_bone: Option<Uuid>,
+    /// Weight brush radius in screen pixels.
+    pub skin_radius: f32,
     pub asset_textures: HashMap<Uuid, egui::TextureHandle>,
     pub selected_asset: Option<Uuid>,
     pub selected_sound_cue: Option<(Uuid, usize)>,
@@ -640,6 +650,8 @@ impl AppState {
             node_drag: None,
             pen: None,
             bone_drag: None,
+            skin_bone: None,
+            skin_radius: 24.0,
             asset_textures: HashMap::new(),
             selected_asset: project.assets.first().map(|asset| asset.id),
             selected_sound_cue: None,

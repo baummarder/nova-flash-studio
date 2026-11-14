@@ -1799,6 +1799,30 @@ fn flatten_path(path: &PathShape) -> Vec<(f32, f32)> {
                 }
                 current = (x, y);
             }
+            PathCommand::CubicTo {
+                c1_x,
+                c1_y,
+                c2_x,
+                c2_y,
+                x,
+                y,
+            } => {
+                let start = current;
+                for step in 1..=16 {
+                    let t = step as f32 / 16.0;
+                    let mt = 1.0 - t;
+                    let px = mt * mt * mt * start.0
+                        + 3.0 * mt * mt * t * c1_x
+                        + 3.0 * mt * t * t * c2_x
+                        + t * t * t * x;
+                    let py = mt * mt * mt * start.1
+                        + 3.0 * mt * mt * t * c1_y
+                        + 3.0 * mt * t * t * c2_y
+                        + t * t * t * y;
+                    out.push((px, py));
+                }
+                current = (x, y);
+            }
         }
     }
     out
