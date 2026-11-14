@@ -205,7 +205,161 @@ fn scene_properties(ui: &mut Ui, project: &mut Project, state: &mut AppState) {
     }
 
     ui.add_space(4.0);
+    game_scene_properties(ui, project, state);
+    ui.add_space(4.0);
     export_properties(ui, project, state);
+}
+
+fn game_scene_properties(ui: &mut Ui, project: &mut Project, state: &mut AppState) {
+    let index = project.active_scene_index();
+    let mut changed = false;
+    theme::section(ui, "Spiel");
+
+    let scene = &mut project.scenes[index];
+    let mut enabled = scene.game.is_some();
+    if ui
+        .checkbox(&mut enabled, "Spiel-Konfiguration")
+        .on_hover_text("Kamera und Eingabe-Bindings für die Spiel-Vorschau")
+        .changed()
+    {
+        scene.game = if enabled {
+            Some(nova_core::GameSceneConfig::default())
+        } else {
+            None
+        };
+        changed = true;
+    }
+
+    if let Some(game) = scene.game.as_mut() {
+        // Camera ------------------------------------------------------------------
+        let mut cam_enabled = game.camera.as_ref().is_some_and(|c| c.enabled);
+        if ui
+            .checkbox(&mut cam_enabled, "Kamera")
+            .on_hover_text("Kamera folgt einem Objekt und bleibt in den Grenzen")
+            .changed()
+        {
+            match game.camera.as_mut() {
+                Some(camera) => camera.enabled = cam_enabled,
+                None if cam_enabled => {
+                    game.camera = Some(nova_core::CameraConfig {
+                        enabled: true,
+                        ..Default::default()
+                    });
+                }
+                None => {}
+            }
+            changed = true;
+        }
+        if let Some(camera) = game.camera.as_mut().filter(|c| c.enabled) {
+            egui::Grid::new("game_camera_grid")
+                .num_columns(2)
+                .spacing(egui::vec2(8.0, 6.0))
+                .show(ui, |ui| {
+                    ui.label("Folgt Objekt");
+                    let mut follow = camera.follow.clone();
+                    let names: Vec<String> = scene
+                        .layers
+                        .iter()
+                        .flat_map(|layer| {
+                            layer
+                                .frames
+                                .iter()
+                                .flat_map(|frame| frame.objects.iter().map(|o| o.name.clone()))
+                        })
+                        .collect();
+                    egui::ComboBox::from_id_salt("game_camera_follow")
+                        .selected_text(if follow.is_empty() {
+                            "(Szene zentriert)".to_string()
+                        } else {
+                            follow.clone()
+                        })
+                        .show_ui(ui, |ui| {
+                            if ui
+                                .selectable_label(follow.is_empty(), "(Szene zentriert)")
+                                .clicked()
+                            {
+                                follow.clear();
+                            }
+                            for name in &names {
+                                if ui.selectable_label(&follow == name, name).clicked() {
+                                    follow = name.clone();
+                                }
+                            }
+                        });
+                    if follow != camera.follow {
+                        camera.follow = follow;
+                        changed = true;
+                    }
+                    ui.end_row();
+
+                    ui.label("Zoom");
+                    changed |= ui
+                        .add(
+                            egui::DragValue::new(&mut camera.zoom)
+                                .range(0.1..=8.0)
+                                .speed(0.05),
+                        )
+                        .changed();
+                    ui.end_row();
+
+                    for (label, field) in [
+                        ("Links", &mut camera.left),
+                        ("Oben", &mut camera.top),
+                        ("Rechts", &mut camera.right),
+                        ("Unten", &mut camera.bottom),
+                    ] {
+                        ui.label(label);
+                        changed |= ui
+                            .add(
+                                egui::DragValue::new(field)
+                                    .speed(1.0)
+                                    .suffix(" px"),
+                            )
+                            .changed();
+                        ui.end_row();
+                    }
+                });
+        }
+
+        // Input bindings -----------------------------------------------------------
+        let mut input_enabled = game.input.is_some();
+        if ui
+            .checkbox(&mut input_enabled, "Eingabe-Bindings")
+            .on_hover_text("Tasten für die Spiel-Vorschau (egui-Tastennamen)")
+            .changed()
+        {
+            game.input = if input_enabled {
+                Some(nova_core::InputBindings::default())
+            } else {
+                None
+            };
+            changed = true;
+        }
+        if let Some(input) = game.input.as_mut() {
+            egui::Grid::new("game_input_grid")
+                .num_columns(2)
+                .spacing(egui::vec2(8.0, 6.0))
+                .show(ui, |ui| {
+                    for (label, field) in [
+                        ("Links", &mut input.left),
+                        ("Rechts", &mut input.right),
+                        ("Hoch", &mut input.up),
+                        ("Runter", &mut input.down),
+                        ("Springen", &mut input.jump),
+                        ("Aktion", &mut input.action),
+                    ] {
+                        ui.label(label);
+                        changed |= ui.text_edit_singleline(field).changed();
+                        ui.end_row();
+                    }
+                });
+        }
+    }
+
+    if changed {
+        project.touch();
+        state.dirty = true;
+    }
 }
 
 fn export_properties(ui: &mut Ui, project: &mut Project, state: &mut AppState) {
@@ -690,6 +844,7 @@ fn object_properties(
         ObjectKind::Bitmap { crop, .. } => *crop,
         _ => None,
     };
+    let mut game_cfg = instance.game.clone();
     let mut changed = false;
 
     egui::Grid::new("object_grid")
@@ -1059,6 +1214,150 @@ fn object_properties(
         }
     }
 
+    // Game components ---------------------------------------------------
+    ui.add_space(4.0);
+    theme::section(ui, "Spiel");
+    let mut game_enabled = game_cfg.is_some();
+    if ui
+        .checkbox(&mut game_enabled, "Game-Objekt")
+        .on_hover_text("Aktiviert Kollisions- und Physik-Metadaten für die Spiel-Vorschau")
+        .changed()
+    {
+        game_cfg = if game_enabled {
+            Some(nova_core::GameObjectConfig::default())
+        } else {
+            None
+        };
+        changed = true;
+    }
+    if let Some(cfg) = game_cfg.as_mut() {
+        let mut has_collision = cfg.collision.is_some();
+        if ui
+            .checkbox(&mut has_collision, "Kollision")
+            .on_hover_text("Objekt nimmt an Kollisions-Tests der Vorschau teil")
+            .changed()
+        {
+            cfg.collision = if has_collision {
+                Some(nova_core::CollisionSpec::default())
+            } else {
+                None
+            };
+            changed = true;
+        }
+        if let Some(collision) = cfg.collision.as_mut() {
+            egui::Grid::new("game_collision_grid")
+                .num_columns(2)
+                .spacing(egui::vec2(8.0, 6.0))
+                .show(ui, |ui| {
+                    ui.label("Form");
+                    egui::ComboBox::from_id_salt("game_collision_shape")
+                        .selected_text(match collision.shape {
+                            nova_core::CollisionShape::Rectangle => "Rechteck",
+                            nova_core::CollisionShape::Circle => "Kreis",
+                        })
+                        .show_ui(ui, |ui| {
+                            for (shape, label) in [
+                                (nova_core::CollisionShape::Rectangle, "Rechteck"),
+                                (nova_core::CollisionShape::Circle, "Kreis"),
+                            ] {
+                                if ui.selectable_label(collision.shape == shape, label).clicked() {
+                                    collision.shape = shape;
+                                    changed = true;
+                                }
+                            }
+                        });
+                    ui.end_row();
+                    ui.label("Breite");
+                    changed |= ui
+                        .add(
+                            egui::DragValue::new(&mut collision.width)
+                                .range(0.0..=2000.0)
+                                .speed(1.0)
+                                .suffix(" px"),
+                        )
+                        .changed();
+                    ui.end_row();
+                    ui.label("Höhe");
+                    changed |= ui
+                        .add(
+                            egui::DragValue::new(&mut collision.height)
+                                .range(0.0..=2000.0)
+                                .speed(1.0)
+                                .suffix(" px"),
+                        )
+                        .changed();
+                    ui.end_row();
+                });
+        }
+
+        let mut has_physics = cfg.physics.is_some();
+        if ui
+            .checkbox(&mut has_physics, "Physik")
+            .on_hover_text("Objekt wird von der Spiel-Vorschau-Simulation bewegt")
+            .changed()
+        {
+            cfg.physics = if has_physics {
+                Some(nova_core::PhysicsSpec::default())
+            } else {
+                None
+            };
+            changed = true;
+        }
+        if let Some(physics) = cfg.physics.as_mut() {
+            egui::Grid::new("game_physics_grid")
+                .num_columns(2)
+                .spacing(egui::vec2(8.0, 6.0))
+                .show(ui, |ui| {
+                    ui.label("Körpertyp");
+                    egui::ComboBox::from_id_salt("game_body_type")
+                        .selected_text(match physics.body {
+                            nova_core::BodyType::Static => "Statisch",
+                            nova_core::BodyType::Dynamic => "Dynamisch",
+                            nova_core::BodyType::Kinematic => "Kinematisch",
+                        })
+                        .show_ui(ui, |ui| {
+                            for (body, label) in [
+                                (nova_core::BodyType::Static, "Statisch"),
+                                (nova_core::BodyType::Dynamic, "Dynamisch"),
+                                (nova_core::BodyType::Kinematic, "Kinematisch"),
+                            ] {
+                                if ui.selectable_label(physics.body == body, label).clicked() {
+                                    physics.body = body;
+                                    changed = true;
+                                }
+                            }
+                        });
+                    ui.end_row();
+                    for (label, value, range, speed) in [
+                        ("Schwerkraft", &mut physics.gravity_scale, -10.0..=10.0, 0.05),
+                        ("Reibung", &mut physics.friction, 0.0..=20.0, 0.05),
+                        ("Federung", &mut physics.bounce, 0.0..=1.0, 0.01),
+                    ] {
+                        ui.label(label);
+                        changed |= ui
+                            .add(
+                                egui::DragValue::new(value)
+                                    .range(range)
+                                    .speed(speed)
+                                    .max_decimals(3),
+                            )
+                            .changed();
+                        ui.end_row();
+                    }
+                    ui.label("Gesteuert");
+                    changed |= ui
+                        .checkbox(&mut physics.controlled, "Auf WASD/Pfeile reagieren")
+                        .changed();
+                    ui.end_row();
+                });
+        }
+        ui.label(
+            RichText::new("Wirkt in der Spiel-Vorschau; AS3-Logik bleibt im Skript.")
+                .small()
+                .color(theme::TEXT_FAINT),
+        );
+    }
+
     // Script link ------------------------------------------------------
     ui.add_space(4.0);
     theme::section(ui, "Skript");
@@ -1132,6 +1431,7 @@ fn object_properties(
                 object.fill = fill;
                 object.kind = kind;
                 object.script = script;
+                object.game = game_cfg;
             }
         }
         project.touch();

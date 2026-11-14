@@ -390,6 +390,17 @@ pub struct AppState {
     pub asset_textures: HashMap<Uuid, egui::TextureHandle>,
     pub selected_asset: Option<Uuid>,
     pub selected_sound_cue: Option<(Uuid, usize)>,
+    /// Live game-preview simulation state while the timeline plays.
+    pub game_preview: Option<GamePreview>,
+}
+
+/// Renderer-side state for the game preview simulation (`nova_core::game`).
+pub struct GamePreview {
+    /// Scene the simulation belongs to; rebuilt when the scene changes.
+    pub scene: Uuid,
+    pub bodies: Vec<nova_core::game::GameBody>,
+    pub states: HashMap<Uuid, nova_core::game::BodyState>,
+    pub camera: nova_core::game::CameraState,
 }
 
 impl AppState {
@@ -454,6 +465,7 @@ impl AppState {
             asset_textures: HashMap::new(),
             selected_asset: project.assets.first().map(|asset| asset.id),
             selected_sound_cue: None,
+            game_preview: None,
         };
         state.log(
             LogLevel::Info,

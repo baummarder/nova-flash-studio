@@ -1,0 +1,97 @@
+{
+  "format": "nova-flash-studio",
+  "formatVersion": 3,
+  "project": {
+    "id": "e6147bf1-e21d-45fa-aca9-fcff7b632095",
+    "metadata": {
+      "name": "Top-Down Adventure",
+      "author": "",
+      "description": "Vogelperspektive, Sammelobjekte, Verfolger, Kamera.",
+      "createdUnix": 1794660240,
+      "modifiedUnix": 1794660240
+    },
+    "scenes": [
+      {
+        "id": "e0f55959-80b2-4375-bff5-eb0e58a80813",
+        "name": "Szene 1",
+        "width": 640.0,
+        "height": 360.0,
+        "background": {
+          "r": 18,
+          "g": 20,
+          "b": 26,
+          "a": 255
+        },
+        "fps": 30.0,
+        "layers": [
+          {
+            "id": "b7e95673-1a66-4df8-a42f-4a7aff61d0ba",
+            "name": "Ebene 1",
+            "visible": true,
+            "locked": false,
+            "kind": "normal",
+            "frames": [
+              {
+                "keyframe": true
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "symbols": [],
+    "assets": [],
+    "scripts": [
+      {
+        "id": "8a3307dd-06cb-4ec9-9b4d-39693d28d81b",
+        "name": "Main.as",
+        "path": "scripts/Main.as",
+        "source": "package {\n    import flash.display.MovieClip;\n    import flash.display.Graphics;\n    import flash.events.Event;\n    import flash.text.TextField;\n    import flash.text.TextFormat;\n    import flash.ui.Keyboard;\r\n    import flash.utils.getTimer;\n    import game.Input;\n    import game.Collision;\n    import game.Camera;\n    import game.Random;\n\n    /// Top-down adventure: collect gems while a slow hunter patrols the map.\n    /// World is larger than the stage; the camera follows the player.\n    public dynamic class Main extends MovieClip {\n        private var player:MovieClip;\n        private var hunter:MovieClip;\n        private var cam:Camera;\n        private var hud:TextField;\n        private var gems = [];\n        private var gemCount:int = 0;\n        private var score:int = 0;\n        private var lastTime:int = 0;\n        private var worldW:Number = 1400;\n        private var worldH:Number = 900;\n\n        public function Main() {\n            Input.init(stage);\n            build();\n            addEventListener(Event.ENTER_FRAME, update);\n        }\n\n        private function box(w:Number, h:Number, color:Number):MovieClip {\n            var s:MovieClip = new MovieClip();\n            var g:Graphics = s.graphics;\n            g.beginFill(color);\n            g.drawRect(-w / 2, -h / 2, w, h);\n            g.endFill();\n            return s;\n        }\n\n        private function build():void {\n            player = box(28, 28, 0x6AD0FF);\n            player.wx = 100;\n            player.wy = 100;\n            player.x = player.wx;\n            player.y = player.wy;\n            addChild(player);\n\n            hunter = box(30, 30, 0xFF5A5A);\n            hunter.wx = 1200;\n            hunter.wy = 800;\n            hunter.x = hunter.wx;\n            hunter.y = hunter.wy;\n            addChild(hunter);\n\n            var i:int;\n            for (i = 0; i < 10; i++) {\n                var g:MovieClip = box(18, 18, 0x7DFF8A);\n                g.wx = 80 + Random.range(worldW - 160);\n                g.wy = 80 + Random.range(worldH - 160);\n                g.x = g.wx;\n                g.y = g.wy;\n                addChild(g);\n                gems.push(g);\n                gemCount = gemCount + 1;\n            }\n\n            cam = new Camera();\n            cam.follow(player);\n            cam.x = player.wx;\n            cam.y = player.wy;\n\n            hud = new TextField();\n            var fmt:TextFormat = new TextFormat();\n            fmt.size = 22;\n            fmt.color = 0xFFFFFF;\n            hud.defaultTextFormat = fmt;\n            hud.x = 16;\n            hud.y = 16;\n            addChild(hud);\n            updateHud();\n        }\n\n        private function updateHud():void {\n            hud.text = \"Edelsteine: \" + score + \" / \" + gemCount;\n        }\n\n        private function update(event:Event):void {\n            var now:int = getTimer();\n            var dt:Number = (now - lastTime) / 1000;\n            lastTime = now;\n            if (dt <= 0 || dt > 0.1) {\n                dt = 0.016;\n            }\n            Input.poll();\n\n            var dx:Number = 0;\n            var dy:Number = 0;\n            var speed:Number = 260;\n            if (Input.down(Keyboard.LEFT)) { dx = dx - 1; }\n            if (Input.down(Keyboard.RIGHT)) { dx = dx + 1; }\n            if (Input.down(Keyboard.UP)) { dy = dy - 1; }\n            if (Input.down(Keyboard.DOWN)) { dy = dy + 1; }\n            if (dx != 0 || dy != 0) {\n                // Normalise diagonal movement\n                var len:Number = 1;\n                if (dx != 0 && dy != 0) {\n                    len = 1.4142;\n                }\n                player.wx = player.wx + dx / len * speed * dt;\n                player.wy = player.wy + dy / len * speed * dt;\n            }\n            if (player.wx < 20) { player.wx = 20; }\n            if (player.wx > worldW - 20) { player.wx = worldW - 20; }\n            if (player.wy < 20) { player.wy = 20; }\n            if (player.wy > worldH - 20) { player.wy = worldH - 20; }\n\n            // Hunter chases axis-wise at a slightly lower speed\n            var hSpeed:Number = 150 * dt;\n            var hx:Number = player.wx - hunter.wx;\n            var hy:Number = player.wy - hunter.wy;\n            if (hx > 4) { hunter.wx = hunter.wx + hSpeed; }\n            if (hx < -4) { hunter.wx = hunter.wx - hSpeed; }\n            if (hy > 4) { hunter.wy = hunter.wy + hSpeed; }\n            if (hy < -4) { hunter.wy = hunter.wy - hSpeed; }\n\n            // Gem pickup\n            for (var i:int = 0; i < gems.length; i++) {\n                var g = gems[i];\n                if (g.visible != false && Collision.circle(\n                    player.wx, player.wy, 20, g.wx, g.wy, 14\n                )) {\n                    g.visible = false;\n                    score = score + 1;\n                }\n            }\n\n            // Caught by the hunter -> back to start, gems stay collected\n            if (Collision.aabb(\n                player.wx - 14, player.wy - 14, 28, 28,\n                hunter.wx - 15, hunter.wy - 15, 30, 30\n            )) {\n                player.wx = 100;\n                player.wy = 100;\n            }\n            updateHud();\n\n            cam.update(dt, stage.stageWidth, stage.stageHeight, 0, 0, worldW, worldH);\n            var viewCx:Number = stage.stageWidth / 2;\n            var viewCy:Number = stage.stageHeight / 2;\n            player.x = player.wx - cam.x + viewCx;\n            player.y = player.wy - cam.y + viewCy;\n            hunter.x = hunter.wx - cam.x + viewCx;\n            hunter.y = hunter.wy - cam.y + viewCy;\n            for (i = 0; i < gems.length; i++) {\n                g = gems[i];\n                if (g.visible != false) {\n                    g.x = g.wx - cam.x + viewCx;\n                    g.y = g.wy - cam.y + viewCy;\n                }\n            }\n        }\n    }\n}\n",
+        "provenance": "original_source"
+      },
+      {
+        "id": "ca2034b7-f0ee-4986-a3a6-15944f67a3ae",
+        "name": "Input.as",
+        "path": "scripts/game/Input.as",
+        "source": "package game {\n    import flash.display.Stage;\n    import flash.events.KeyboardEvent;\n    import flash.events.MouseEvent;\n\n    /// Keyboard/mouse state helper. Call `init(stage)` once from the document\n    /// class constructor, `poll()` once per frame, then query `down`/`pressed`.\n    public class Input {\n        private static var held:Object = {};\n        private static var consumed:Object = {};\n        private static var target:Stage = null;\n        public static var mouseX:Number = 0;\n        public static var mouseY:Number = 0;\n\n        public static function init(stage:Stage):void {\n            target = stage;\n            stage.addEventListener(KeyboardEvent.KEY_DOWN, onKeyDown);\n            stage.addEventListener(KeyboardEvent.KEY_UP, onKeyUp);\n            stage.addEventListener(MouseEvent.MOUSE_MOVE, onMouseMove);\n        }\n\n        private static function onKeyDown(e:KeyboardEvent):void {\n            held[e.keyCode] = true;\n        }\n\n        private static function onKeyUp(e:KeyboardEvent):void {\n            held[e.keyCode] = false;\n            consumed[e.keyCode] = false;\n        }\n\n        private static function onMouseMove(e:MouseEvent):void {\n            mouseX = e.stageX;\n            mouseY = e.stageY;\n        }\n\n        /// Called once per frame after all `pressed` queries of the previous\n        /// frame are done. Resets edge-detection memory for released keys.\n        public static function poll():void {\n            // Nothing to copy: `consumed` is cleared lazily inside `pressed`.\n        }\n\n        public static function down(code:int):Boolean {\n            return held[code] == true;\n        }\n\n        /// True only on the frame the key went down (edge trigger).\n        public static function pressed(code:int):Boolean {\n            if (held[code] == true && consumed[code] != true) {\n                consumed[code] = true;\n                return true;\n            }\n            if (held[code] != true) {\n                consumed[code] = false;\n            }\n            return false;\n        }\n    }\n}\n",
+        "provenance": "original_source"
+      },
+      {
+        "id": "e91740a5-0e1d-4e1a-a23f-98c64bb9d6e1",
+        "name": "Collision.as",
+        "path": "scripts/game/Collision.as",
+        "source": "package game {\n    import flash.display.DisplayObject;\n\n    /// Axis-aligned and radial collision helpers operating on plain numbers.\n    /// Display objects are measured by their `x`/`y`/`width`/`height` bounds,\n    /// which works for programmatically drawn sprites.\n    public class Collision {\n        public static function aabb(\n            x1:Number, y1:Number, w1:Number, h1:Number,\n            x2:Number, y2:Number, w2:Number, h2:Number\n        ):Boolean {\n            return x1 < x2 + w2 && x1 + w1 > x2 && y1 < y2 + h2 && y1 + h1 > y2;\n        }\n\n        public static function circle(\n            cx1:Number, cy1:Number, r1:Number,\n            cx2:Number, cy2:Number, r2:Number\n        ):Boolean {\n            var dx:Number = cx1 - cx2;\n            var dy:Number = cy1 - cy2;\n            var rr:Number = r1 + r2;\n            return dx * dx + dy * dy < rr * rr;\n        }\n\n        public static function pointInRect(\n            px:Number, py:Number, x:Number, y:Number, w:Number, h:Number\n        ):Boolean {\n            return px >= x && px <= x + w && py >= y && py <= y + h;\n        }\n\n        /// AABB test between two display objects using their bounds.\n        public static function objectsOverlap(a:DisplayObject, b:DisplayObject):Boolean {\n            return aabb(a.x, a.y, a.width, a.height, b.x, b.y, b.width, b.height);\n        }\n    }\n}\n",
+        "provenance": "original_source"
+      },
+      {
+        "id": "73d270a7-20d6-47c8-9a00-b57da03967bc",
+        "name": "Physics.as",
+        "path": "scripts/game/Physics.as",
+        "source": "package game {\n    import flash.display.DisplayObject;\n\n    /// Minimal velocity/gravity integration for display objects. Velocity is\n    /// stored in dynamic `vx`/`vy` properties on the object itself.\n    public class Physics {\n        /// Integrates one body: gravity, then position. `gravity` is px/s^2.\n        public static function stepBody(body:DisplayObject, dt:Number, gravity:Number):void {\n            body.vy = body.vy + gravity * dt;\n            body.x = body.x + body.vx * dt;\n            body.y = body.y + body.vy * dt;\n        }\n\n        /// Applies a horizontal acceleration, clamped to `maxSpeed`.\n        public static function accelerate(body:DisplayObject, accel:Number, maxSpeed:Number, dt:Number):void {\n            body.vx = body.vx + accel * dt;\n            if (body.vx > maxSpeed) {\n                body.vx = maxSpeed;\n            }\n            if (body.vx < -maxSpeed) {\n                body.vx = -maxSpeed;\n            }\n        }\n\n        /// Simple ground collision response: keeps `body` above `floorY`\n        /// (bottom edge) and kills downward velocity on contact.\n        /// Returns true while the body rests on the floor.\n        public static function floor(body:DisplayObject, floorY:Number):Boolean {\n            if (body.y + body.height > floorY) {\n                body.y = floorY - body.height;\n                if (body.vy > 0) {\n                    body.vy = 0;\n                }\n                return true;\n            }\n            return false;\n        }\n    }\n}\n",
+        "provenance": "original_source"
+      },
+      {
+        "id": "b701d758-4528-46b5-af71-d6dfd3c9b0d9",
+        "name": "Camera.as",
+        "path": "scripts/game/Camera.as",
+        "source": "package game {\n    import flash.display.DisplayObject;\n\n    /// Follow camera for games built on a single world container. Apply the\n    /// result with `applyTo(world)` each frame.\n    public class Camera {\n        public var x:Number = 0;\n        public var y:Number = 0;\n        public var zoom:Number = 1;\n        private var target:DisplayObject = null;\n        private var lerp:Number = 6;\n\n        public function follow(mc:DisplayObject):void {\n            target = mc;\n        }\n\n        /// Advances the camera toward the follow target. Pass world bounds as\n        /// four numbers; use 0/0/0/0 for unbounded.\n        public function update(\n            dt:Number, viewW:Number, viewH:Number,\n            boundL:Number, boundT:Number, boundR:Number, boundB:Number\n        ):void {\n            if (target == null) {\n                return;\n            }\n            var tx:Number = target.x + target.width / 2;\n            var ty:Number = target.y + target.height / 2;\n            var t:Number = dt * lerp;\n            if (t > 1) {\n                t = 1;\n            }\n            x = x + (tx - x) * t;\n            y = y + (ty - y) * t;\n            var halfW:Number = viewW / (2 * zoom);\n            var halfH:Number = viewH / (2 * zoom);\n            if (boundR > boundL) {\n                var loX:Number = boundL + halfW;\n                var hiX:Number = boundR - halfW;\n                if (loX <= hiX) {\n                    if (x < loX) { x = loX; }\n                    if (x > hiX) { x = hiX; }\n                }\n            }\n            if (boundB > boundT) {\n                var loY:Number = boundT + halfH;\n                var hiY:Number = boundB - halfH;\n                if (loY <= hiY) {\n                    if (y < loY) { y = loY; }\n                    if (y > hiY) { y = hiY; }\n                }\n            }\n        }\n\n        /// Positions `world` so the camera centre lands mid-view.\n        public function applyTo(world:DisplayObject):void {\n            world.x = world.stage.stageWidth / 2 - x * zoom;\n            world.y = world.stage.stageHeight / 2 - y * zoom;\n            world.scaleX = zoom;\n            world.scaleY = zoom;\n        }\n    }\n}\n",
+        "provenance": "original_source"
+      },
+      {
+        "id": "b6f72c1a-57fe-4244-beb1-7db9f5e62500",
+        "name": "Random.as",
+        "path": "scripts/game/Random.as",
+        "source": "package game {\n    import flash.utils.getTimer;\n\n    /// Small deterministic PRNG (linear congruential generator). Seeded from\n    /// `getTimer()`; call `srand` for a fixed sequence in tests.\n    public class Random {\n        private static var state:Number = getTimer() + 1;\n\n        public static function srand(seed:Number):void {\n            state = seed;\n        }\n\n        /// Returns a value in [0, 1).\n        public static function next():Number {\n            state = (state * 1103515245 + 12345) % 2147483648;\n            return state / 2147483648;\n        }\n\n        /// Returns a value in [0, bound).\n        public static function range(bound:Number):Number {\n            return next() * bound;\n        }\n    }\n}\n",
+        "provenance": "original_source"
+      }
+    ],
+    "export": {
+      "target": "avm2",
+      "swfVersion": 10,
+      "compression": "zlib",
+      "includeScripts": true,
+      "exportAllScenes": false
+    },
+    "activeScene": "e0f55959-80b2-4375-bff5-eb0e58a80813"
+  }
+}

@@ -1,0 +1,538 @@
+{
+  "format": "nova-flash-studio",
+  "formatVersion": 3,
+  "project": {
+    "id": "29b74ecd-4657-4c19-bc43-9da480faa917",
+    "metadata": {
+      "name": "2D Platformer",
+      "author": "",
+      "description": "Scrolling-Level mit Plattformen, Münzen und Springen.",
+      "createdUnix": 1794660240,
+      "modifiedUnix": 1794660240
+    },
+    "scenes": [
+      {
+        "id": "155b32d7-b424-49e6-9659-c5ba16256ac7",
+        "name": "Szene 1",
+        "width": 640.0,
+        "height": 360.0,
+        "background": {
+          "r": 18,
+          "g": 20,
+          "b": 26,
+          "a": 255
+        },
+        "fps": 30.0,
+        "layers": [
+          {
+            "id": "7c668526-df19-4962-a56e-5d9098606b65",
+            "name": "Level",
+            "visible": true,
+            "locked": false,
+            "kind": "normal",
+            "frames": [
+              {
+                "keyframe": true,
+                "objects": [
+                  {
+                    "id": "0337cda8-1a1b-42ed-8f38-2b51110e2b91",
+                    "name": "Plat1",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 1600.0,
+                      "height": 30.0,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 800.0,
+                      "y": 345.0,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 70,
+                      "g": 90,
+                      "b": 140,
+                      "a": 255
+                    },
+                    "game": {
+                      "collision": {
+                        "shape": "rectangle",
+                        "width": 1600.0,
+                        "height": 30.0
+                      },
+                      "physics": {
+                        "body": "static",
+                        "gravityScale": 1.0,
+                        "friction": 0.0,
+                        "bounce": 0.0,
+                        "controlled": false
+                      }
+                    }
+                  },
+                  {
+                    "id": "6361cfb7-f78d-4bc0-94b7-21cbe363447a",
+                    "name": "Plat2",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 140.0,
+                      "height": 18.0,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 300.0,
+                      "y": 260.0,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 120,
+                      "g": 160,
+                      "b": 220,
+                      "a": 255
+                    },
+                    "game": {
+                      "collision": {
+                        "shape": "rectangle",
+                        "width": 140.0,
+                        "height": 18.0
+                      },
+                      "physics": {
+                        "body": "static",
+                        "gravityScale": 1.0,
+                        "friction": 0.0,
+                        "bounce": 0.0,
+                        "controlled": false
+                      }
+                    }
+                  },
+                  {
+                    "id": "1423ba6e-efe8-480c-ba8f-056b859baa87",
+                    "name": "Plat3",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 120.0,
+                      "height": 18.0,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 520.0,
+                      "y": 210.0,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 120,
+                      "g": 160,
+                      "b": 220,
+                      "a": 255
+                    },
+                    "game": {
+                      "collision": {
+                        "shape": "rectangle",
+                        "width": 120.0,
+                        "height": 18.0
+                      },
+                      "physics": {
+                        "body": "static",
+                        "gravityScale": 1.0,
+                        "friction": 0.0,
+                        "bounce": 0.0,
+                        "controlled": false
+                      }
+                    }
+                  },
+                  {
+                    "id": "8c611718-5048-4f0c-9e0f-b5711fe6c7d4",
+                    "name": "Plat4",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 150.0,
+                      "height": 18.0,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 760.0,
+                      "y": 250.0,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 120,
+                      "g": 160,
+                      "b": 220,
+                      "a": 255
+                    },
+                    "game": {
+                      "collision": {
+                        "shape": "rectangle",
+                        "width": 150.0,
+                        "height": 18.0
+                      },
+                      "physics": {
+                        "body": "static",
+                        "gravityScale": 1.0,
+                        "friction": 0.0,
+                        "bounce": 0.0,
+                        "controlled": false
+                      }
+                    }
+                  },
+                  {
+                    "id": "62df9a6d-2161-4dd0-963e-313b0bfafa5a",
+                    "name": "Plat5",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 120.0,
+                      "height": 18.0,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 1020.0,
+                      "y": 190.0,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 120,
+                      "g": 160,
+                      "b": 220,
+                      "a": 255
+                    },
+                    "game": {
+                      "collision": {
+                        "shape": "rectangle",
+                        "width": 120.0,
+                        "height": 18.0
+                      },
+                      "physics": {
+                        "body": "static",
+                        "gravityScale": 1.0,
+                        "friction": 0.0,
+                        "bounce": 0.0,
+                        "controlled": false
+                      }
+                    }
+                  },
+                  {
+                    "id": "8e28a7ba-c65d-4ac6-92de-600ec99ab58e",
+                    "name": "Plat6",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 160.0,
+                      "height": 18.0,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 1260.0,
+                      "y": 240.0,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 120,
+                      "g": 160,
+                      "b": 220,
+                      "a": 255
+                    },
+                    "game": {
+                      "collision": {
+                        "shape": "rectangle",
+                        "width": 160.0,
+                        "height": 18.0
+                      },
+                      "physics": {
+                        "body": "static",
+                        "gravityScale": 1.0,
+                        "friction": 0.0,
+                        "bounce": 0.0,
+                        "controlled": false
+                      }
+                    }
+                  },
+                  {
+                    "id": "aecfb865-a0f7-478e-a557-8edbf0e8dc9a",
+                    "name": "Plat7",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 110.0,
+                      "height": 18.0,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 1420.0,
+                      "y": 170.0,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 120,
+                      "g": 160,
+                      "b": 220,
+                      "a": 255
+                    },
+                    "game": {
+                      "collision": {
+                        "shape": "rectangle",
+                        "width": 110.0,
+                        "height": 18.0
+                      },
+                      "physics": {
+                        "body": "static",
+                        "gravityScale": 1.0,
+                        "friction": 0.0,
+                        "bounce": 0.0,
+                        "controlled": false
+                      }
+                    }
+                  },
+                  {
+                    "id": "55452b6f-f023-45d1-9a96-1d5fc01c4713",
+                    "name": "Coin1",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 18.0,
+                      "height": 18.0,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 300.0,
+                      "y": 225.0,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 255,
+                      "g": 210,
+                      "b": 74,
+                      "a": 255
+                    },
+                    "game": {
+                      "collision": {
+                        "shape": "rectangle",
+                        "width": 18.0,
+                        "height": 18.0
+                      }
+                    }
+                  },
+                  {
+                    "id": "57ac2acf-86b6-4977-af8f-63c8f544c208",
+                    "name": "Coin2",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 18.0,
+                      "height": 18.0,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 520.0,
+                      "y": 175.0,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 255,
+                      "g": 210,
+                      "b": 74,
+                      "a": 255
+                    },
+                    "game": {
+                      "collision": {
+                        "shape": "rectangle",
+                        "width": 18.0,
+                        "height": 18.0
+                      }
+                    }
+                  },
+                  {
+                    "id": "e17ce67f-c848-4e58-bead-66408a3f90da",
+                    "name": "Coin3",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 18.0,
+                      "height": 18.0,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 760.0,
+                      "y": 215.0,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 255,
+                      "g": 210,
+                      "b": 74,
+                      "a": 255
+                    },
+                    "game": {
+                      "collision": {
+                        "shape": "rectangle",
+                        "width": 18.0,
+                        "height": 18.0
+                      }
+                    }
+                  },
+                  {
+                    "id": "071f64e6-49b4-4c93-ac14-8560383c19e3",
+                    "name": "Coin4",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 18.0,
+                      "height": 18.0,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 1020.0,
+                      "y": 155.0,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 255,
+                      "g": 210,
+                      "b": 74,
+                      "a": 255
+                    },
+                    "game": {
+                      "collision": {
+                        "shape": "rectangle",
+                        "width": 18.0,
+                        "height": 18.0
+                      }
+                    }
+                  },
+                  {
+                    "id": "0f19f69d-bf9f-4646-a10d-e2e47372ed96",
+                    "name": "Coin5",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 18.0,
+                      "height": 18.0,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 1260.0,
+                      "y": 205.0,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 255,
+                      "g": 210,
+                      "b": 74,
+                      "a": 255
+                    },
+                    "game": {
+                      "collision": {
+                        "shape": "rectangle",
+                        "width": 18.0,
+                        "height": 18.0
+                      }
+                    }
+                  },
+                  {
+                    "id": "3cb67412-f866-48ca-821c-5e44e2ee9806",
+                    "name": "Coin6",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 18.0,
+                      "height": 18.0,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 1420.0,
+                      "y": 135.0,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 255,
+                      "g": 210,
+                      "b": 74,
+                      "a": 255
+                    },
+                    "game": {
+                      "collision": {
+                        "shape": "rectangle",
+                        "width": 18.0,
+                        "height": 18.0
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "symbols": [],
+    "assets": [],
+    "scripts": [
+      {
+        "id": "87627d29-96ad-4037-87e1-bd4f773246ed",
+        "name": "Main.as",
+        "path": "scripts/Main.as",
+        "source": "package {\n    import flash.display.MovieClip;\n    import flash.display.Graphics;\n    import flash.events.Event;\n    import flash.text.TextField;\n    import flash.text.TextFormat;\n    import flash.ui.Keyboard;\r\n    import flash.utils.getTimer;\n    import game.Input;\n    import game.Collision;\n    import game.Physics;\n    import game.Camera;\n\n    /// Side-scrolling platformer. Level geometry (ground, platforms, coins)\n    /// lives on the NÃ˜VA timeline as named MovieClips; this document class drives\n    /// the player, camera and pickups. The same objects carry game metadata so\n    /// the editor preview simulates them too.\n    public dynamic class Main extends MovieClip {\n        private var player:MovieClip;\n        private var cam:Camera;\n        private var hud:TextField;\n        private var plats = [];\n        private var coins = [];\n        private var score:int = 0;\n        private var lastTime:int = 0;\n        private var worldW:Number = 1600;\n        private var worldH:Number = 360;\n\n        public function Main() {\n            Input.init(stage);\n            build();\n            addEventListener(Event.ENTER_FRAME, update);\n        }\n\n        private function box(w:Number, h:Number, color:Number):MovieClip {\n            var s:MovieClip = new MovieClip();\n            var g:Graphics = s.graphics;\n            g.beginFill(color);\n            g.drawRect(-w / 2, -h / 2, w, h);\n            g.endFill();\n            return s;\n        }\n\n        private function collect(name:String, list:Object):void {\n            var i:int = 1;\n            while (true) {\n                var found = getChildByName(name + i);\n                if (found == null) {\n                    break;\n                }\n                var entry = {o: found, hx: found.x, hy: found.y};\n                list.push(entry);\n                i = i + 1;\n            }\n        }\n\n        private function build():void {\n            collect(\"Plat\", plats);\n            collect(\"Coin\", coins);\n\n            player = box(26, 34, 0xFFD24A);\n            player.x = 80;\n            player.y = 300;\n            player.vx = 0;\n            player.vy = 0;\n            player.wx = player.x;\n            player.wy = player.y;\n            player.grounded = false;\n            addChild(player);\n\n            cam = new Camera();\n            cam.follow(player);\n            cam.x = player.x;\n            cam.y = player.y;\n\n            hud = new TextField();\n            var fmt:TextFormat = new TextFormat();\n            fmt.size = 22;\n            fmt.color = 0xFFFFFF;\n            hud.defaultTextFormat = fmt;\n            hud.x = 16;\n            hud.y = 16;\n            addChild(hud);\n            updateHud();\n        }\n\n        private function updateHud():void {\n            hud.text = \"Muenzen: \" + score;\n        }\n\n        private function applyCamera():void {\n            var viewCx:Number = stage.stageWidth / 2;\n            var i:int;\n            for (i = 0; i < plats.length; i++) {\n                var p = plats[i];\n                p.o.x = p.hx - cam.x + viewCx;\n            }\n            for (i = 0; i < coins.length; i++) {\n                var c = coins[i];\n                if (c.o.visible != false) {\n                    c.o.x = c.hx - cam.x + viewCx;\n                    c.o.y = c.hy;\n                }\n            }\n            player.x = player.wx - cam.x + viewCx;\n            player.y = player.wy;\n        }\n\n        private function update(event:Event):void {\n            var now:int = getTimer();\n            var dt:Number = (now - lastTime) / 1000;\n            lastTime = now;\n            if (dt <= 0 || dt > 0.1) {\n                dt = 0.016;\n            }\n            Input.poll();\n\n            // Horizontal movement\n            var dir:int = 0;\n            if (Input.down(Keyboard.LEFT)) {\n                dir = dir - 1;\n            }\n            if (Input.down(Keyboard.RIGHT)) {\n                dir = dir + 1;\n            }\n            player.vx = dir * 240;\n            if (Input.pressed(Keyboard.SPACE) && player.grounded == true) {\n                player.vy = -520;\n                player.grounded = false;\n            }\n\n            // Integrate (player gravity 1.0)\n            player.wx = player.wx + player.vx * dt;\n            player.wy = player.wy + player.vy * dt;\n            player.vy = player.vy + 1500 * dt;\n\n            // World bounds\n            if (player.wx < 20) { player.wx = 20; }\n            if (player.wx > worldW - 20) { player.wx = worldW - 20; }\n\n            // Platform collision: land on top surfaces only\n            player.grounded = false;\n            for (var i:int = 0; i < plats.length; i++) {\n                var p = plats[i];\n                if (Collision.aabb(\n                    player.wx - player.width / 2, player.wy - player.height / 2,\n                    player.width, player.height,\n                    p.hx - p.o.width / 2, p.hy - p.o.height / 2,\n                    p.o.width, p.o.height\n                )) {\n                    // Only resolve when falling onto the top\n                    if (player.vy > 0 && player.wy - player.height / 2 < p.hy) {\n                        player.wy = p.hy - p.o.height / 2 - player.height / 2;\n                        player.vy = 0;\n                        player.grounded = true;\n                    }\n                }\n            }\n\n            // Fell off the world -> respawn\n            if (player.wy > worldH + 60) {\n                player.wx = 80;\n                player.wy = 120;\n                player.vx = 0;\n                player.vy = 0;\n            }\n\n            // Coins\n            for (i = 0; i < coins.length; i++) {\n                var c = coins[i];\n                if (c.o.visible != false && Collision.aabb(\n                    player.wx - player.width / 2, player.wy - player.height / 2,\n                    player.width, player.height,\n                    c.hx - c.o.width / 2, c.hy - c.o.height / 2,\n                    c.o.width, c.o.height\n                )) {\n                    c.o.visible = false;\n                    score = score + 1;\n                }\n            }\n            updateHud();\n\n            // Camera follows the player inside world bounds\n            cam.update(dt, stage.stageWidth, stage.stageHeight, 0, 0, worldW, worldH);\n            applyCamera();\n        }\n    }\n}\n",
+        "provenance": "original_source"
+      },
+      {
+        "id": "627052e7-f3ad-4d67-baa3-f812d064224f",
+        "name": "Input.as",
+        "path": "scripts/game/Input.as",
+        "source": "package game {\n    import flash.display.Stage;\n    import flash.events.KeyboardEvent;\n    import flash.events.MouseEvent;\n\n    /// Keyboard/mouse state helper. Call `init(stage)` once from the document\n    /// class constructor, `poll()` once per frame, then query `down`/`pressed`.\n    public class Input {\n        private static var held:Object = {};\n        private static var consumed:Object = {};\n        private static var target:Stage = null;\n        public static var mouseX:Number = 0;\n        public static var mouseY:Number = 0;\n\n        public static function init(stage:Stage):void {\n            target = stage;\n            stage.addEventListener(KeyboardEvent.KEY_DOWN, onKeyDown);\n            stage.addEventListener(KeyboardEvent.KEY_UP, onKeyUp);\n            stage.addEventListener(MouseEvent.MOUSE_MOVE, onMouseMove);\n        }\n\n        private static function onKeyDown(e:KeyboardEvent):void {\n            held[e.keyCode] = true;\n        }\n\n        private static function onKeyUp(e:KeyboardEvent):void {\n            held[e.keyCode] = false;\n            consumed[e.keyCode] = false;\n        }\n\n        private static function onMouseMove(e:MouseEvent):void {\n            mouseX = e.stageX;\n            mouseY = e.stageY;\n        }\n\n        /// Called once per frame after all `pressed` queries of the previous\n        /// frame are done. Resets edge-detection memory for released keys.\n        public static function poll():void {\n            // Nothing to copy: `consumed` is cleared lazily inside `pressed`.\n        }\n\n        public static function down(code:int):Boolean {\n            return held[code] == true;\n        }\n\n        /// True only on the frame the key went down (edge trigger).\n        public static function pressed(code:int):Boolean {\n            if (held[code] == true && consumed[code] != true) {\n                consumed[code] = true;\n                return true;\n            }\n            if (held[code] != true) {\n                consumed[code] = false;\n            }\n            return false;\n        }\n    }\n}\n",
+        "provenance": "original_source"
+      },
+      {
+        "id": "1f33908c-84b0-4a72-b7ec-6165f6e67e12",
+        "name": "Collision.as",
+        "path": "scripts/game/Collision.as",
+        "source": "package game {\n    import flash.display.DisplayObject;\n\n    /// Axis-aligned and radial collision helpers operating on plain numbers.\n    /// Display objects are measured by their `x`/`y`/`width`/`height` bounds,\n    /// which works for programmatically drawn sprites.\n    public class Collision {\n        public static function aabb(\n            x1:Number, y1:Number, w1:Number, h1:Number,\n            x2:Number, y2:Number, w2:Number, h2:Number\n        ):Boolean {\n            return x1 < x2 + w2 && x1 + w1 > x2 && y1 < y2 + h2 && y1 + h1 > y2;\n        }\n\n        public static function circle(\n            cx1:Number, cy1:Number, r1:Number,\n            cx2:Number, cy2:Number, r2:Number\n        ):Boolean {\n            var dx:Number = cx1 - cx2;\n            var dy:Number = cy1 - cy2;\n            var rr:Number = r1 + r2;\n            return dx * dx + dy * dy < rr * rr;\n        }\n\n        public static function pointInRect(\n            px:Number, py:Number, x:Number, y:Number, w:Number, h:Number\n        ):Boolean {\n            return px >= x && px <= x + w && py >= y && py <= y + h;\n        }\n\n        /// AABB test between two display objects using their bounds.\n        public static function objectsOverlap(a:DisplayObject, b:DisplayObject):Boolean {\n            return aabb(a.x, a.y, a.width, a.height, b.x, b.y, b.width, b.height);\n        }\n    }\n}\n",
+        "provenance": "original_source"
+      },
+      {
+        "id": "3a15f9c6-80ff-43c5-9bac-153159340ecc",
+        "name": "Physics.as",
+        "path": "scripts/game/Physics.as",
+        "source": "package game {\n    import flash.display.DisplayObject;\n\n    /// Minimal velocity/gravity integration for display objects. Velocity is\n    /// stored in dynamic `vx`/`vy` properties on the object itself.\n    public class Physics {\n        /// Integrates one body: gravity, then position. `gravity` is px/s^2.\n        public static function stepBody(body:DisplayObject, dt:Number, gravity:Number):void {\n            body.vy = body.vy + gravity * dt;\n            body.x = body.x + body.vx * dt;\n            body.y = body.y + body.vy * dt;\n        }\n\n        /// Applies a horizontal acceleration, clamped to `maxSpeed`.\n        public static function accelerate(body:DisplayObject, accel:Number, maxSpeed:Number, dt:Number):void {\n            body.vx = body.vx + accel * dt;\n            if (body.vx > maxSpeed) {\n                body.vx = maxSpeed;\n            }\n            if (body.vx < -maxSpeed) {\n                body.vx = -maxSpeed;\n            }\n        }\n\n        /// Simple ground collision response: keeps `body` above `floorY`\n        /// (bottom edge) and kills downward velocity on contact.\n        /// Returns true while the body rests on the floor.\n        public static function floor(body:DisplayObject, floorY:Number):Boolean {\n            if (body.y + body.height > floorY) {\n                body.y = floorY - body.height;\n                if (body.vy > 0) {\n                    body.vy = 0;\n                }\n                return true;\n            }\n            return false;\n        }\n    }\n}\n",
+        "provenance": "original_source"
+      },
+      {
+        "id": "48b2a75e-a495-423b-bf79-f08b7aa302ed",
+        "name": "Camera.as",
+        "path": "scripts/game/Camera.as",
+        "source": "package game {\n    import flash.display.DisplayObject;\n\n    /// Follow camera for games built on a single world container. Apply the\n    /// result with `applyTo(world)` each frame.\n    public class Camera {\n        public var x:Number = 0;\n        public var y:Number = 0;\n        public var zoom:Number = 1;\n        private var target:DisplayObject = null;\n        private var lerp:Number = 6;\n\n        public function follow(mc:DisplayObject):void {\n            target = mc;\n        }\n\n        /// Advances the camera toward the follow target. Pass world bounds as\n        /// four numbers; use 0/0/0/0 for unbounded.\n        public function update(\n            dt:Number, viewW:Number, viewH:Number,\n            boundL:Number, boundT:Number, boundR:Number, boundB:Number\n        ):void {\n            if (target == null) {\n                return;\n            }\n            var tx:Number = target.x + target.width / 2;\n            var ty:Number = target.y + target.height / 2;\n            var t:Number = dt * lerp;\n            if (t > 1) {\n                t = 1;\n            }\n            x = x + (tx - x) * t;\n            y = y + (ty - y) * t;\n            var halfW:Number = viewW / (2 * zoom);\n            var halfH:Number = viewH / (2 * zoom);\n            if (boundR > boundL) {\n                var loX:Number = boundL + halfW;\n                var hiX:Number = boundR - halfW;\n                if (loX <= hiX) {\n                    if (x < loX) { x = loX; }\n                    if (x > hiX) { x = hiX; }\n                }\n            }\n            if (boundB > boundT) {\n                var loY:Number = boundT + halfH;\n                var hiY:Number = boundB - halfH;\n                if (loY <= hiY) {\n                    if (y < loY) { y = loY; }\n                    if (y > hiY) { y = hiY; }\n                }\n            }\n        }\n\n        /// Positions `world` so the camera centre lands mid-view.\n        public function applyTo(world:DisplayObject):void {\n            world.x = world.stage.stageWidth / 2 - x * zoom;\n            world.y = world.stage.stageHeight / 2 - y * zoom;\n            world.scaleX = zoom;\n            world.scaleY = zoom;\n        }\n    }\n}\n",
+        "provenance": "original_source"
+      },
+      {
+        "id": "e62d2056-f00e-48df-bd16-30dda8ba5bab",
+        "name": "Random.as",
+        "path": "scripts/game/Random.as",
+        "source": "package game {\n    import flash.utils.getTimer;\n\n    /// Small deterministic PRNG (linear congruential generator). Seeded from\n    /// `getTimer()`; call `srand` for a fixed sequence in tests.\n    public class Random {\n        private static var state:Number = getTimer() + 1;\n\n        public static function srand(seed:Number):void {\n            state = seed;\n        }\n\n        /// Returns a value in [0, 1).\n        public static function next():Number {\n            state = (state * 1103515245 + 12345) % 2147483648;\n            return state / 2147483648;\n        }\n\n        /// Returns a value in [0, bound).\n        public static function range(bound:Number):Number {\n            return next() * bound;\n        }\n    }\n}\n",
+        "provenance": "original_source"
+      }
+    ],
+    "export": {
+      "target": "avm2",
+      "swfVersion": 10,
+      "compression": "zlib",
+      "includeScripts": true,
+      "exportAllScenes": false
+    },
+    "activeScene": "155b32d7-b424-49e6-9659-c5ba16256ac7"
+  }
+}

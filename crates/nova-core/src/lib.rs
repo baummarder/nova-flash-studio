@@ -6,6 +6,9 @@
 //! vice versa.
 
 pub mod error;
+pub mod game;
+pub mod gamekit;
+pub mod games;
 pub mod model;
 pub mod template;
 pub mod time;

@@ -16,13 +16,30 @@ use crate::ai_editor::AiEditor;
 use crate::history::History;
 use crate::splash::Splash;
 use crate::state::{
-    AlignMode, AppState, BottomTab, Dialog, KeyframeRef, LogLevel, Mode, PendingAction, Selection,
-    Tool, UiAction,
+    AlignMode, AppState, BottomTab, Dialog, GamePreview, KeyframeRef, LogLevel, Mode, PendingAction,
+    Selection, Tool, UiAction,
 };
 use crate::{
     autosave, branding, code_view, console, flash, properties, stage_view, theme, timeline_view,
     tree, util,
 };
+
+fn egui_key_for_letter(index: usize) -> Key {
+    const KEYS: [Key; 26] = [
+        Key::A, Key::B, Key::C, Key::D, Key::E, Key::F, Key::G, Key::H, Key::I, Key::J, Key::K, Key::L,
+        Key::M, Key::N, Key::O, Key::P, Key::Q, Key::R, Key::S, Key::T, Key::U, Key::V, Key::W, Key::X,
+        Key::Y, Key::Z,
+    ];
+    KEYS[index.min(25)]
+}
+
+fn egui_key_for_digit(index: usize) -> Key {
+    const KEYS: [Key; 10] = [
+        Key::Num0, Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5, Key::Num6, Key::Num7,
+        Key::Num8, Key::Num9,
+    ];
+    KEYS[index.min(9)]
+}
 
 pub struct NovaApp {
     project: Project,
@@ -797,6 +814,7 @@ impl NovaApp {
                     self.state.playing = false;
                     self.state.frame = 0;
                     self.state.play_accumulator = 0.0;
+                    self.state.game_preview = None;
                     self.state.set_status("Wiedergabe gestoppt");
                 }
                 UiAction::Step(delta) => self.step(delta as i64),
@@ -3067,7 +3085,123 @@ impl NovaApp {
         self.state.playing = true;
         self.state.play_accumulator = 0.0;
         self.state.mode = Mode::Animation;
+        self.start_game_preview();
         self.state.set_status("Wiedergabe läuft");
+    }
+
+    /// (Re)builds the game-preview simulation for the active scene. Only
+    /// scenes that actually carry game metadata get a simulation; plain
+    /// timelines keep the classic frame playback.
+    fn start_game_preview(&mut self) {
+        self.state.game_preview = None;
+        if self.state.edit_symbol.is_some() {
+            return;
+        }
+        let Some(scene) = self.project.edit_scene(None) else {
+            return;
+        };
+        let bodies = nova_core::game::collect_bodies(scene, &self.project.symbols);
+        if bodies.is_empty() {
+            return;
+        }
+        let scene_id = scene.id;
+        let center = (scene.width / 2.0, scene.height / 2.0);
+        self.state.game_preview = Some(GamePreview {
+            scene: scene_id,
+            bodies,
+            states: std::collections::HashMap::new(),
+            camera: nova_core::game::CameraState {
+                x: center.0,
+                y: center.1,
+                zoom: 1.0,
+            },
+        });
+        self.state
+            .log(LogLevel::Info, "Spiel-Vorschau gestartet (Editor-Simulation).");
+    }
+
+    /// Maps an egui-style binding name ("ArrowLeft", "Space", "KeyE", "A")
+    /// to a live key state.
+    fn binding_pressed(ctx: &Context, name: &str) -> bool {
+        match name {
+            "Shift" => return ctx.input(|input| input.modifiers.shift),
+            "Control" | "Ctrl" => return ctx.input(|input| input.modifiers.ctrl),
+            _ => {}
+        }
+        let key = match name {
+            "ArrowLeft" | "Left" => Some(Key::ArrowLeft),
+            "ArrowRight" | "Right" => Some(Key::ArrowRight),
+            "ArrowUp" | "Up" => Some(Key::ArrowUp),
+            "ArrowDown" | "Down" => Some(Key::ArrowDown),
+            "Space" => Some(Key::Space),
+            "Enter" => Some(Key::Enter),
+            "Escape" | "Esc" => Some(Key::Escape),
+            "Backspace" => Some(Key::Backspace),
+            "Tab" => Some(Key::Tab),
+            _ => None,
+        };
+        if let Some(key) = key {
+            return ctx.input(|input| input.key_down(key));
+        }
+        // Single letters and digits: "A".."Z", "KeyA".."KeyZ", "0".."9".
+        let stripped = name.strip_prefix("Key").unwrap_or(name);
+        if stripped.chars().count() == 1 {
+            let c = stripped.chars().next().unwrap();
+            if c.is_ascii_alphabetic() {
+                let index = c.to_ascii_uppercase() as usize - 'A' as usize;
+                if index < 26 {
+                    return ctx.input(|input| {
+                        input.key_down(egui_key_for_letter(index))
+                    });
+                }
+            }
+            if c.is_ascii_digit() {
+                let index = c.to_digit(10).unwrap() as usize;
+                return ctx.input(|input| input.key_down(egui_key_for_digit(index)));
+            }
+        }
+        false
+    }
+
+    /// Advances the game simulation one render frame while the timeline plays.
+    fn step_game_preview(&mut self, ctx: &Context, dt: f32) {
+        let Some(preview) = self.state.game_preview.as_mut() else {
+            return;
+        };
+        // Rebuild when the underlying scene changed underneath us.
+        let Some(scene) = self.project.edit_scene(None) else {
+            self.state.game_preview = None;
+            return;
+        };
+        if scene.id != preview.scene {
+            self.start_game_preview();
+            return;
+        }
+        let config = nova_core::game::scene_config(scene);
+        let bindings = config.input.clone().unwrap_or_default();
+        let input = nova_core::game::InputState {
+            left: Self::binding_pressed(ctx, &bindings.left),
+            right: Self::binding_pressed(ctx, &bindings.right),
+            up: Self::binding_pressed(ctx, &bindings.up),
+            down: Self::binding_pressed(ctx, &bindings.down),
+            jump: Self::binding_pressed(ctx, &bindings.jump),
+            action: Self::binding_pressed(ctx, &bindings.action),
+        };
+        let (w, h) = (scene.width, scene.height);
+        let bodies = &preview.bodies;
+        let states = &mut preview.states;
+        nova_core::game::step(bodies, states, &input, w, h, dt);
+        if let Some(camera) = config.camera.as_ref() {
+            nova_core::game::step_camera(
+                &mut preview.camera,
+                camera,
+                bodies,
+                states,
+                w,
+                h,
+                dt,
+            );
+        }
     }
 
     fn step(&mut self, delta: i64) {
@@ -3106,6 +3240,7 @@ impl NovaApp {
             .map(|scene| (scene.frame_count().max(1), scene.fps.max(1.0)))
             .unwrap_or((1, 24.0));
         let dt = ctx.input(|input| input.stable_dt).min(0.25);
+        self.step_game_preview(ctx, dt);
         self.state.play_accumulator += dt * fps;
         let steps = self.state.play_accumulator.floor() as usize;
         if steps > 0 {

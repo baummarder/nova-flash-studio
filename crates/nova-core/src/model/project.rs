@@ -16,8 +16,10 @@ pub type ProjectId = Uuid;
 /// [`CURRENT_FORMAT_VERSION`] and adding a migration step.
 pub const FORMAT_TAG: &str = "nova-flash-studio";
 /// Version 2 adds symbol timelines, bitmap placements/crops, embedded asset
-/// bytes and sound layers/cues. Version 1 documents migrate losslessly.
-pub const CURRENT_FORMAT_VERSION: u32 = 2;
+/// bytes and sound layers/cues. Version 3 adds optional game metadata
+/// (collision/physics on objects, camera/input on scenes). All additions are
+/// serde-defaulted, so version 1 and 2 documents load without data loss.
+pub const CURRENT_FORMAT_VERSION: u32 = 3;
 
 fn now_unix() -> u64 {
     SystemTime::now()
@@ -1341,5 +1343,90 @@ mod tests {
         assert!(!project.symbol_delete_blockers(id).is_empty());
         let free = project.add_symbol("Frei", SymbolKind::Graphic);
         assert!(project.symbol_delete_blockers(free).is_empty());
+    }
+
+    #[test]
+    fn game_metadata_roundtrips_through_json() {
+        let mut project = Project::demo();
+        let scene = project.active_scene_mut().unwrap();
+        scene.game = Some(crate::model::GameSceneConfig {
+            camera: Some(crate::model::CameraConfig {
+                enabled: true,
+                follow: "Held".into(),
+                left: 0.0,
+                top: 0.0,
+                right: 800.0,
+                bottom: 600.0,
+                zoom: 1.5,
+            }),
+            input: Some(crate::model::InputBindings {
+                left: "A".into(),
+                right: "D".into(),
+                up: "W".into(),
+                down: "S".into(),
+                jump: "Space".into(),
+                action: "E".into(),
+            }),
+        });
+        let object = &mut scene.layers[0].frames[0].objects[0];
+        object.game = Some(crate::model::GameObjectConfig {
+            collision: Some(crate::model::CollisionSpec {
+                shape: crate::model::CollisionShape::Circle,
+                width: 24.0,
+                height: 24.0,
+            }),
+            physics: Some(crate::model::PhysicsSpec {
+                body: crate::model::BodyType::Dynamic,
+                gravity_scale: 2.0,
+                friction: 0.5,
+                bounce: 0.25,
+                controlled: true,
+            }),
+        });
+        let json = project.to_json().unwrap();
+        let loaded = Project::from_json(&json).unwrap();
+        let loaded_scene = loaded.active_scene().unwrap();
+        assert!(loaded_scene.game.is_some());
+        let object = &loaded_scene.layers[0].frames[0].objects[0];
+        let game = object.game.as_ref().expect("game config preserved");
+        assert_eq!(
+            game.collision.unwrap().shape,
+            crate::model::CollisionShape::Circle
+        );
+        assert!(game.physics.unwrap().controlled);
+    }
+
+    #[test]
+    fn version_2_project_without_game_fields_loads() {
+        let project = Project::demo();
+        let mut value = serde_json::to_value(NovaFile::wrap(project)).unwrap();
+        value["formatVersion"] = serde_json::json!(2);
+        // Strip every game field, simulating a real v2 document.
+        fn strip(value: &mut serde_json::Value) {
+            match value {
+                serde_json::Value::Object(map) => {
+                    map.remove("game");
+                    for (_, child) in map.iter_mut() {
+                        strip(child);
+                    }
+                }
+                serde_json::Value::Array(items) => {
+                    for item in items {
+                        strip(item);
+                    }
+                }
+                _ => {}
+            }
+        }
+        strip(&mut value["project"]);
+        let json = serde_json::to_string(&value).unwrap();
+        let loaded = Project::from_json(&json).unwrap();
+        assert!(loaded.active_scene().unwrap().game.is_none());
+        assert!(
+            loaded.active_scene().unwrap().layers[0].frames[0]
+                .objects
+                .iter()
+                .all(|object| object.game.is_none())
+        );
     }
 }

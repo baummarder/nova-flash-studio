@@ -171,6 +171,10 @@ pub struct ObjectInstance {
     /// character table survived unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_character: Option<u16>,
+    /// Optional game components (collision, physics). Format v3 addition;
+    /// ignored by the timeline and the SWF exporter.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub game: Option<crate::model::GameObjectConfig>,
 }
 
 impl ObjectInstance {
@@ -188,6 +192,7 @@ impl ObjectInstance {
             fill,
             script: None,
             source_character: None,
+            game: None,
         }
     }
 

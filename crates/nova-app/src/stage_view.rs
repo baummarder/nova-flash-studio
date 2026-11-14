@@ -99,11 +99,25 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
         }
     }
 
-    let view = View {
+    let mut view = View {
         rect,
         center: state.camera_center,
         zoom: state.zoom,
     };
+
+    // Game preview camera: an enabled scene camera drives the view while the
+    // simulation runs.
+    if let Some(preview) = &state.game_preview {
+        let camera_enabled = project
+            .edit_scene(state.edit_symbol)
+            .and_then(|scene| scene.game.as_ref())
+            .and_then(|game| game.camera.as_ref())
+            .is_some_and(|camera| camera.enabled);
+        if camera_enabled {
+            view.center = Pos2::new(preview.camera.x, preview.camera.y);
+            view.zoom = preview.camera.zoom.clamp(MIN_ZOOM, MAX_ZOOM);
+        }
+    }
 
     // ---------------------------------------------------------------- input
     let shift = ui.input(|input| input.modifiers.shift);
@@ -155,7 +169,17 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
     let scene = project
         .edit_scene(state.edit_symbol)
         .expect("scene checked above");
-    let objects = nova_core::resolve_scene(scene, state.frame);
+    let mut objects = nova_core::resolve_scene(scene, state.frame);
+
+    // Game preview: simulated body positions replace authored transforms.
+    if let Some(preview) = &state.game_preview {
+        for object in &mut objects {
+            if let Some(body_state) = preview.states.get(&object.instance.id) {
+                object.instance.transform.x = body_state.x;
+                object.instance.transform.y = body_state.y;
+            }
+        }
+    }
     for object in &objects {
         draw_object(
             &painter,
@@ -165,6 +189,39 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
             &state.asset_textures,
             &state.selection,
         );
+    }
+
+    // Collision overlays for the game preview.
+    if let Some(preview) = &state.game_preview {
+        for body in &preview.bodies {
+            let Some(body_state) = preview.states.get(&body.id) else {
+                continue;
+            };
+            let (w, h, circle) = match body.collision {
+                Some(spec) => (spec.width, spec.height, spec.shape == nova_core::CollisionShape::Circle),
+                None => (body.width, body.height, false),
+            };
+            if w <= 0.0 || h <= 0.0 {
+                continue;
+            }
+            let center = view.to_screen(Pos2::new(body_state.x, body_state.y));
+            let half = Vec2::new(w / 2.0, h / 2.0) * view.zoom;
+            if circle {
+                painter.circle_stroke(
+                    center,
+                    half.x.max(half.y),
+                    Stroke::new(1.5, Color32::from_rgba_unmultiplied(80, 220, 120, 220)),
+                );
+            } else {
+                let rect = Rect::from_center_size(center, half * 2.0);
+                painter.rect_stroke(
+                    rect,
+                    0.0,
+                    Stroke::new(1.5, Color32::from_rgba_unmultiplied(80, 220, 120, 220)),
+                    StrokeKind::Inside,
+                );
+            }
+        }
     }
 
     if let Some(draft) = &state.draft {

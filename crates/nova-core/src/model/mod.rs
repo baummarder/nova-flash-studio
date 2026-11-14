@@ -1,6 +1,7 @@
 //! Serializable data model of a `.nova` project.
 
 mod color;
+mod game;
 mod object;
 mod project;
 mod scene;
@@ -9,6 +10,10 @@ mod timeline;
 mod transform;
 
 pub use color::Rgba;
+pub use game::{
+    BodyType, CameraConfig, CollisionShape, CollisionSpec, GameObjectConfig, GameSceneConfig,
+    InputBindings, PhysicsSpec,
+};
 pub use object::{
     BitmapCrop, ObjectInstance, ObjectKind, PathCommand, PathShape, ScriptId, Symbol, SymbolId,
     SymbolKind,

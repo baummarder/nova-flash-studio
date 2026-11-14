@@ -1,4 +1,4 @@
-//! Safe, validated project operations proposed by the AI agent.
+﻿//! Safe, validated project operations proposed by the AI agent.
 //!
 //! File diffs are deliberately separate from project edits. A diff changes a
 //! script file on disk; an operation changes the in-memory `.nova` document
@@ -237,13 +237,49 @@ pub enum ProjectOperation {
         path: String,
         source: String,
     },
+    /// Sets or clears the game components (collision, physics) of a placed
+    /// object. `clear` removes all game metadata; otherwise provided specs
+    /// replace the matching component and `no_collision`/`no_physics` remove
+    /// a single component.
+    SetGameObject {
+        object: String,
+        #[serde(default)]
+        scene: Option<String>,
+        #[serde(default)]
+        collision: Option<nova_core::CollisionSpec>,
+        #[serde(default)]
+        no_collision: bool,
+        #[serde(default)]
+        physics: Option<nova_core::PhysicsSpec>,
+        #[serde(default)]
+        no_physics: bool,
+        #[serde(default)]
+        clear: bool,
+    },
+    /// Configures scene-level game settings (camera, input bindings).
+    /// `clear` removes the whole game configuration; otherwise provided
+    /// sub-configs replace the existing ones.
+    SetSceneGame {
+        #[serde(default)]
+        scene: Option<String>,
+        #[serde(default)]
+        camera: Option<nova_core::CameraConfig>,
+        #[serde(default)]
+        input: Option<nova_core::InputBindings>,
+        #[serde(default)]
+        clear: bool,
+    },
+    /// Installs the reusable AS3 game-kit scripts (`game.Input`,
+    /// `game.Collision`, `game.Camera`, `game.Random`, `game.Physics`).
+    /// Existing scripts are never overwritten.
+    InstallGameKit,
 }
 
 #[derive(Debug, thiserror::Error, Clone, PartialEq, Eq)]
 pub enum OperationError {
-    #[error("Ungültige Projektoperation: {0}")]
+    #[error("UngÃ¼ltige Projektoperation: {0}")]
     Invalid(String),
-    #[error("Nicht unterstützte Projektoperation: {0}")]
+    #[error("Nicht unterstÃ¼tzte Projektoperation: {0}")]
     Unsupported(String),
 }
 
@@ -373,7 +409,7 @@ fn apply_one(
             background,
             scene,
         } => {
-            check_size(*width, *height, "Bühne")?;
+            check_size(*width, *height, "BÃ¼hne")?;
             if let Some(fps) = fps {
                 if !fps.is_finite() || !(1.0..=120.0).contains(fps) {
                     return Err(OperationError::invalid(
@@ -393,7 +429,7 @@ fn apply_one(
             }
             let name = scene.name.clone();
             project.touch();
-            Ok(format!("Bühne '{name}' auf {width}×{height} setzen"))
+            Ok(format!("BÃ¼hne '{name}' auf {width}Ã—{height} setzen"))
         }
         ProjectOperation::AddScene { name } => {
             let name = name.trim();
@@ -409,11 +445,11 @@ fn apply_one(
             }
             if project.scenes.len() >= 256 {
                 return Err(OperationError::invalid(
-                    "Ein Projekt kann höchstens 256 Szenen enthalten.",
+                    "Ein Projekt kann hÃ¶chstens 256 Szenen enthalten.",
                 ));
             }
             project.add_scene(name);
-            Ok(format!("Szene '{name}' hinzufügen"))
+            Ok(format!("Szene '{name}' hinzufÃ¼gen"))
         }
         ProjectOperation::AddLayer {
             name,
@@ -441,13 +477,13 @@ fn apply_one(
             }
             if scene.layers.len() >= 1_000 {
                 return Err(OperationError::invalid(
-                    "Eine Timeline kann höchstens 1000 Ebenen enthalten.",
+                    "Eine Timeline kann hÃ¶chstens 1000 Ebenen enthalten.",
                 ));
             }
             let scene_name = scene.name.clone();
             scene.layers.push(nova_core::Layer::new(name, frames));
             project.touch();
-            Ok(format!("Ebene '{name}' in '{scene_name}' hinzufügen"))
+            Ok(format!("Ebene '{name}' in '{scene_name}' hinzufÃ¼gen"))
         }
         ProjectOperation::AddObject {
             name,
@@ -491,13 +527,13 @@ fn apply_one(
                 ObjectShape::Text => {
                     if text.trim().is_empty() {
                         return Err(OperationError::invalid(
-                            "Ein Textobjekt benötigt nichtleeren Text.",
+                            "Ein Textobjekt benÃ¶tigt nichtleeren Text.",
                         ));
                     }
                     let size = font_size.unwrap_or(24.0);
                     if !size.is_finite() || !(1.0..=512.0).contains(&size) {
                         return Err(OperationError::invalid(
-                            "Die Textgröße muss zwischen 1 und 512 liegen.",
+                            "Die TextgrÃ¶ÃŸe muss zwischen 1 und 512 liegen.",
                         ));
                     }
                     ObjectInstance::text(name, *x, *y, text, size, fill)
@@ -511,7 +547,7 @@ fn apply_one(
                 object,
             )?;
             Ok(format!(
-                "{} '{name}' auf Ebene '{layer_name}' hinzufügen",
+                "{} '{name}' auf Ebene '{layer_name}' hinzufÃ¼gen",
                 shape.label()
             ))
         }
@@ -538,7 +574,7 @@ fn apply_one(
                 && font_size.is_none()
             {
                 return Err(OperationError::invalid(
-                    "UpdateObject benötigt mindestens eine zu ändernde Eigenschaft.",
+                    "UpdateObject benÃ¶tigt mindestens eine zu Ã¤ndernde Eigenschaft.",
                 ));
             }
             for (value, label) in [(x, "x"), (y, "y"), (rotation, "rotation")] {
@@ -562,7 +598,7 @@ fn apply_one(
             if let Some(size) = font_size {
                 if !size.is_finite() || !(1.0..=512.0).contains(size) {
                     return Err(OperationError::invalid(
-                        "Die Textgröße muss zwischen 1 und 512 liegen.",
+                        "Die TextgrÃ¶ÃŸe muss zwischen 1 und 512 liegen.",
                     ));
                 }
             }
@@ -593,7 +629,7 @@ fn apply_one(
                 1 => {}
                 count => {
                     return Err(OperationError::invalid(format!(
-                        "Objektname '{name}' ist {count}-mal vorhanden. Gib eine Ebene an, um das Ziel eindeutig zu wählen."
+                        "Objektname '{name}' ist {count}-mal vorhanden. Gib eine Ebene an, um das Ziel eindeutig zu wÃ¤hlen."
                     )));
                 }
             }
@@ -676,7 +712,7 @@ fn apply_one(
             }
             project.touch();
             Ok(format!(
-                "Schlüsselbild {} in Ebene '{layer_name}' (Szene '{scene_name}') anlegen",
+                "SchlÃ¼sselbild {} in Ebene '{layer_name}' (Szene '{scene_name}') anlegen",
                 index + 1
             ))
         }
@@ -722,7 +758,7 @@ fn apply_one(
             let layer_name = layer.name.clone();
             if index >= layer.frames.len() || !layer.frames[index].keyframe {
                 return Err(OperationError::invalid(format!(
-                    "Frame {} in Ebene '{layer_name}' ist kein vorhandenes Schlüsselbild.",
+                    "Frame {} in Ebene '{layer_name}' ist kein vorhandenes SchlÃ¼sselbild.",
                     index + 1
                 )));
             }
@@ -733,7 +769,7 @@ fn apply_one(
                 .collect();
             if ids.is_empty() {
                 return Err(OperationError::invalid(format!(
-                    "Schlüsselbild {} in Ebene '{layer_name}' enthält keine Objekte für einen Tween.",
+                    "SchlÃ¼sselbild {} in Ebene '{layer_name}' enthÃ¤lt keine Objekte fÃ¼r einen Tween.",
                     index + 1
                 )));
             }
@@ -747,7 +783,7 @@ fn apply_one(
                 });
             if next.is_none() {
                 return Err(OperationError::invalid(format!(
-                    "Für den Tween ab Frame {} fehlt ein späteres Schlüsselbild mit denselben Objekt-IDs.",
+                    "FÃ¼r den Tween ab Frame {} fehlt ein spÃ¤teres SchlÃ¼sselbild mit denselben Objekt-IDs.",
                     index + 1
                 )));
             }
@@ -784,7 +820,7 @@ fn apply_one(
             }
             if project.symbols.len() >= 1_000 {
                 return Err(OperationError::invalid(
-                    "Die Bibliothek kann höchstens 1000 Symbole enthalten.",
+                    "Die Bibliothek kann hÃ¶chstens 1000 Symbole enthalten.",
                 ));
             }
             let fill = fill
@@ -804,7 +840,7 @@ fn apply_one(
             project.symbols.push(symbol);
             project.touch();
             Ok(format!(
-                "{}-Symbol '{name}' zur Bibliothek hinzufügen",
+                "{}-Symbol '{name}' zur Bibliothek hinzufÃ¼gen",
                 kind.unwrap_or_default().label()
             ))
         }
@@ -882,18 +918,18 @@ fn apply_one(
             }
             if project.assets.len() >= 2_000 {
                 return Err(OperationError::invalid(
-                    "Ein Projekt kann höchstens 2000 Assets enthalten.",
+                    "Ein Projekt kann hÃ¶chstens 2000 Assets enthalten.",
                 ));
             }
             let data = read_asset(&path)
                 .map_err(|error| OperationError::invalid(format!("Asset '{path}': {error}")))?;
             if data.is_empty() || data.len() > 64 * 1024 * 1024 {
                 return Err(OperationError::invalid(format!(
-                    "Asset '{path}' ist leer oder überschreitet 64 MB."
+                    "Asset '{path}' ist leer oder Ã¼berschreitet 64 MB."
                 )));
             }
             let image = image::load_from_memory(&data).map_err(|error| {
-                OperationError::invalid(format!("Asset '{path}' ist kein gültiges Bild: {error}"))
+                OperationError::invalid(format!("Asset '{path}' ist kein gÃ¼ltiges Bild: {error}"))
             })?;
             let (width, height) = (image.width(), image.height());
             let mime = match path.rsplit('.').next().unwrap_or_default() {
@@ -911,7 +947,7 @@ fn apply_one(
             ));
             project.touch();
             Ok(format!(
-                "Bitmap-Asset '{name}' importieren ({width}×{height})"
+                "Bitmap-Asset '{name}' importieren ({width}Ã—{height})"
             ))
         }
         ProjectOperation::ImportAudioAsset { name, path } => {
@@ -924,14 +960,14 @@ fn apply_one(
             }
             if project.assets.len() >= 2_000 {
                 return Err(OperationError::invalid(
-                    "Ein Projekt kann höchstens 2000 Assets enthalten.",
+                    "Ein Projekt kann hÃ¶chstens 2000 Assets enthalten.",
                 ));
             }
             let data = read_asset(&path)
                 .map_err(|error| OperationError::invalid(format!("Asset '{path}': {error}")))?;
             if data.is_empty() || data.len() > 256 * 1024 * 1024 {
                 return Err(OperationError::invalid(format!(
-                    "Asset '{path}' ist leer oder überschreitet 256 MB."
+                    "Asset '{path}' ist leer oder Ã¼berschreitet 256 MB."
                 )));
             }
             let is_wav = path.ends_with(".wav");
@@ -940,7 +976,7 @@ fn apply_one(
                     Some(info) => ("audio/wav", info.0, info.1, info.2),
                     None => {
                         return Err(OperationError::invalid(format!(
-                            "Asset '{path}' ist keine gültige PCM-WAV-Datei."
+                            "Asset '{path}' ist keine gÃ¼ltige PCM-WAV-Datei."
                         )));
                     }
                 }
@@ -994,7 +1030,7 @@ fn apply_one(
             }
             if asset.width == 0 || asset.height == 0 {
                 return Err(OperationError::invalid(format!(
-                    "Asset '{}' hat keine gültigen Abmessungen.",
+                    "Asset '{}' hat keine gÃ¼ltigen Abmessungen.",
                     asset.name
                 )));
             }
@@ -1135,14 +1171,166 @@ fn apply_one(
             }
             if project.scripts.len() >= 1_000 {
                 return Err(OperationError::invalid(
-                    "Ein Projekt kann höchstens 1000 Skripte enthalten.",
+                    "Ein Projekt kann hÃ¶chstens 1000 Skripte enthalten.",
                 ));
             }
             project
                 .scripts
                 .push(Script::new(path.clone(), source.clone()));
             project.touch();
-            Ok(format!("Skript '{path}' hinzufügen"))
+            Ok(format!("Skript '{path}' hinzufÃ¼gen"))
+        }
+        ProjectOperation::SetGameObject {
+            object,
+            scene,
+            collision,
+            no_collision,
+            physics,
+            no_physics,
+            clear,
+        } => {
+            if collision.is_none()
+                && physics.is_none()
+                && !no_collision
+                && !no_physics
+                && !clear
+            {
+                return Err(OperationError::invalid(
+                    "SetGameObject benÃ¶tigt mindestens eine Ã„nderung (collision, physics, no_*, clear).",
+                ));
+            }
+            let scene = scene_mut(project, scene.as_deref())?;
+            let scene_name = scene.name.clone();
+            let needle = object.trim();
+            let mut matches = Vec::new();
+            for (layer_index, layer) in scene.layers.iter().enumerate() {
+                for (frame_index, frame) in layer.frames.iter().enumerate() {
+                    for (object_index, candidate) in frame.objects.iter().enumerate() {
+                        if candidate.name == needle {
+                            matches.push((layer_index, frame_index, object_index));
+                        }
+                    }
+                }
+            }
+            match matches.len() {
+                0 => {
+                    return Err(OperationError::invalid(format!(
+                        "Objekt '{needle}' existiert in Szene '{scene_name}' nicht."
+                    )));
+                }
+                1 => {}
+                count => {
+                    return Err(OperationError::invalid(format!(
+                        "Objektname '{needle}' ist {count}-mal vorhanden."
+                    )));
+                }
+            }
+            let (layer_index, frame_index, object_index) = matches[0];
+            let target =
+                &mut scene.layers[layer_index].frames[frame_index].objects[object_index];
+            if *clear {
+                target.game = None;
+            } else {
+                let mut config = target.game.clone().unwrap_or_default();
+                if *no_collision {
+                    config.collision = None;
+                } else if let Some(spec) = collision {
+                    if !spec.width.is_finite()
+                        || !spec.height.is_finite()
+                        || spec.width <= 0.0
+                        || spec.height <= 0.0
+                        || spec.width > 100_000.0
+                        || spec.height > 100_000.0
+                    {
+                        return Err(OperationError::invalid(
+                            "KollisionsausmaÃŸe mÃ¼ssen positive endliche Zahlen sein.",
+                        ));
+                    }
+                    config.collision = Some(*spec);
+                }
+                if *no_physics {
+                    config.physics = None;
+                } else if let Some(spec) = physics {
+                    if !spec.gravity_scale.is_finite()
+                        || !spec.friction.is_finite()
+                        || !spec.bounce.is_finite()
+                        || spec.friction < 0.0
+                        || spec.friction > 1_000.0
+                        || !(0.0..=1.0).contains(&spec.bounce)
+                    {
+                        return Err(OperationError::invalid(
+                            "Physikwerte sind ungÃ¼ltig (bounce 0..=1, reibung >= 0).",
+                        ));
+                    }
+                    config.physics = Some(*spec);
+                }
+                target.game = Some(config);
+            }
+            project.touch();
+            Ok(format!(
+                "Game-Metadaten fÃ¼r Objekt '{needle}' in Szene '{scene_name}' gesetzt"
+            ))
+        }
+        ProjectOperation::SetSceneGame {
+            scene,
+            camera,
+            input,
+            clear,
+        } => {
+            if camera.is_none() && input.is_none() && !clear {
+                return Err(OperationError::invalid(
+                    "SetSceneGame benÃ¶tigt mindestens camera, input oder clear.",
+                ));
+            }
+            let scene = scene_mut(project, scene.as_deref())?;
+            let scene_name = scene.name.clone();
+            if *clear {
+                scene.game = None;
+            } else {
+                let mut config = scene.game.clone().unwrap_or_default();
+                if let Some(camera) = camera {
+                    if !camera.zoom.is_finite() || camera.zoom <= 0.0 || camera.zoom > 64.0 {
+                        return Err(OperationError::invalid(
+                            "Kamera-Zoom muss zwischen 0 und 64 liegen.",
+                        ));
+                    }
+                    if camera.follow.chars().count() > 120 {
+                        return Err(OperationError::invalid(
+                            "Kamera-Folgeobjekt-Name ist zu lang.",
+                        ));
+                    }
+                    config.camera = Some(camera.clone());
+                }
+                if let Some(input) = input {
+                    for (value, label) in [
+                        (&input.left, "left"),
+                        (&input.right, "right"),
+                        (&input.up, "up"),
+                        (&input.down, "down"),
+                        (&input.jump, "jump"),
+                        (&input.action, "action"),
+                    ] {
+                        if value.trim().is_empty() || value.chars().count() > 40 {
+                            return Err(OperationError::invalid(format!(
+                                "Eingabe-Bindung '{label}' ist leer oder zu lang."
+                            )));
+                        }
+                    }
+                    config.input = Some(input.clone());
+                }
+                scene.game = Some(config);
+            }
+            project.touch();
+            Ok(format!("Spielkonfiguration fÃ¼r Szene '{scene_name}' gesetzt"))
+        }
+        ProjectOperation::InstallGameKit => {
+            let before = project.scripts.len();
+            nova_core::gamekit::install(project);
+            let added = project.scripts.len() - before;
+            project.touch();
+            Ok(format!(
+                "Spiel-Kit installiert ({added} Skript(e) hinzugefÃ¼gt; vorhandene bleiben unverÃ¤ndert)"
+            ))
         }
     }
 }
@@ -1168,13 +1356,13 @@ fn insert_object(
                 ))
             })?,
         None => scene.layers.first_mut().ok_or_else(|| {
-            OperationError::invalid("Die Szene enthält keine Ebene für das Objekt.")
+            OperationError::invalid("Die Szene enthÃ¤lt keine Ebene fÃ¼r das Objekt.")
         })?,
     };
     let layer_name = target.name.clone();
     let Some(frame) = target.frames.first_mut() else {
         return Err(OperationError::invalid(format!(
-            "Ebene '{layer_name}' enthält keinen Frame."
+            "Ebene '{layer_name}' enthÃ¤lt keinen Frame."
         )));
     };
     frame.keyframe = true;
@@ -1206,7 +1394,7 @@ fn find_layer_mut<'a>(
 fn checked_frame(frame: usize) -> Result<usize, OperationError> {
     if frame == 0 {
         return Err(OperationError::invalid(
-            "Frame-Nummern sind 1-basiert; 0 ist ungültig.",
+            "Frame-Nummern sind 1-basiert; 0 ist ungÃ¼ltig.",
         ));
     }
     if frame > 100_000 {
@@ -1269,14 +1457,14 @@ fn scene_mut<'a>(
             .ok_or_else(|| OperationError::invalid(format!("Szene '{name}' existiert nicht."))),
         None => project
             .active_scene_mut()
-            .ok_or_else(|| OperationError::invalid("Das Projekt enthält keine aktive Szene.")),
+            .ok_or_else(|| OperationError::invalid("Das Projekt enthÃ¤lt keine aktive Szene.")),
     }
 }
 
 fn check_size(width: f32, height: f32, label: &str) -> Result<(), OperationError> {
     if !width.is_finite() || !height.is_finite() || width <= 0.0 || height <= 0.0 {
         return Err(OperationError::invalid(format!(
-            "{label}breite und -höhe müssen positive endliche Zahlen sein."
+            "{label}breite und -hÃ¶he mÃ¼ssen positive endliche Zahlen sein."
         )));
     }
     if width > 100_000.0 || height > 100_000.0 {
@@ -1326,7 +1514,7 @@ fn validate_asset_path(path: &str, extensions: &[&str]) -> Result<String, Operat
     let extension = path.rsplit('.').next().unwrap_or_default();
     if !extensions.contains(&extension.to_ascii_lowercase().as_str()) {
         return Err(OperationError::invalid(format!(
-            "Assettyp wird nicht unterstützt (erlaubt: {}).",
+            "Assettyp wird nicht unterstÃ¼tzt (erlaubt: {}).",
             extensions.join(", ")
         )));
     }
@@ -1382,7 +1570,7 @@ fn wav_info(data: &[u8]) -> Option<(u32, u16, f32)> {
 fn parse_color(value: &str) -> Result<Rgba, OperationError> {
     Rgba::from_hex(value.trim()).ok_or_else(|| {
         OperationError::invalid(format!(
-            "Ungültige Farbe '{value}' (erwartet #rrggbb oder #rrggbbaa)."
+            "UngÃ¼ltige Farbe '{value}' (erwartet #rrggbb oder #rrggbbaa)."
         ))
     })
 }
@@ -1401,12 +1589,12 @@ fn normalize_script_path(path: &str) -> Result<String, OperationError> {
     }
     if !path.starts_with("scripts/") {
         return Err(OperationError::invalid(
-            "Neue Skripte müssen unter 'scripts/' liegen.",
+            "Neue Skripte mÃ¼ssen unter 'scripts/' liegen.",
         ));
     }
     if !path.ends_with(".as") {
         return Err(OperationError::invalid(
-            "Skriptpfade müssen mit '.as' enden.",
+            "Skriptpfade mÃ¼ssen mit '.as' enden.",
         ));
     }
     if path.chars().count() > 240 {
@@ -1529,7 +1717,7 @@ mod tests {
                 width: 200.0,
                 height: 40.0,
                 fill: None,
-                text: "Hallo NØVA".into(),
+                text: "Hallo NÃ˜VA".into(),
                 font_size: Some(32.0),
             },
             ProjectOperation::AddScript {
@@ -1679,7 +1867,7 @@ mod tests {
             },
         ];
         let error = apply_operations(&mut project, &operations).unwrap_err();
-        assert!(error.to_string().contains("späteres Schlüsselbild"));
+        assert!(error.to_string().contains("spÃ¤teres SchlÃ¼sselbild"));
     }
 
     #[test]
@@ -1935,5 +2123,122 @@ mod tests {
                 .iter()
                 .any(|object| matches!(object.kind, nova_core::ObjectKind::Bitmap { .. }))
         );
+    }
+
+    #[test]
+    fn game_operations_set_metadata_and_install_kit() {
+        let mut project = Project::new_empty("Game");
+        apply_operations(
+            &mut project,
+            &[
+                ProjectOperation::AddObject {
+                    name: "Held".into(),
+                    scene: None,
+                    symbol: None,
+                    layer: None,
+                    shape: ObjectShape::Rect,
+                    x: 10.0,
+                    y: 20.0,
+                    width: 32.0,
+                    height: 48.0,
+                    fill: None,
+                    text: String::new(),
+                    font_size: None,
+                },
+                ProjectOperation::SetGameObject {
+                    object: "Held".into(),
+                    scene: None,
+                    collision: Some(nova_core::CollisionSpec {
+                        shape: nova_core::CollisionShape::Rectangle,
+                        width: 32.0,
+                        height: 48.0,
+                    }),
+                    no_collision: false,
+                    physics: Some(nova_core::PhysicsSpec {
+                        body: nova_core::BodyType::Dynamic,
+                        gravity_scale: 1.0,
+                        friction: 0.0,
+                        bounce: 0.0,
+                        controlled: true,
+                    }),
+                    no_physics: false,
+                    clear: false,
+                },
+                ProjectOperation::SetSceneGame {
+                    scene: None,
+                    camera: Some(nova_core::CameraConfig {
+                        enabled: true,
+                        follow: "Held".into(),
+                        left: 0.0,
+                        top: 0.0,
+                        right: 800.0,
+                        bottom: 600.0,
+                        zoom: 1.5,
+                    }),
+                    input: Some(nova_core::InputBindings {
+                        left: "A".into(),
+                        right: "D".into(),
+                        up: "W".into(),
+                        down: "S".into(),
+                        jump: "Space".into(),
+                        action: "E".into(),
+                    }),
+                    clear: false,
+                },
+                ProjectOperation::InstallGameKit,
+            ],
+        )
+        .unwrap();
+
+        let scene = project.active_scene().unwrap();
+        let object = scene.layers[0].frames[0]
+            .objects
+            .iter()
+            .find(|object| object.name == "Held")
+            .unwrap();
+        let game = object.game.as_ref().unwrap();
+        assert_eq!(game.collision.unwrap().width, 32.0);
+        assert!(game.physics.unwrap().controlled);
+        let scene_game = scene.game.as_ref().unwrap();
+        assert!(scene_game.camera.as_ref().unwrap().enabled);
+        assert_eq!(scene_game.input.as_ref().unwrap().left, "A");
+        for path in [
+            "scripts/game/Input.as",
+            "scripts/game/Collision.as",
+            "scripts/game/Camera.as",
+            "scripts/game/Random.as",
+        ] {
+            assert!(
+                project.scripts.iter().any(|script| script.path == path),
+                "missing {path}"
+            );
+        }
+
+        // Idempotent: a second install adds nothing.
+        let script_count = project.scripts.len();
+        apply_operations(&mut project, &[ProjectOperation::InstallGameKit]).unwrap();
+        assert_eq!(project.scripts.len(), script_count);
+
+        // `clear` removes object game metadata.
+        apply_operations(
+            &mut project,
+            &[ProjectOperation::SetGameObject {
+                object: "Held".into(),
+                scene: None,
+                collision: None,
+                no_collision: false,
+                physics: None,
+                no_physics: false,
+                clear: true,
+            }],
+        )
+        .unwrap();
+        let scene = project.active_scene().unwrap();
+        let object = scene.layers[0].frames[0]
+            .objects
+            .iter()
+            .find(|object| object.name == "Held")
+            .unwrap();
+        assert!(object.game.is_none());
     }
 }

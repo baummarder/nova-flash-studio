@@ -112,6 +112,10 @@ pub struct Scene {
     /// Frames per second.
     pub fps: f32,
     pub layers: Vec<Layer>,
+    /// Optional game configuration (camera, input bindings). Format v3
+    /// addition; ignored by the timeline and the SWF exporter.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub game: Option<crate::model::GameSceneConfig>,
 }
 
 impl Scene {
@@ -124,6 +128,7 @@ impl Scene {
             background: Rgba::rgb(18, 20, 26),
             fps: 24.0,
             layers: vec![Layer::new("Ebene 1", 1)],
+            game: None,
         }
     }
 
