@@ -8,7 +8,16 @@ the project format is versioned JSON, and the SWF writer is implemented directly
 against the published SWF file-format specification. Tools and extensions run in
 an embedded QuickJS context; ActionScript is **not** executed by QuickJS.
 
-> **Status: Mega Milestone 12 release candidate `0.8.0-rc1`, not stable.**
+> **Status: Mega Milestone 13 release candidate `0.9.0-rc1`, not stable.**
+> M13 closes the remaining M12 runtime gaps: `Math.*` shim for the AS3
+> subset, kinematic body drive API, per-scene state restore, synthetic key
+> injection for deterministic tests, tilemap solid-cell collision export,
+> convex-hull approximation for concave polygons, stale-instance and
+> tunneling fixes — all Ruffle-verified in `samples/m13-runtime-features`.
+> Also added: full capability audit (`docs/CAPABILITY_AUDIT.md`) and an
+> honest Animate comparison (`docs/FLASH_COMPARISON.md`).
+>
+> M12 baseline `0.8.0-rc1`:
 > The validated `0.7.1-rc1` artifacts remain under `dist/` and
 > `dist/archive/`. M12 ("Runtime Parity & Release Engineering") moves
 > supported gameplay behaviour from preview-only operation into exported

@@ -46,6 +46,10 @@ fixed-step simulation (one tick = one authored frame at the SWF frame rate).
 | `droppedEventCount` | `():int` | events dropped by the recursion guard |
 | `particleCount` | `():int` | live particles in the current scene |
 | `setBodyPosition` | `(name, x, y):Boolean` | teleport a body (test/debug hook) |
+| `setBodyVelocity` | `(name, vx, vy):Boolean` | drive kinematic/dynamic bodies (M13) |
+| `getBodyVelocity` | `(name):Object` | `{x, y}` or null (M13) |
+| `debugSetKey` | `(keyCode, down):void` | inject synthetic key state; fires `nova:keyPressed`/`Released` and drives `Input.down`/`pressed` incl. configured transitions (M13) |
+| `clearSceneStates` | `():void` | drop per-scene body snapshots (M13) |
 | `debugInfo` | `():String` | diagnostic dump |
 
 ## Events (`flash.events.Event` on the root)
@@ -70,14 +74,21 @@ names for collision pairs), `key` (AVM2 keyCode for input events), `data`
   the playhead inside the active range (`gotoAndStop` stepping) so the
   concatenated timeline cannot drift into neighbouring scenes. Multi-frame
   scenes loop. `gotoScene` and configured `scene.transitions` (key → target)
-  both work; returning to earlier scenes is supported. Scene object state is
-  **not** restored — bodies reload fresh (documented parity gap vs preview).
+  both work; returning to earlier scenes is supported. Body position and
+  velocity are snapshotted per scene on exit and restored on revisit
+  (preview `GameRuntime` parity); `clearSceneStates()` resets memory.
+  Stale display-object bindings are re-resolved every tick because
+  multi-frame scenes replace instances on `gotoAndStop`.
 - **Collision**: rectangle, circle and convex polygon bodies with SAT,
   layer/mask bit filtering, enter/exit contact tracking on pre-resolution
   positions, and positional correction + restitution/friction for dynamic
-  bodies. Static bodies keep authored positions; kinematic bodies integrate
-  velocity only. Concave polygons are **not** decomposed (undefined
-  behaviour — treat as unsupported).
+  bodies. Concave polygons are approximated by their convex hull at export
+  (same as the preview, with a warning). Tilemap objects export solid-cell
+  grids (shape-4 specs, ≤8192 cells) expanded into static rect runs sharing
+  the map object's name — one contact pair per map, matching preview
+  semantics. Static bodies keep authored positions; kinematic bodies
+  integrate `setBodyVelocity` velocity without forces. Physics runs 8
+  substeps per frame to limit tunneling.
 - **Camera**: follow target (world position resolved through body records),
   smoothing, dead zone, zoom, world-bound clamping with small-world
   centering, deterministic sine shake. The camera writes display transforms
@@ -93,10 +104,14 @@ names for collision pairs), `key` (AVM2 keyCode for input events), `data`
 
 ## Limitations
 
-- `Math` is unavailable in the tested AVM2 path — `NovaGame` ships local
-  helpers; user scripts should avoid `Math.*` too.
-- Tilemap collision is not exported (tile layers bake to bitmaps).
-- Kinematic bodies have no public velocity API yet.
+- `Math.*` is provided by the `scripts/Math.as` gamekit shim (approximate
+  series implementations, deterministic LCG `random`); uncommon functions
+  (`imul`, `fround`, `clz32`, `sign`, `cbrt`, `expm1`, `log1p`, `hypot`)
+  are missing. Other Flash builtins (`ByteArray`, `Vector`, `JSON`, …)
+  remain unavailable.
+- Tilemap collision covers solid cells only; tile flip/rotation and
+  per-layer masks are not modelled.
+- Kinematic bodies have velocity but produce no collision response.
 - `maxParticles` is clamped to 512 in SWF.
 - Key-triggered transitions are configured in project metadata
   (`scene.game.transitions[].key`) using egui-style key names; unsupported

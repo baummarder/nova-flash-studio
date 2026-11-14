@@ -1946,7 +1946,13 @@ fn tilemap_grid_spec(
         name,
         format!(
             "4|{}|{}|{}|{}|0|0|0|0|0|{};{};{}",
-            cols, rows, layer, mask, num(tw), num(th), bits
+            cols,
+            rows,
+            layer,
+            mask,
+            num(tw),
+            num(th),
+            bits
         ),
     ))
 }

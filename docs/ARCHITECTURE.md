@@ -559,7 +559,8 @@ crates/nova-core/src/
   game.rs               preview simulation primitives (bodies, step, camera)
   game/runtime.rs       GameRuntime: scene lifecycle, event bus, transitions
   gamekit.rs            installable AS3 game-kit scripts (incl. game.NovaGame
-                        runtime bridge and generated game.NovaGameData specs)
+                        runtime bridge, generated game.NovaGameData specs,
+                        top-level Math shim, substepped physics)
   games.rs              built-in game template definitions
   time.rs               frame/time conversion and playback stepping
   error.rs              ProjectError
@@ -577,7 +578,8 @@ crates/nova-swf/src/
 crates/nova-build/src/
   lib.rs                compile, link, bake, stats, warnings, generated
                         game.NovaGameData (scene ranges, collider/camera/
-                        emitter specs) and transition-aware all-scene export
+                        emitter/tile-grid specs, convex-hull polygons) and
+                        transition-aware all-scene export
   error.rs              BuildError
 
 crates/nova-as/src/
