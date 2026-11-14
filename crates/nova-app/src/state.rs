@@ -433,6 +433,7 @@ pub enum UiAction {
     Save,
     SaveAs,
     Export,
+    ShowCompatibilityReport,
     OpenInFlashPlayer,
     OpenFlashSettings,
     OpenAiEditor,

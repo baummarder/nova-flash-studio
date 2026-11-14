@@ -55,6 +55,10 @@ JavaScript.**
 - **`nova-formats`** owns the shared import/export layer for `.nova`, `.fla`/XFL
   and `.swf`. It depends on `nova-core` and `nova-build`, keeps format-specific
   code in separate modules and produces compatibility reports and analysis data.
+  M18: OLE2 binary `.fla` detection with honest rejection, uncompressed XFL
+  folder import, hardened ZIP handling (traversal/size limits), DOMShape edge
+  decoding, XFL gradient FillStyles and editable `DOMText` both ways, and SWF
+  gradient fills imported as real path gradients.
 - **`nova-as`** is a self-contained AS3 compiler: lexer, parser, AST, symbol and
   type checker, ABC emitter and diagnostics. It does not depend on the editor or
   the SWF writer.

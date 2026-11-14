@@ -1,4 +1,4 @@
-# Capability Audit — NØVA Flash Studio 0.9.0-rc1 (post-M13)
+# Capability Audit — NØVA Flash Studio 0.14.0-rc1 (post-M18)
 
 Status legend: ✅ fully implemented & tested · 🟡 partially implemented ·
 🔵 implemented but insufficiently tested · 🔴 not implemented.
@@ -82,9 +82,11 @@ is claimed from documentation alone.
 
 - Header/tag parsing, shape/sprite extraction to `.nova` geometry,
   ABC disassembly view, capability reporting (`nova-formats`).
-- Lossy by design: gradients, filters, masks, video, fonts are reported
-  as unsupported rather than imported. Real-world SWF round-trip is
-  "inspection + partial reconstruction", not faithful re-authoring.
+- Lossy by design: filters, masks, video, fonts and strokes are reported
+  as unsupported rather than imported; **M18**: gradient fill styles now
+  import as real path gradients (linear/radial, focal approximated).
+  Real-world SWF round-trip is "inspection + partial reconstruction",
+  not faithful re-authoring.
 
 ## 9. SWF export — ✅
 
@@ -95,8 +97,11 @@ is claimed from documentation alone.
 
 ## 10. XFL/FLA — 🔵/🟡
 
-- XFL package read/write (DOMTimeline XML), FLA capability detection and
-  honest unsupported reporting; tilemap→PNG bitmap export in XFL.
+- XFL package read/write (DOMTimeline XML); **M18**: uncompressed XFL
+  folders import, DOMShape edge strings (point-list + M/L/C/Q/Z) decode
+  to real paths, gradient FillStyles map both directions, editable
+  DOMText export/import, FLA capability detection stays honest.
+  tilemap→PNG bitmap export in XFL.
 - Not a full Animate-compatible round-trip: filters, motion tweens as XML,
   IK, components are not reproduced. 🔵 tested structurally, not against
   real Animate output corpus.
@@ -111,8 +116,10 @@ is claimed from documentation alone.
   Dictionary, Timer, TextField/TextFormat, SimpleButton, Graphics,
   BitmapData/Bitmap, LoaderInfo, Point/Rectangle/Matrix/ColorTransform,
   full String/Array methods (20/20 probes, `m14-api-surface`).
-- **Subset limits**: no interfaces, `switch`, `try/catch`, `for-in`,
+- **Subset limits**: no interfaces, `try/catch`, `for-in`,
   closures as values, `Vector.<T>` syntax, package-level functions.
+  **M18**: `switch` statements compile with strict equality,
+  multi-value cases, fall-through and `default` (Ruffle-verified).
   Untested against large real-world AS3 codebases.
 
 ## 12. Game engine & runtime — ✅
@@ -181,7 +188,9 @@ is claimed from documentation alone.
 
 ## Cross-cutting gaps (honest)
 
-- No IK, shape tweens beyond basic, no bone rigging, no 3D, no video.
+- IK (two-bone + multi-bone FABRIK chains), skeletal clips and mesh
+  skinning exist (M15/M16/M17); still no morph shapes, constraints,
+  3D, video, or native `.fla` writing (XFL exchange only).
 - No marketplace/plugin SDK (extensions = gamekit scripts + AI ops).
 - AS3 subset is intentionally small; porting real Flash games requires
   rewriting scripts to the subset.

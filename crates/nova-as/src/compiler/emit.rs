@@ -1184,8 +1184,73 @@ impl<'a> Emitter<'a> {
                     statement.span,
                 );
             }
+            StmtKind::Switch { expr, arms } => {
+                self.emit_switch(ctx, expr, arms, statement.span);
+            }
             StmtKind::Empty => {}
         }
+    }
+
+    /// Emits `switch` with AS3 semantics: the selector is evaluated once,
+    /// comparisons use strict equality, and arms fall through into the
+    /// following arm until `break` (which jumps to the switch end).
+    fn emit_switch(
+        &mut self,
+        ctx: &mut BodyCtx,
+        expr: &Expr,
+        arms: &[crate::ast::SwitchArm],
+        _span: Span,
+    ) {
+        let selector = ctx.locals.temp();
+        self.emit_expr(ctx, expr);
+        ctx.builder.set_local(selector);
+
+        // Body labels per arm; default arm uses its own label too.
+        let body_labels: Vec<usize> = arms.iter().map(|_| ctx.builder.new_label()).collect();
+        let end = ctx.builder.new_label();
+
+        // Comparison section: test every case value; on match jump to the
+        // arm body. After all tests, jump to default body or end.
+        for (arm_index, arm) in arms.iter().enumerate() {
+            for value in &arm.values {
+                ctx.builder.get_local(selector);
+                self.emit_expr(ctx, value);
+                ctx.builder.binary(op::STRICTEQUALS);
+                ctx.builder.if_true(body_labels[arm_index]);
+            }
+            // No value matched for this arm's tests — continue testing the
+            // next arm's values (fall-through of the *test* section is
+            // sequential, so nothing needed here).
+        }
+        // No case matched: enter default body if present else end.
+        if let Some(default_index) = arms.iter().position(|arm| arm.values.is_empty()) {
+            ctx.builder.jump(body_labels[default_index]);
+        } else {
+            ctx.builder.jump(end);
+        }
+
+        // Body section: arms are laid out in order so control falls
+        // through into the next arm (AS3 semantics). `break` inside any
+        // arm jumps to `end`; `continue` keeps the enclosing loop target.
+        let continue_label = ctx
+            .loops
+            .last()
+            .map(|labels| labels.continue_label)
+            .unwrap_or(end);
+        ctx.loops.push(LoopLabels {
+            break_label: end,
+            continue_label,
+        });
+        for (arm_index, arm) in arms.iter().enumerate() {
+            ctx.builder.place_label(body_labels[arm_index]);
+            ctx.locals.push();
+            for stmt in &arm.body {
+                self.emit_stmt(ctx, stmt);
+            }
+            ctx.locals.pop();
+        }
+        ctx.loops.pop();
+        ctx.builder.place_label(end);
     }
 
     // ------------------------------------------------------------- expressions

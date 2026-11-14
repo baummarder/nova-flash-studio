@@ -7,6 +7,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 use std::io::{Cursor, Read, Write};
+use std::path::Path;
 
 use nova_core::{
     Asset, AssetKind, Frame, Layer, LayerKind, ObjectInstance, ObjectKind, PathCommand, PathShape,
@@ -22,12 +23,51 @@ use crate::capabilities::{CompatibilityReport, FormatKind, IssueCategory};
 use crate::conversion::{ExportData, ImportedData};
 use crate::error::{FormatError, FormatResult};
 
+/// Hard limits for untrusted archive input (M18 security pass).
+const MAX_ZIP_ENTRIES: usize = 4096;
+const MAX_ZIP_TOTAL_BYTES: u64 = 512 * 1024 * 1024;
+const MAX_ZIP_ENTRY_BYTES: u64 = 128 * 1024 * 1024;
+const MAX_XFL_DIR_FILES: usize = 8192;
+const MAX_XFL_DIR_BYTES: u64 = 512 * 1024 * 1024;
+
+/// OLE2 / Compound File Binary signature — the container used by native
+/// binary `.fla` files up to Flash CS4.
+const OLE2_MAGIC: &[u8] = &[0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1];
+
+/// Returns true when `name` is a safe relative archive path.
+fn is_safe_entry_name(name: &str) -> bool {
+    !name.is_empty()
+        && !name.starts_with('/')
+        && !name.starts_with('\\')
+        && !name.contains("..")
+        && !name.contains('\0')
+        && !name.contains(':')
+}
+
 pub fn import(bytes: &[u8]) -> FormatResult<ImportedData> {
+    // Native binary FLA (pre-CS5, OLE2 compound document) is a proprietary,
+    // undocumented format. Detect it explicitly instead of failing inside
+    // the ZIP reader with a misleading error.
+    if bytes.starts_with(OLE2_MAGIC) {
+        return Err(FormatError::Fla(
+            "Native binäre FLA (OLE2-Container, Flash bis CS4) wird nicht unterstützt. \
+             In Adobe Animate über 'Speichern unter → XFL' konvertieren oder eine \
+             CS5+-FLA (ZIP/XFL) verwenden."
+                .into(),
+        ));
+    }
     let mut archive =
         ZipArchive::new(Cursor::new(bytes)).map_err(|error| FormatError::Zip(error.to_string()))?;
+    if archive.len() > MAX_ZIP_ENTRIES {
+        return Err(FormatError::Zip(format!(
+            "ZIP enthält zu viele Einträge ({} > {MAX_ZIP_ENTRIES}).",
+            archive.len()
+        )));
+    }
     let mut files: BTreeMap<String, Vec<u8>> = BTreeMap::new();
+    let mut total = 0u64;
     for index in 0..archive.len() {
-        let mut file = archive
+        let file = archive
             .by_index(index)
             .map_err(|error| FormatError::Zip(error.to_string()))?;
         if !file.is_file() {
@@ -37,11 +77,89 @@ pub fn import(bytes: &[u8]) -> FormatResult<ImportedData> {
             .name()
             .map_err(|error| FormatError::Zip(error.to_string()))?
             .replace('\\', "/");
+        if !is_safe_entry_name(&name) {
+            return Err(FormatError::Zip(format!(
+                "Unsicherer ZIP-Eintragname: '{name}'"
+            )));
+        }
+        if file.size() > MAX_ZIP_ENTRY_BYTES {
+            return Err(FormatError::Zip(format!(
+                "ZIP-Eintrag '{name}' ist zu groß ({} Bytes).",
+                file.size()
+            )));
+        }
+        total = total.saturating_add(file.size());
+        if total > MAX_ZIP_TOTAL_BYTES {
+            return Err(FormatError::Zip(
+                "ZIP-Inhalt überschreitet das Größenlimit (512 MB).".into(),
+            ));
+        }
         let mut data = Vec::new();
-        file.read_to_end(&mut data)?;
+        file.take(MAX_ZIP_ENTRY_BYTES + 1).read_to_end(&mut data)?;
+        if data.len() as u64 > MAX_ZIP_ENTRY_BYTES {
+            return Err(FormatError::Zip(format!(
+                "ZIP-Eintrag '{name}' überschreitet die Größenbegrenzung."
+            )));
+        }
         files.insert(name, data);
     }
+    let file_count = files.len();
+    let mut imported = import_files(files, "XFL/ZIP")?;
+    imported
+        .report
+        .set_stat("Container-Einträge", file_count.to_string());
+    Ok(imported)
+}
 
+/// Imports an uncompressed XFL folder (loose files + `.xfl` marker or
+/// `DOMDocument.xml`). Paths are stored relative to the folder root.
+pub fn import_dir(root: &Path) -> FormatResult<ImportedData> {
+    let mut files: BTreeMap<String, Vec<u8>> = BTreeMap::new();
+    let mut total = 0u64;
+    collect_dir_files(root, root, &mut files, &mut total)?;
+    import_files(files, "XFL-Ordner")
+}
+
+fn collect_dir_files(
+    root: &Path,
+    dir: &Path,
+    files: &mut BTreeMap<String, Vec<u8>>,
+    total: &mut u64,
+) -> FormatResult<()> {
+    if files.len() > MAX_XFL_DIR_FILES {
+        return Err(FormatError::Fla(format!(
+            "XFL-Ordner enthält zu viele Dateien (>{MAX_XFL_DIR_FILES})."
+        )));
+    }
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            collect_dir_files(root, &path, files, total)?;
+        } else if path.is_file() {
+            let size = entry.metadata()?.len();
+            *total = total.saturating_add(size);
+            if *total > MAX_XFL_DIR_BYTES {
+                return Err(FormatError::Fla(
+                    "XFL-Ordner überschreitet das Größenlimit (512 MB).".into(),
+                ));
+            }
+            let relative = path
+                .strip_prefix(root)
+                .map_err(|_| FormatError::Fla("Ungültiger XFL-Pfad.".into()))?
+                .to_string_lossy()
+                .replace('\\', "/");
+            files.insert(relative, std::fs::read(&path)?);
+        }
+    }
+    Ok(())
+}
+
+/// Shared import body for both ZIP containers and loose XFL folders.
+fn import_files(
+    files: BTreeMap<String, Vec<u8>>,
+    container_label: &str,
+) -> FormatResult<ImportedData> {
     let document_name = files
         .keys()
         .find(|name| {
@@ -58,7 +176,7 @@ pub fn import(bytes: &[u8]) -> FormatResult<ImportedData> {
     let root = document.root_element();
 
     let mut report = CompatibilityReport::new(FormatKind::Fla);
-    report.source_version = Some("XFL/ZIP".into());
+    report.source_version = Some(container_label.to_string());
     report.set_stat("Container-Einträge", files.len().to_string());
 
     let width = attr_f32(root, "width")
@@ -767,11 +885,114 @@ fn parse_element(
             0
         }
         "DOMShape" => {
+            let name = attr_string(element, "name").unwrap_or_else(|| "Form".into());
+            if let Some(paths) = decode_dom_shape(element) {
+                // Decoded edges are absolute coordinates; centre them on
+                // the bounds midpoint like other path objects.
+                let mut min_x = f32::INFINITY;
+                let mut min_y = f32::INFINITY;
+                let mut max_x = f32::NEG_INFINITY;
+                let mut max_y = f32::NEG_INFINITY;
+                for path in &paths {
+                    for command in &path.commands {
+                        let mut points: Vec<(f32, f32)> = Vec::with_capacity(3);
+                        match *command {
+                            PathCommand::MoveTo { x, y } | PathCommand::LineTo { x, y } => {
+                                points.push((x, y));
+                            }
+                            PathCommand::CurveTo {
+                                control_x,
+                                control_y,
+                                x,
+                                y,
+                            } => {
+                                points.push((control_x, control_y));
+                                points.push((x, y));
+                            }
+                            PathCommand::CubicTo {
+                                c1_x,
+                                c1_y,
+                                c2_x,
+                                c2_y,
+                                x,
+                                y,
+                            } => {
+                                points.push((c1_x, c1_y));
+                                points.push((c2_x, c2_y));
+                                points.push((x, y));
+                            }
+                        }
+                        for (px, py) in points {
+                            min_x = min_x.min(px);
+                            min_y = min_y.min(py);
+                            max_x = max_x.max(px);
+                            max_y = max_y.max(py);
+                        }
+                    }
+                }
+                let (width, height) = if min_x.is_finite() {
+                    ((max_x - min_x).max(1.0), (max_y - min_y).max(1.0))
+                } else {
+                    shape_bounds(element)
+                };
+                let (cx, cy) = if min_x.is_finite() {
+                    ((min_x + max_x) / 2.0, (min_y + max_y) / 2.0)
+                } else {
+                    (0.0, 0.0)
+                };
+                let paths: Vec<PathShape> = paths
+                    .into_iter()
+                    .map(|mut path| {
+                        for command in &mut path.commands {
+                            match command {
+                                PathCommand::MoveTo { x, y } | PathCommand::LineTo { x, y } => {
+                                    *x -= cx;
+                                    *y -= cy;
+                                }
+                                PathCommand::CurveTo {
+                                    control_x,
+                                    control_y,
+                                    x,
+                                    y,
+                                } => {
+                                    *control_x -= cx;
+                                    *control_y -= cy;
+                                    *x -= cx;
+                                    *y -= cy;
+                                }
+                                PathCommand::CubicTo {
+                                    c1_x,
+                                    c1_y,
+                                    c2_x,
+                                    c2_y,
+                                    x,
+                                    y,
+                                } => {
+                                    *c1_x -= cx;
+                                    *c1_y -= cy;
+                                    *c2_x -= cx;
+                                    *c2_y -= cy;
+                                    *x -= cx;
+                                    *y -= cy;
+                                }
+                            }
+                        }
+                        path
+                    })
+                    .collect();
+                let fill = paths
+                    .first()
+                    .map(|path| path.fill)
+                    .unwrap_or_else(|| shape_fill(element));
+                let object = ObjectInstance::path(name, cx, cy, width, height, paths, fill);
+                objects.push(object);
+                return 1;
+            }
             let (width, height) = shape_bounds(element);
             let fill = shape_fill(element);
             let paths = vec![rectangle_path(width, height, fill)];
             let mut object = ObjectInstance::path(
-                attr_string(element, "name").unwrap_or_else(|| "Form".into()),
+                name,
                 attr_f32(element, "x").unwrap_or(0.0),
                 attr_f32(element, "y").unwrap_or(0.0),
                 width,
@@ -783,7 +1004,7 @@ fn parse_element(
             objects.push(object);
             report.warning(
                 IssueCategory::Geometry,
-                "DOMShape wird als Rechteck mit den erkannten Grenzen importiert; XFL-Edge-Strings werden nicht vollständig dekodiert.",
+                "DOMShape ohne dekodierbare Edge-Daten wird als Rechteck mit den erkannten Grenzen importiert.",
             );
             1
         }
@@ -891,6 +1112,65 @@ fn parse_element(
             }
             1
         }
+        "DOMText" => {
+            // Editable XFL text: <p><span size face color>…</span></p> rows.
+            let mut lines: Vec<String> = Vec::new();
+            let mut size = 12.0f32;
+            let mut bold = false;
+            let mut italic = false;
+            let mut align = nova_core::TextAlign::Left;
+            let mut color = shape_fill(element);
+            for span in element.descendants().filter(|n| n.has_tag_name("span")) {
+                size = attr_f32(span, "size").unwrap_or(size).max(1.0);
+                bold |= attr_string(span, "bold").as_deref() == Some("true")
+                    || span.attribute("bold").is_some();
+                italic |= attr_string(span, "italic").as_deref() == Some("true")
+                    || span.attribute("italic").is_some();
+                if let Some(value) =
+                    attr_string(span, "color").and_then(|value| parse_color(&value))
+                {
+                    color = value;
+                }
+                let p_align = span
+                    .ancestors()
+                    .find(|n| n.has_tag_name("p"))
+                    .and_then(|p| attr_string(p, "align"));
+                align = match p_align.as_deref() {
+                    Some("center") => nova_core::TextAlign::Center,
+                    Some("right") => nova_core::TextAlign::Right,
+                    _ => align,
+                };
+                if let Some(text) = span.text() {
+                    lines.push(text.to_string());
+                }
+            }
+            if lines.is_empty() {
+                // Fall back to raw text content of the element.
+                if let Some(text) = element.text() {
+                    lines.push(text.to_string());
+                }
+            }
+            let mut text_obj = nova_core::TextObject::new(lines.join("\n"), size);
+            text_obj.bold = bold;
+            text_obj.italic = italic;
+            text_obj.align = align;
+            let mut object = ObjectInstance::text(
+                attr_string(element, "name").unwrap_or_else(|| "Text".into()),
+                attr_f32(element, "x").unwrap_or(0.0),
+                attr_f32(element, "y").unwrap_or(0.0),
+                text_obj.text.clone(),
+                size,
+                color,
+            );
+            if let ObjectKind::Text(imported_text) = &mut object.kind {
+                imported_text.bold = bold;
+                imported_text.italic = italic;
+                imported_text.align = align;
+            }
+            apply_xfl_transform(element, &mut object.transform);
+            objects.push(object);
+            1
+        }
         "DOMTextInstance" => {
             report.warning(
                 IssueCategory::Text,
@@ -975,6 +1255,296 @@ fn rectangle_path(width: f32, height: f32, fill: Rgba) -> PathShape {
             PathCommand::LineTo { x: -hw, y: -hh },
         ],
     )
+}
+
+/// Parsed XFL fill: solid colour plus an optional gradient.
+struct XflFill {
+    color: Rgba,
+    gradient: Option<nova_core::Gradient>,
+}
+
+/// Index → fill map from a DOMShape `<fills>` block.
+fn parse_fill_styles(element: Node<'_, '_>) -> HashMap<usize, XflFill> {
+    let mut fills = HashMap::new();
+    for style in element
+        .descendants()
+        .filter(|node| node.has_tag_name("FillStyle"))
+    {
+        let Some(index) = attr_usize(style, "index") else {
+            continue;
+        };
+        let mut color = Rgba::WHITE;
+        let mut gradient = None;
+        for child in style.children().filter(Node::is_element) {
+            match child.tag_name().name() {
+                "SolidColor" => {
+                    if let Some(value) =
+                        attr_string(child, "color").and_then(|value| parse_color(&value))
+                    {
+                        color = value;
+                    }
+                    if let Some(alpha) = attr_f32(child, "alpha") {
+                        color.a = (alpha.clamp(0.0, 1.0) * 255.0).round() as u8;
+                    }
+                }
+                "LinearGradient" | "RadialGradient" => {
+                    let is_linear = child.tag_name().name() == "LinearGradient";
+                    let mut stops = Vec::new();
+                    for entry in child.children().filter(|n| n.has_tag_name("GradientEntry")) {
+                        let ratio = attr_f32(entry, "ratio").unwrap_or(0.0).clamp(0.0, 1.0);
+                        let entry_color = attr_string(entry, "color")
+                            .and_then(|value| parse_color(&value))
+                            .unwrap_or(color);
+                        stops.push(nova_core::GradientStop {
+                            position: ratio,
+                            color: entry_color,
+                        });
+                    }
+                    if stops.len() >= 2 {
+                        stops.sort_by(|a, b| a.position.total_cmp(&b.position));
+                        gradient = Some(nova_core::Gradient {
+                            kind: if is_linear {
+                                nova_core::GradientKind::Linear
+                            } else {
+                                nova_core::GradientKind::Radial
+                            },
+                            stops,
+                            angle: gradient_angle(child),
+                            center_x: attr_f32(child, "centerX").unwrap_or(0.0),
+                            center_y: attr_f32(child, "centerY").unwrap_or(0.0),
+                            radius: attr_f32(child, "radius")
+                                .or_else(|| attr_f32(child, "r"))
+                                .unwrap_or(50.0),
+                        });
+                    }
+                }
+                _ => {}
+            }
+        }
+        fills.insert(index, XflFill { color, gradient });
+    }
+    fills
+}
+
+/// Linear gradient angle in degrees derived from start/end point
+/// attributes (`x1,y1,x2,y2` or `startX` style names).
+fn gradient_angle(node: Node<'_, '_>) -> f32 {
+    let (x1, y1) = (
+        attr_f32(node, "x1").or_else(|| attr_f32(node, "startX")),
+        attr_f32(node, "y1").or_else(|| attr_f32(node, "startY")),
+    );
+    let (x2, y2) = (
+        attr_f32(node, "x2").or_else(|| attr_f32(node, "endX")),
+        attr_f32(node, "y2").or_else(|| attr_f32(node, "endY")),
+    );
+    match (x1, y1, x2, y2) {
+        (Some(x1), Some(y1), Some(x2), Some(y2)) => {
+            let dy = y2 - y1;
+            let dx = x2 - x1;
+            if dx.abs() + dy.abs() < 1e-6 {
+                0.0
+            } else {
+                dy.atan2(dx).to_degrees()
+            }
+        }
+        _ => 0.0,
+    }
+}
+
+/// Parses one XFL `<Edge edges="...">` attribute into path commands.
+///
+/// Supported encodings:
+/// - compact point lists: `!x y|x y|...` (twips, `!` = new sub-path)
+/// - SVG-style commands: `M/L/C/Q/Z` with twip coordinates
+///
+/// Anything else returns an empty command list (caller falls back).
+fn parse_edge_commands(edges: &str) -> Vec<PathCommand> {
+    let trimmed = edges.trim();
+    if trimmed.is_empty() {
+        return Vec::new();
+    }
+    // Compact `!`/`|` format first.
+    if trimmed.contains('!') || trimmed.contains('|') {
+        let mut commands = Vec::new();
+        let mut pen = (0.0f32, 0.0f32);
+        for part in trimmed.split(['!', '|']) {
+            if part.trim().is_empty() {
+                continue;
+            }
+            let mut nums = part
+                .split_whitespace()
+                .filter_map(|v| v.parse::<f32>().ok());
+            let (Some(x), Some(y)) = (nums.next(), nums.next()) else {
+                continue;
+            };
+            // Coordinates are twips in XFL; convert to pixels.
+            let (x, y) = (x / 20.0, y / 20.0);
+            if part.starts_with('!') || commands.is_empty() {
+                commands.push(PathCommand::MoveTo { x, y });
+            } else {
+                commands.push(PathCommand::LineTo { x, y });
+            }
+            pen = (x, y);
+        }
+        let _ = pen;
+        return commands;
+    }
+    // SVG-style command format: letters M/L/C/Q/Z followed by twip
+    // coordinate pairs. Tokenize into (command, Vec<f32>) groups.
+    let mut commands = Vec::new();
+    let mut subpath_start: Option<(f32, f32)> = None;
+    let bytes = trimmed.as_bytes();
+    let mut i = 0usize;
+    let mut cmd = 'M';
+    let read_number = |i: &mut usize| -> Option<f32> {
+        while *i < bytes.len() && (bytes[*i] as char).is_whitespace()
+            || *i < bytes.len() && bytes[*i] == b','
+        {
+            *i += 1;
+        }
+        let start = *i;
+        if *i < bytes.len() && (bytes[*i] == b'-' || bytes[*i] == b'+') {
+            *i += 1;
+        }
+        let mut seen_digit = false;
+        while *i < bytes.len() {
+            let c = bytes[*i];
+            if c.is_ascii_digit() {
+                seen_digit = true;
+                *i += 1;
+            } else if c == b'.' {
+                *i += 1;
+            } else {
+                break;
+            }
+        }
+        if !seen_digit || *i == start {
+            return None;
+        }
+        trimmed[start..*i].parse::<f32>().ok()
+    };
+    while i < bytes.len() {
+        let c = bytes[i] as char;
+        if c.is_ascii_alphabetic() {
+            cmd = c.to_ascii_uppercase();
+            i += 1;
+            continue;
+        }
+        if !(c == '-' || c == '+' || c == '.' || c.is_ascii_digit()) {
+            i += 1;
+            continue;
+        }
+        // One command group: read its numeric arity.
+        let arity = match cmd {
+            'M' | 'L' => 2,
+            'Q' => 4,
+            'C' => 6,
+            'Z' => 0,
+            _ => 2,
+        };
+        if arity == 0 {
+            if let Some(start) = subpath_start.take() {
+                commands.push(PathCommand::LineTo {
+                    x: start.0,
+                    y: start.1,
+                });
+            }
+            i += 1;
+            continue;
+        }
+        let mut vals = Vec::with_capacity(arity);
+        let mut ok = true;
+        for _ in 0..arity {
+            match read_number(&mut i) {
+                Some(v) => vals.push(v),
+                None => {
+                    ok = false;
+                    break;
+                }
+            }
+        }
+        if !ok {
+            break;
+        }
+        let px = |v: f32| v / 20.0;
+        match cmd {
+            'M' => {
+                let (x, y) = (px(vals[0]), px(vals[1]));
+                commands.push(PathCommand::MoveTo { x, y });
+                subpath_start = Some((x, y));
+                cmd = 'L'; // implicit lineto pairs after moveto
+            }
+            'L' => {
+                commands.push(PathCommand::LineTo {
+                    x: px(vals[0]),
+                    y: px(vals[1]),
+                });
+            }
+            'Q' => {
+                commands.push(PathCommand::CurveTo {
+                    control_x: px(vals[0]),
+                    control_y: px(vals[1]),
+                    x: px(vals[2]),
+                    y: px(vals[3]),
+                });
+            }
+            'C' => {
+                commands.push(PathCommand::CubicTo {
+                    c1_x: px(vals[0]),
+                    c1_y: px(vals[1]),
+                    c2_x: px(vals[2]),
+                    c2_y: px(vals[3]),
+                    x: px(vals[4]),
+                    y: px(vals[5]),
+                });
+            }
+            _ => {}
+        }
+    }
+    commands
+}
+/// Decodes a DOMShape element into path shapes using `<Edge>` strings
+/// and `<FillStyle>` colours/gradients. Returns `None` when no edge data
+/// is present (caller keeps the bounding-box fallback).
+fn decode_dom_shape(element: Node<'_, '_>) -> Option<Vec<PathShape>> {
+    let fills = parse_fill_styles(element);
+    let mut shapes = Vec::new();
+    let mut any_edge = false;
+    for edge in element
+        .descendants()
+        .filter(|node| node.has_tag_name("Edge"))
+    {
+        let Some(edges_attr) = attr_string(edge, "edges") else {
+            continue;
+        };
+        let commands = parse_edge_commands(&edges_attr);
+        if commands.len() < 2 {
+            continue;
+        }
+        any_edge = true;
+        let fill_index = attr_usize(edge, "fillStyle0").or_else(|| attr_usize(edge, "fillStyle1"));
+        let fill = fill_index
+            .and_then(|index| fills.get(&index))
+            .cloned()
+            .unwrap_or(XflFill {
+                color: Rgba::rgb(120, 180, 240),
+                gradient: None,
+            });
+        let mut path = PathShape::new(fill.color, commands);
+        path.gradient = fill.gradient;
+        shapes.push(path);
+    }
+    if any_edge { Some(shapes) } else { None }
+}
+
+// XflFill needs Clone for the unwrap_or path.
+impl Clone for XflFill {
+    fn clone(&self) -> Self {
+        Self {
+            color: self.color,
+            gradient: self.gradient.clone(),
+        }
+    }
 }
 
 fn apply_xfl_transform(element: Node<'_, '_>, transform: &mut Transform) {
@@ -1574,43 +2144,43 @@ fn write_xfl_object(
             write_xfl_shape(document, object, &mut points, report);
         }
         ObjectKind::Text(text) => {
-            let paths = text.paths(object.fill);
-            document.push_str("                <DOMShape>\n                  <fills>\n");
-            for (index, path) in paths.iter().enumerate() {
+            // Real editable XFL text (DOMText) instead of baked outlines.
+            let (tw, th) = text.metrics();
+            document.push_str(&format!(
+                "                <DOMText name=\"{}\" x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\">\n                  <matrix><Matrix a=\"1\" d=\"1\" tx=\"{}\" ty=\"{}\"/></matrix>\n                  <text>\n                    <matrix><Matrix a=\"1\" d=\"1\" tx=\"0\" ty=\"0\"/></matrix>\n                    <div>\n",
+                xml_escape(&object.name),
+                object.transform.x,
+                object.transform.y,
+                tw,
+                th,
+                object.transform.x,
+                object.transform.y,
+            ));
+            for line in text.text.split('\n') {
                 document.push_str(&format!(
-                    "                    <FillStyle index=\"{}\"><SolidColor color=\"{}\"/></FillStyle>\n",
-                    index + 1,
-                    color_hex(path.fill)
+                    "                      <p><span size=\"{}\" face=\"{}\" color=\"{}\"{}{}{}>{}</span></p>\n",
+                    text.size,
+                    match text.font {
+                        nova_core::TextFont::NoveSans => "Nove Sans",
+                        nova_core::TextFont::NoveMono => "Nove Mono",
+                    },
+                    color_hex(object.fill),
+                    if text.bold { " bold=\"true\"" } else { "" },
+                    if text.italic { " italic=\"true\"" } else { "" },
+                    match text.align {
+                        nova_core::TextAlign::Center => " align=\"center\"",
+                        nova_core::TextAlign::Right => " align=\"right\"",
+                        _ => "",
+                    },
+                    xml_escape(line),
                 ));
             }
-            document.push_str("                  </fills>\n                  <edges>\n");
-            for (index, path) in paths.iter().enumerate() {
-                let points = flatten_path(path);
-                if points.len() >= 2 {
-                    document.push_str(&format!(
-                        "                    <Edge fillStyle0=\"{}\" edges=\"{}\"/>\n",
-                        index + 1,
-                        edge_string(&points)
-                    ));
-                }
-            }
-            document.push_str("                  </edges>\n                </DOMShape>\n");
-            report.warning(
-                IssueCategory::Export,
-                format!(
-                    "Textobjekt '{}' wird im XFL-Paket als eingebrannte Vektorform exportiert, nicht als bearbeitbarer Text.",
-                    object.name
-                ),
-            );
+            document.push_str("                    </div>\n                  </text>\n                </DOMText>\n");
         }
         ObjectKind::Path { paths, .. } => {
             document.push_str("                <DOMShape>\n                  <fills>\n");
             for (index, path) in paths.iter().enumerate() {
-                document.push_str(&format!(
-                    "                    <FillStyle index=\"{}\"><SolidColor color=\"{}\"/></FillStyle>\n",
-                    index + 1,
-                    color_hex(path.fill)
-                ));
+                write_xfl_fill_style(document, index + 1, path);
             }
             document.push_str("                  </fills>\n                  <edges>\n");
             for (index, path) in paths.iter().enumerate() {
@@ -1826,6 +2396,49 @@ fn flatten_path(path: &PathShape) -> Vec<(f32, f32)> {
         }
     }
     out
+}
+
+/// Emits one `<FillStyle>` for a path: solid colour or a linear/radial
+/// gradient with `<GradientEntry>` stops (XFL subset).
+fn write_xfl_fill_style(document: &mut String, index: usize, path: &PathShape) {
+    match &path.gradient {
+        Some(gradient) => {
+            let tag = match gradient.kind {
+                nova_core::GradientKind::Linear => "LinearGradient",
+                nova_core::GradientKind::Radial => "RadialGradient",
+            };
+            let geometry = match gradient.kind {
+                nova_core::GradientKind::Linear => {
+                    let rad = gradient.angle.to_radians();
+                    let (dx, dy) = (rad.cos() * 50.0, rad.sin() * 50.0);
+                    format!(" startPoint=\"{} {}\" endPoint=\"{} {}\"", -dx, -dy, dx, dy)
+                }
+                nova_core::GradientKind::Radial => {
+                    format!(
+                        " centerPoint=\"{} {}\" radius=\"{}\"",
+                        gradient.center_x, gradient.center_y, gradient.radius
+                    )
+                }
+            };
+            document.push_str(&format!(
+                "                    <FillStyle index=\"{index}\"><{tag}{geometry} spreadMethod=\"pad\">\n"
+            ));
+            for stop in &gradient.stops {
+                document.push_str(&format!(
+                    "                      <GradientEntry ratio=\"{}\" color=\"{}\"/>\n",
+                    stop.position,
+                    color_hex(stop.color)
+                ));
+            }
+            document.push_str(&format!("                    </{tag}></FillStyle>\n"));
+        }
+        None => {
+            document.push_str(&format!(
+                "                    <FillStyle index=\"{index}\"><SolidColor color=\"{}\"/></FillStyle>\n",
+                color_hex(path.fill)
+            ));
+        }
+    }
 }
 
 fn edge_string(points: &[(f32, f32)]) -> String {

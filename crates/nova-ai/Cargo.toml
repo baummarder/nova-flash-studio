@@ -27,3 +27,5 @@ windows-sys = { version = "0.61", features = [
 
 [dev-dependencies]
 swf = "0.4"
+zip = { version = "2", default-features = false }
+tempfile = "3"

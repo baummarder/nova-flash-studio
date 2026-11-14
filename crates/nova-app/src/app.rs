@@ -194,6 +194,14 @@ impl NovaApp {
                     actions.push(UiAction::Export);
                     ui.close();
                 }
+                if ui
+                    .button("Projekt-Kompatibilität …")
+                    .on_hover_text("Bericht: was beim SWF-/XFL-Export erhalten bleibt und was nicht")
+                    .clicked()
+                {
+                    actions.push(UiAction::ShowCompatibilityReport);
+                    ui.close();
+                }
                 ui.separator();
                 ui.menu_button("Autosave", |ui| {
                     if ui
@@ -825,6 +833,14 @@ impl NovaApp {
                     self.save_as();
                 }
                 UiAction::Export => self.export(),
+                UiAction::ShowCompatibilityReport => {
+                    let report = nova_ai::project_compatibility_report(&self.project);
+                    self.state.dialog = Dialog::CompatibilityReport {
+                        title: "Projekt-Kompatibilität".into(),
+                        report,
+                        is_error: false,
+                    };
+                }
                 UiAction::OpenInFlashPlayer => self.open_in_flash_player(),
                 UiAction::OpenFlashSettings => self.open_flash_settings_dialog(),
                 UiAction::OpenAiEditor => {

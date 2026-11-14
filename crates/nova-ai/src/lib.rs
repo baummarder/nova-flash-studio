@@ -31,6 +31,7 @@ pub use http::{HttpRequest, HttpResponse, HttpTransport, MockTransport, ReqwestT
 pub use operations::{
     MAX_OPERATIONS, ObjectShape, OperationError, OperationPlan, ProjectOperation, apply_operations,
     apply_operations_with, preview_operations, preview_operations_with,
+    project_compatibility_report,
 };
 pub use provider::{
     ChatMessage, ChatResponse, ConnectionTest, ProviderConfig, ProviderKind, ProviderManager,

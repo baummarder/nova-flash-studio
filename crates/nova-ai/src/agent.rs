@@ -412,6 +412,11 @@ Unterstützte Projektoperationen (nur diese, jeweils mit "op"):
 - {"op":"set_vertex_weight","symbol":"Held","object":"ArmSegment","vertex":3,"bone":"Oberarm","weight":0.8}
 - {"op":"bind_object_to_bone","symbol":"Held","object":"ArmSegment","bone":"Oberarm"}
 - {"op":"set_symbol_clip","symbol":"Held","clip":"Schwung"}
+- {"op":"rename_asset","asset":"Hintergrund","name":"BG Layer"}
+- {"op":"move_asset","asset":"Hintergrund","folder":"UI/Sprites"}
+- {"op":"replace_asset","asset":"Hintergrund","path":"assets/hintergrund_neu.png"}
+- {"op":"audit_assets"}
+- {"op":"analyze_project_compatibility"}
 Szene und Symbol-Timeline werden über Namen ausgewählt; "symbol" zielt auf eine Bibliotheks-Timeline, "scene" auf eine Szene, ohne Auswahl gilt die aktive Szene. Asset-Pfade sind relativ zum Projektordner (png/jpg/jpeg/gif, wav/mp3). Neue Skripte müssen unter scripts/ liegen und auf .as enden. Neue Skripte müssen unter scripts/ liegen und auf .as enden. Keine Lösch-, Umbenennungs- oder Überschreiboperationen für bestehende Inhalte erfinden. Die Operationen werden erst nach ausdrücklicher Bestätigung transaktional angewendet."##;
 
 #[derive(Debug, Clone, PartialEq)]

@@ -44,6 +44,7 @@ struct Checker {
     is_constructor: bool,
     return_type: Type,
     loop_depth: usize,
+    switch_depth: usize,
 }
 
 impl Checker {
@@ -61,6 +62,7 @@ impl Checker {
             is_constructor: false,
             return_type: Type::Void,
             loop_depth: 0,
+            switch_depth: 0,
         }
     }
 
@@ -917,12 +919,27 @@ impl Checker {
                 }
             }
             StmtKind::Break => {
-                if self.loop_depth == 0 {
+                if self.loop_depth == 0 && self.switch_depth == 0 {
                     self.error(
-                        "'break' ist nur innerhalb einer Schleife erlaubt",
+                        "'break' ist nur innerhalb einer Schleife oder switch erlaubt",
                         statement.span,
                     );
                 }
+            }
+            StmtKind::Switch { expr, arms } => {
+                self.infer_expr(expr);
+                self.scopes.push();
+                self.switch_depth += 1;
+                for arm in arms {
+                    for value in &arm.values {
+                        self.infer_expr(value);
+                    }
+                    for stmt in &arm.body {
+                        self.check_stmt(stmt);
+                    }
+                }
+                self.switch_depth -= 1;
+                self.scopes.pop();
             }
             StmtKind::Continue => {
                 if self.loop_depth == 0 {

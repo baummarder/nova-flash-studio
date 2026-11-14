@@ -947,3 +947,36 @@ fn rejects_new_with_the_wrong_number_of_arguments() {
             .any(|diagnostic| diagnostic.message.contains("Argument"))
     );
 }
+
+#[test]
+fn compiles_switch_with_fallthrough_and_break() {
+    let unit = compile(
+        "package { public class Main { \
+            public function Main() { \
+                var x:int = 2; \
+                var y:int = 0; \
+                switch (x) { \
+                    case 1: y = 10; \
+                    case 2: y = 20; break; \
+                    case 3: y = 30; \
+                    default: y = 99; \
+                } \
+            } \
+        } }",
+    );
+    assert!(!unit.has_errors(), "diagnostics: {:#?}", unit.diagnostics);
+    let abc = parse_abc(&unit);
+    assert!(!abc.methods.is_empty());
+}
+
+#[test]
+fn switch_case_expressions_type_check() {
+    let unit = compile(
+        "package { public class Main { \
+            public function Main() { \
+                switch (1) { case 1: break; default: break; } \
+            } \
+        } }",
+    );
+    assert!(!unit.has_errors(), "diagnostics: {:#?}", unit.diagnostics);
+}

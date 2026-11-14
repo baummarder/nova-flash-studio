@@ -38,7 +38,14 @@ Evidence-based support levels. "Preview" = editor simulation (`GameRuntime`),
 | Gradient fills (linear/radial, multi-stop) | yes (fan approx.) | yes — native gradient fill styles | n/a | yes (`m17-vector-skinning` + swf-parser test) |
 | Boolean path ops (union/intersect/subtract/XOR) | yes | yes (result baked as polygon paths) | n/a | unit-tested (`boolop`) |
 | AS3 document class (`Main.as`) | n/a | yes | yes | yes |
-| AS3 subset (no `for-in`, interfaces, `switch`, `try`, closures, `Vector.<T>`; `Math`/`JSON` resolve) | n/a | compiler-enforced | n/a | yes |
+| AS3 subset (`switch` with fall-through/default since M18; no `for-in`, interfaces, `try`, closures, `Vector.<T>`; `Math`/`JSON` resolve) | n/a | compiler-enforced | n/a | yes (`m18-switch-compat`) |
+| FLA import: CS5+ ZIP/XFL container | n/a | n/a | yes | unit-tested |
+| FLA import: uncompressed XFL folder | n/a | n/a | yes | unit-tested |
+| FLA import: pre-CS5 binary (OLE2) | n/a | n/a | **rejected with guidance** | detection-tested |
+| XFL DOMShape edges (point-list + M/L/C/Q/Z) | n/a | n/a | yes | unit-tested |
+| XFL gradients (linear/radial FillStyle) | n/a | n/a | yes | unit-tested |
+| XFL editable text (DOMText) | n/a | n/a | yes | unit-tested |
+| SWF gradient fills → path gradients | n/a | n/a | n/a | unit-tested |
 | Playerglobal APIs at SWF v13+ (JSON, ByteArray, Dictionary, Timer, TextField, SimpleButton, Graphics, BitmapData, Point/Rectangle/Matrix/ColorTransform, LoaderInfo) | n/a | n/a | yes | yes (`m14-api-surface`, 20/20 probes) |
 | AVM1 target | n/a | yes (no AS3/gamekit) | n/a | yes |
 | Audio (SoundCue) | yes | exported | n/a | M9/M10 verified |
@@ -81,3 +88,17 @@ Evidence-based support levels. "Preview" = editor simulation (`GameRuntime`),
   triangle-fan approximation while SWF export is exact.
 - **Skinning**: path objects only (`PathShape.skin`), LBS deformation
   baked per frame at export; no dual-quaternion, no morph targets.
+- **FLA**: only CS5+ `.fla` files (ZIP/XFL container) and uncompressed
+  XFL folders import. Pre-CS5 binary `.fla` (OLE2 compound document)
+  is detected and rejected with guidance — there is no native `.fla`
+  writer; XFL is the documented exchange format.
+- **XFL edges**: the `!`/`|` point-list format and SVG-style
+  M/L/C/Q/Z command strings decode (twips); exotic edge encodings
+  fall back to the bounds rectangle with a warning. XFL gradient
+  matrices are approximated (angle/center/radius), focal gradients
+  unsupported.
+- **Archive safety**: ZIP/XFL import rejects traversal entry names,
+  caps entries (4096) and total size (512 MB).
+- **Asset references**: objects store stable asset ids; rename/move
+  never breaks references. `audit_assets` reports empty payloads,
+  file-only references and unused assets.

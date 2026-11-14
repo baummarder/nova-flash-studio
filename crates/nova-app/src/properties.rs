@@ -2442,6 +2442,9 @@ fn asset_properties(
                 ui.label("Name");
                 changed |= ui.text_edit_singleline(&mut asset.name).changed();
                 ui.end_row();
+                ui.label("Ordner");
+                changed |= ui.text_edit_singleline(&mut asset.folder).changed();
+                ui.end_row();
                 ui.label("Typ");
                 ui.label(
                     RichText::new(match asset.kind {

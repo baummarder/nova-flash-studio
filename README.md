@@ -8,8 +8,28 @@ the project format is versioned JSON, and the SWF writer is implemented directly
 against the published SWF file-format specification. Tools and extensions run in
 an embedded QuickJS context; ActionScript is **not** executed by QuickJS.
 
-> **Status: Mega Milestone 17 release candidate `0.13.0-rc1`, not stable.**
-> M17 added professional vector and animation workflows: **cubic Bézier
+> **Status: Mega Milestone 18 release candidate `0.14.0-rc1`, not stable.**
+> M18 focused on Flash-world interoperability and workflow honesty:
+> **FLA format detection** — CS5+ `.fla` (ZIP/XFL) imports, uncompressed
+> XFL folders import, and pre-CS5 binary OLE2 `.fla` files are detected
+> and rejected with clear guidance instead of a cryptic ZIP error;
+> **XFL round-trip improvements** — DOMShape edge strings (point-list
+> and M/L/C/Q/Z command formats) decode into real vector paths, solid
+> and linear/radial gradient fills map both ways, and text exports as
+> editable `DOMText` and imports back as text objects;
+> **SWF gradient import** — SWF linear/radial gradient fills become
+> real path gradients; **AS3 `switch`** — strict-equality cases,
+> fall-through and `default` compile to verified AVM2 bytecode
+> (Ruffle-verified, `samples/m18-switch-compat.nova`); **asset
+> workflow** — asset folders, rename/move/replace AI ops, asset audit
+> (unused/broken references), a project compatibility report in the
+> Datei menu, and hardened archive import (path-traversal rejection,
+> size/entry limits).
+> Still out of scope: pre-CS5 binary FLA import, morph shapes, native
+> `.fla` writing (XFL is the documented exchange format), `try/catch`,
+> `for-in`, interfaces, getters/setters.
+>
+> M17 baseline `0.13.0-rc1`: professional vector and animation workflows — **cubic Bézier
 > segments** with smooth/independent handle modes (Alt = independent),
 > **native SWF gradient fills** (linear + radial, multiple stops,
 > exported as real gradient fill styles), **true polygon Boolean

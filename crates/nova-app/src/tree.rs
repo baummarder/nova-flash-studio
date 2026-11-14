@@ -426,7 +426,7 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
                 .color(theme::TEXT_FAINT),
         );
     } else {
-        let assets: Vec<(Uuid, String, &'static str)> = project
+        let mut assets: Vec<(Uuid, String, &'static str)> = project
             .assets
             .iter()
             .map(|asset| {
@@ -435,9 +435,15 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
                     nova_core::AssetKind::Audio => "♪",
                     nova_core::AssetKind::Font => "Aa",
                 };
-                (asset.id, asset.name.clone(), glyph)
+                let label = if asset.folder.is_empty() {
+                    asset.name.clone()
+                } else {
+                    format!("{}/{}", asset.folder, asset.name)
+                };
+                (asset.id, label, glyph)
             })
             .collect();
+        assets.sort_by(|a, b| a.1.to_lowercase().cmp(&b.1.to_lowercase()));
         for (id, name, glyph) in assets {
             let selected = state.selection == Selection::Asset(id);
             let response = ui

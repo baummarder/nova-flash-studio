@@ -591,8 +591,8 @@ impl<'a> Parser<'a> {
 
     fn statement(&mut self) -> Stmt {
         let start = self.current().span;
-        if self.check_keyword(Keyword::Switch) {
-            return self.unsupported_statement("switch");
+        if self.eat_keyword(Keyword::Switch) {
+            return self.switch_statement(start);
         }
         if self.check_keyword(Keyword::Try) {
             return self.unsupported_statement("try");
@@ -710,6 +710,66 @@ impl<'a> Parser<'a> {
             kind: StmtKind::Expr(expr),
             span,
         }
+    }
+
+    /// Parses `switch (expr) { case v[, v…]: stmts… default: stmts… }`.
+    fn switch_statement(&mut self, start: Span) -> Stmt {
+        self.expect_symbol(Symbol::LParen, "nach 'switch'");
+        let expr = self.expression();
+        self.expect_symbol(Symbol::RParen, "nach der switch-Bedingung");
+        self.expect_symbol(Symbol::LBrace, "nach der switch-Bedingung");
+        let mut arms = Vec::new();
+        loop {
+            if self.check_symbol(Symbol::RBrace) {
+                break;
+            }
+            if self.check_keyword(Keyword::Case) {
+                self.advance();
+                let mut values = vec![self.expression()];
+                while self.eat_symbol(Symbol::Comma) {
+                    values.push(self.expression());
+                }
+                self.expect_symbol(Symbol::Colon, "nach dem case-Wert");
+                let body = self.switch_arm_body();
+                arms.push(crate::ast::SwitchArm { values, body });
+            } else if self.eat_keyword(Keyword::Default) {
+                self.expect_symbol(Symbol::Colon, "nach 'default'");
+                let body = self.switch_arm_body();
+                arms.push(crate::ast::SwitchArm {
+                    values: Vec::new(),
+                    body,
+                });
+            } else {
+                self.error(
+                    "'case' oder 'default' in switch erwartet",
+                    self.current().span,
+                );
+                self.advance();
+            }
+        }
+        self.expect_symbol(Symbol::RBrace, "nach dem switch-Block");
+        Stmt {
+            span: start.join(self.prev_span()),
+            kind: StmtKind::Switch { expr, arms },
+        }
+    }
+
+    /// Consumes statements until the next `case`/`default`/`}`.
+    fn switch_arm_body(&mut self) -> Vec<Stmt> {
+        let mut body = Vec::new();
+        loop {
+            if self.check_symbol(Symbol::RBrace)
+                || self.check_keyword(Keyword::Case)
+                || self.check_keyword(Keyword::Default)
+            {
+                break;
+            }
+            if self.at_end() {
+                break;
+            }
+            body.push(self.statement());
+        }
+        body
     }
 
     fn unsupported_statement(&mut self, name: &str) -> Stmt {

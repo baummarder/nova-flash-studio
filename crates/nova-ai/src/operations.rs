@@ -693,6 +693,33 @@ pub enum ProjectOperation {
         #[serde(default)]
         camera_follow: Option<String>,
     },
+    /// Renames an existing asset. Objects referencing the asset keep
+    /// working because they store the stable asset id, not the name.
+    RenameAsset {
+        asset: String,
+        name: String,
+    },
+    /// Moves an asset into a library folder (`""` or `"/"` for root,
+    /// e.g. `"UI/SFX"`). References are unaffected.
+    MoveAsset {
+        asset: String,
+        folder: String,
+    },
+    /// Replaces an asset's embedded bytes and metadata from a
+    /// workspace-relative path. The asset id stays stable so all
+    /// references remain valid; kind is inferred from the extension.
+    ReplaceAsset {
+        asset: String,
+        path: String,
+    },
+    /// Reports assets that cannot be resolved: empty embedded data,
+    /// missing `file` references and unreferenced (unused) assets.
+    /// Read-only; returns a report string.
+    AuditAssets,
+    /// Returns a compatibility report for the project: features that
+    /// survive SWF/XFL export, documented approximations and known
+    /// limitations. Read-only.
+    AnalyzeProjectCompatibility,
 }
 
 /// Tileset description inside [`ProjectOperation::CreateGameLevel`].
@@ -3278,6 +3305,124 @@ fn apply_one(
             camera_follow.as_deref(),
         )
         .map(|notes| notes.join("; ")),
+        ProjectOperation::RenameAsset { asset, name } => {
+            let asset_id = find_asset(project, asset)?.id;
+            let new_name = name.trim();
+            if new_name.is_empty() || new_name.chars().count() > 120 {
+                return Err(OperationError::invalid(
+                    "Assetname muss 1 bis 120 Zeichen enthalten.",
+                ));
+            }
+            if project
+                .assets
+                .iter()
+                .any(|other| other.id != asset_id && other.name == new_name)
+            {
+                return Err(OperationError::invalid(format!(
+                    "Ein Asset namens '{new_name}' existiert bereits."
+                )));
+            }
+            project
+                .asset_mut(asset_id)
+                .expect("asset resolved above")
+                .name = new_name.to_string();
+            project.touch();
+            Ok(format!("Asset in '{new_name}' umbenannt"))
+        }
+        ProjectOperation::MoveAsset { asset, folder } => {
+            let asset_id = find_asset(project, asset)?.id;
+            let folder = folder.trim().trim_matches('/');
+            if folder.chars().count() > 200
+                || folder
+                    .split('/')
+                    .any(|part| part.is_empty() || part == "." || part == "..")
+            {
+                return Err(OperationError::invalid(
+                    "Ordner muss ein gültiger relativer Pfad sein.",
+                ));
+            }
+            let display = if folder.is_empty() { "/" } else { folder };
+            project
+                .asset_mut(asset_id)
+                .expect("asset resolved above")
+                .folder = folder.to_string();
+            project.touch();
+            Ok(format!(
+                "Asset '{}' nach '{}' verschoben",
+                find_asset_name(project, asset_id),
+                display
+            ))
+        }
+        ProjectOperation::ReplaceAsset { asset, path } => {
+            let asset_id = find_asset(project, asset)?.id;
+            let asset_name = project
+                .asset(asset_id)
+                .map(|a| a.name.clone())
+                .unwrap_or_default();
+            let path = path.trim();
+            let ext = path
+                .rsplit('.')
+                .next()
+                .unwrap_or_default()
+                .to_ascii_lowercase();
+            let is_image = matches!(ext.as_str(), "png" | "jpg" | "jpeg" | "gif");
+            let is_audio = matches!(ext.as_str(), "wav" | "mp3" | "ogg" | "flac");
+            if !(is_image || is_audio) {
+                return Err(OperationError::invalid(format!(
+                    "Dateityp '.{ext}' wird nicht unterstützt (png/jpg/jpeg/gif/wav/mp3/ogg/flac)."
+                )));
+            }
+            let data = read_asset(path)
+                .map_err(|error| OperationError::invalid(format!("Asset '{path}': {error}")))?;
+            if data.is_empty() || data.len() > 256 * 1024 * 1024 {
+                return Err(OperationError::invalid(format!(
+                    "Asset '{path}' ist leer oder überschreitet 256 MB."
+                )));
+            }
+            if is_image {
+                let image = image::load_from_memory(&data).map_err(|error| {
+                    OperationError::invalid(format!(
+                        "Asset '{path}' ist kein gültiges Bild: {error}"
+                    ))
+                })?;
+                let asset = project.asset_mut(asset_id).expect("asset resolved above");
+                asset.data = data;
+                asset.mime = match ext.as_str() {
+                    "png" => "image/png",
+                    "gif" => "image/gif",
+                    _ => "image/jpeg",
+                }
+                .to_string();
+                asset.width = image.width();
+                asset.height = image.height();
+                asset.file = path.to_string();
+                asset.kind = nova_core::AssetKind::Bitmap;
+            } else {
+                let (sample_rate, channels, duration) = if ext == "wav" {
+                    wav_info(&data).unwrap_or((0, 0, 0.0))
+                } else {
+                    (0, 0, 0.0)
+                };
+                let asset = project.asset_mut(asset_id).expect("asset resolved above");
+                asset.data = data;
+                asset.mime = match ext.as_str() {
+                    "wav" => "audio/wav",
+                    "ogg" => "audio/ogg",
+                    "flac" => "audio/flac",
+                    _ => "audio/mpeg",
+                }
+                .to_string();
+                asset.sample_rate = sample_rate;
+                asset.channels = channels;
+                asset.duration = duration;
+                asset.file = path.to_string();
+                asset.kind = nova_core::AssetKind::Audio;
+            }
+            project.touch();
+            Ok(format!("Asset '{asset_name}' ersetzt"))
+        }
+        ProjectOperation::AuditAssets => audit_assets(project),
+        ProjectOperation::AnalyzeProjectCompatibility => analyze_project_compatibility(project),
     }
 }
 
@@ -3944,6 +4089,195 @@ fn normalize_script_path(path: &str) -> Result<String, OperationError> {
         ));
     }
     Ok(path)
+}
+
+/// Finds an asset by name (case-sensitive, like other name lookups).
+fn find_asset<'p>(project: &'p mut Project, name: &str) -> Result<&'p mut Asset, OperationError> {
+    let needle = name.trim();
+    project
+        .assets
+        .iter_mut()
+        .find(|asset| asset.name == needle)
+        .ok_or_else(|| OperationError::invalid(format!("Kein Asset namens '{needle}' gefunden.")))
+}
+
+/// Resolves an asset name for display after mutation.
+fn find_asset_name(project: &Project, id: uuid::Uuid) -> String {
+    project
+        .asset(id)
+        .map(|asset| asset.name.clone())
+        .unwrap_or_default()
+}
+
+/// Read-only asset audit: empty payloads, broken file references and
+/// assets not referenced by any object/tileset/sound cue.
+fn audit_assets(project: &mut Project) -> Result<String, OperationError> {
+    let mut lines = Vec::new();
+    let mut referenced: std::collections::HashSet<uuid::Uuid> = std::collections::HashSet::new();
+    fn collect_refs(objects: &[ObjectInstance], out: &mut std::collections::HashSet<uuid::Uuid>) {
+        for object in objects {
+            if let ObjectKind::Bitmap { asset, .. } = &object.kind {
+                out.insert(*asset);
+            }
+        }
+    }
+    for scene in &project.scenes {
+        for layer in &scene.layers {
+            for frame in &layer.frames {
+                collect_refs(&frame.objects, &mut referenced);
+                if let Some(cue) = &frame.sound {
+                    referenced.insert(cue.asset);
+                }
+            }
+        }
+    }
+    for symbol in &project.symbols {
+        for layer in &symbol.timeline.layers {
+            for frame in &layer.frames {
+                collect_refs(&frame.objects, &mut referenced);
+            }
+        }
+    }
+    for tileset in &project.tilesets {
+        if let Some(asset) = project.asset(tileset.asset) {
+            referenced.insert(asset.id);
+        }
+    }
+
+    let mut problems = 0usize;
+    let mut unused = 0usize;
+    for asset in &project.assets {
+        if asset.data.is_empty() && asset.file.is_empty() {
+            lines.push(format!(
+                "- '{}' ({:?}): keine eingebetteten Daten und keine Datei",
+                asset.name, asset.kind
+            ));
+            problems += 1;
+        } else if asset.data.is_empty() {
+            lines.push(format!(
+                "- '{}' ({:?}): nur Dateireferenz '{}', keine eingebetteten Daten",
+                asset.name, asset.kind, asset.file
+            ));
+            problems += 1;
+        }
+        if !referenced.contains(&asset.id) {
+            unused += 1;
+        }
+    }
+    let mut out = format!(
+        "Asset-Audit: {} Assets, {} referenziert, {} ungenutzt, {} mit Datenproblemen.",
+        project.assets.len(),
+        referenced.len(),
+        unused,
+        problems
+    );
+    if !lines.is_empty() {
+        out.push_str("\nProbleme:\n");
+        out.push_str(&lines.join("\n"));
+    }
+    if unused > 0 {
+        out.push_str(&format!(
+            "\n{} Assets sind in keinem Objekt, Tileset oder Sound-Cue referenziert (Kandidaten zum Aufräumen).",
+            unused
+        ));
+    }
+    Ok(out)
+}
+
+/// Compatibility summary for the current project content (M18).
+/// Pure read-only helper shared by the AI op and the editor UI.
+pub fn project_compatibility_report(project: &Project) -> String {
+    compatibility_report_text(project)
+}
+
+fn analyze_project_compatibility(project: &Project) -> Result<String, OperationError> {
+    Ok(compatibility_report_text(project))
+}
+
+fn compatibility_report_text(project: &Project) -> String {
+    let mut gradients = 0usize;
+    let mut cubic = 0usize;
+    let mut skinned = 0usize;
+    let mut texts = 0usize;
+    let mut bitmaps = 0usize;
+    let mut scan = |objects: &[ObjectInstance]| {
+        for object in objects {
+            match &object.kind {
+                ObjectKind::Path { paths, .. } => {
+                    for path in paths {
+                        if path.gradient.is_some() {
+                            gradients += 1;
+                        }
+                        if path.skin.is_some() {
+                            skinned += 1;
+                        }
+                        if path
+                            .commands
+                            .iter()
+                            .any(|c| matches!(c, nova_core::PathCommand::CubicTo { .. }))
+                        {
+                            cubic += 1;
+                        }
+                    }
+                }
+                ObjectKind::Text(_) => texts += 1,
+                ObjectKind::Bitmap { .. } => bitmaps += 1,
+                _ => {}
+            }
+        }
+    };
+    for scene in &project.scenes {
+        for layer in &scene.layers {
+            for frame in &layer.frames {
+                scan(&frame.objects);
+            }
+        }
+    }
+    for symbol in &project.symbols {
+        for layer in &symbol.timeline.layers {
+            for frame in &layer.frames {
+                scan(&frame.objects);
+            }
+        }
+    }
+
+    let skeleton_count = project
+        .symbols
+        .iter()
+        .filter(|symbol| symbol.skeleton.is_some())
+        .count();
+    let has_game = project.scenes.iter().any(|scene| scene.game.is_some());
+    let has_scripts = !project.scripts.is_empty();
+    let has_tilesets = !project.tilesets.is_empty();
+
+    let mut out = String::from("Projekt-Kompatibilität (SWF-Export / XFL-Export):\n");
+    out.push_str(&format!(
+        "- Inhalt: {} Szenen, {} Symbole, {} Skripte, {} Assets\n",
+        project.scenes.len(),
+        project.symbols.len(),
+        project.scripts.len(),
+        project.assets.len()
+    ));
+    out.push_str(&format!(
+        "- Vektor: {} Pfade mit Gradients, {} mit kubischen Kurven (SWF: quadratische Näherung), {} Textobjekte\n",
+        gradients, cubic, texts
+    ));
+    out.push_str(&format!(
+        "- Animation: {} geskinnte Mesh-Pfade, {} Symbole mit Skelett, {} Bitmap-Platzierungen\n",
+        skinned, skeleton_count, bitmaps
+    ));
+    out.push_str(&format!(
+        "- Systems: Game-Configs: {}, Tilesets: {}, AS3-Skripte: {}\n",
+        if has_game { "ja" } else { "nein" },
+        if has_tilesets { "ja" } else { "nein" },
+        if has_scripts { "ja" } else { "nein" }
+    ));
+    out.push_str(
+        "\nBekannte Grenzen: Game-Metadaten, Partikel und Skelett-Clips bleiben .nova-intern \
+         (nicht in SWF/XFL); Gradients werden in XFL als Füllstile und in SWF als native \
+         Gradient-Fills exportiert; kubische Kurven werden für SWF approximiert.",
+    );
+    out
 }
 
 #[cfg(test)]

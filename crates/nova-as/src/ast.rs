@@ -164,7 +164,21 @@ pub enum StmtKind {
     Break,
     Continue,
     Throw(Expr),
+    /// `switch (expr) { case v: …; default: … }`. An arm with empty
+    /// `values` is the `default` arm. AS3 fall-through semantics apply:
+    /// control continues into the following arm until `break`.
+    Switch {
+        expr: Expr,
+        arms: Vec<SwitchArm>,
+    },
     Empty,
+}
+
+#[derive(Debug, Clone)]
+pub struct SwitchArm {
+    /// Case expressions; empty means `default`.
+    pub values: Vec<Expr>,
+    pub body: Vec<Stmt>,
 }
 
 #[derive(Debug, Clone)]

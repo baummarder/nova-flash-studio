@@ -655,14 +655,17 @@ fn shape_to_def(shape: &swf::Shape, report: &mut CompatibilityReport) -> Option<
                         move_to.y.to_pixels() as f32 - center_y,
                     );
                     if let Some(fill_index) = current_fill {
-                        let fill = fill_color(fills.get(fill_index as usize - 1), report);
-                        current_path = Some(PathShape::new(
+                        let (fill, gradient) =
+                            fill_style(fills.get(fill_index as usize - 1), report);
+                        let mut path = PathShape::new(
                             fill,
                             vec![PathCommand::MoveTo {
                                 x: current.0,
                                 y: current.1,
                             }],
-                        ));
+                        );
+                        path.gradient = gradient;
+                        current_path = Some(path);
                     }
                 }
             }
@@ -701,8 +704,8 @@ fn shape_to_def(shape: &swf::Shape, report: &mut CompatibilityReport) -> Option<
         }
     }
     if paths.is_empty() {
-        let fill = fill_color(fills.first(), report);
-        paths.push(PathShape::new(
+        let (fill, gradient) = fill_style(fills.first(), report);
+        let mut fallback = PathShape::new(
             fill,
             vec![
                 PathCommand::MoveTo {
@@ -726,7 +729,9 @@ fn shape_to_def(shape: &swf::Shape, report: &mut CompatibilityReport) -> Option<
                     y: -height / 2.0,
                 },
             ],
-        ));
+        );
+        fallback.gradient = gradient;
+        paths.push(fallback);
         report.warning(
             IssueCategory::Geometry,
             format!(
@@ -745,38 +750,96 @@ fn shape_to_def(shape: &swf::Shape, report: &mut CompatibilityReport) -> Option<
     })
 }
 
-fn fill_color(fill: Option<&FillStyle>, report: &mut CompatibilityReport) -> Rgba {
+/// Converts an SWF fill style into a path fill plus an optional gradient.
+/// Gradient matrices are approximated: linear ramps map the gradient
+/// x-axis direction to `angle`; radial gradients map the matrix origin
+/// and scale to centre/radius (documented approximation).
+fn fill_style(
+    fill: Option<&FillStyle>,
+    report: &mut CompatibilityReport,
+) -> (Rgba, Option<nova_core::Gradient>) {
     let Some(fill) = fill else {
-        return Rgba::rgb(180, 180, 180);
+        return (Rgba::rgb(180, 180, 180), None);
     };
     match fill {
-        FillStyle::Color(color) => Rgba::rgba(color.r, color.g, color.b, color.a),
-        FillStyle::LinearGradient(gradient)
-        | FillStyle::RadialGradient(gradient)
-        | FillStyle::FocalGradient { gradient, .. } => {
-            report.warning(
-                IssueCategory::Geometry,
-                "Gradient-Füllung wird durch die erste Farbe angenähert.",
-            );
-            gradient
+        FillStyle::Color(color) => (Rgba::rgba(color.r, color.g, color.b, color.a), None),
+        FillStyle::LinearGradient(gradient) => {
+            let m = gradient.matrix;
+            // Gradient space x-axis (1,0) mapped into shape space.
+            let dx = m.a.to_f32();
+            let dy = m.b.to_f32();
+            let angle = if dx.abs() + dy.abs() < 1e-6 {
+                0.0
+            } else {
+                dy.atan2(dx).to_degrees()
+            };
+            let stops: Vec<nova_core::GradientStop> = gradient
                 .records
-                .first()
-                .map(|record| {
-                    Rgba::rgba(
+                .iter()
+                .map(|record| nova_core::GradientStop {
+                    position: (record.ratio as f32) / 255.0,
+                    color: Rgba::rgba(
                         record.color.r,
                         record.color.g,
                         record.color.b,
                         record.color.a,
-                    )
+                    ),
                 })
-                .unwrap_or_else(|| Rgba::rgb(180, 180, 180))
+                .collect();
+            let first = stops
+                .first()
+                .map(|s| s.color)
+                .unwrap_or_else(|| Rgba::rgb(180, 180, 180));
+            (
+                first,
+                Some(nova_core::Gradient {
+                    kind: nova_core::GradientKind::Linear,
+                    stops,
+                    angle,
+                    center_x: 0.0,
+                    center_y: 0.0,
+                    radius: 50.0,
+                }),
+            )
+        }
+        FillStyle::RadialGradient(gradient) | FillStyle::FocalGradient { gradient, .. } => {
+            let m = gradient.matrix;
+            let stops: Vec<nova_core::GradientStop> = gradient
+                .records
+                .iter()
+                .map(|record| nova_core::GradientStop {
+                    position: (record.ratio as f32) / 255.0,
+                    color: Rgba::rgba(
+                        record.color.r,
+                        record.color.g,
+                        record.color.b,
+                        record.color.a,
+                    ),
+                })
+                .collect();
+            let first = stops
+                .first()
+                .map(|s| s.color)
+                .unwrap_or_else(|| Rgba::rgb(180, 180, 180));
+            let radius = ((m.a.to_f32().powi(2) + m.b.to_f32().powi(2)).sqrt() * 20.0).max(1.0);
+            (
+                first,
+                Some(nova_core::Gradient {
+                    kind: nova_core::GradientKind::Radial,
+                    stops,
+                    angle: 0.0,
+                    center_x: m.tx.to_pixels() as f32,
+                    center_y: m.ty.to_pixels() as f32,
+                    radius,
+                }),
+            )
         }
         FillStyle::Bitmap { .. } => {
             report.warning(
                 IssueCategory::Bitmap,
                 "Bitmap-Füllung wird durch Grau ersetzt; das Original bleibt erhalten.",
             );
-            Rgba::rgb(128, 128, 128)
+            (Rgba::rgb(128, 128, 128), None)
         }
     }
 }

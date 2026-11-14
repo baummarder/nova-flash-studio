@@ -46,10 +46,38 @@ pub struct ExportResult {
 
 pub fn load_path(path: &Path) -> FormatResult<ImportedProject> {
     if path.is_dir() {
-        return Err(FormatError::Unsupported(format!(
-            "Verzeichnisse werden nur als XFL-Paket unterstützt: {}",
-            path.display()
-        )));
+        // Uncompressed XFL folders contain DOMDocument.xml (or a .xfl
+        // marker file). Anything else is rejected explicitly.
+        let has_document =
+            path.join("DOMDocument.xml").is_file() || path.join("domdocument.xml").is_file();
+        let has_marker = std::fs::read_dir(path)
+            .map(|mut entries| {
+                entries.any(|entry| {
+                    entry
+                        .map(|e| {
+                            e.path()
+                                .extension()
+                                .is_some_and(|ext| ext.eq_ignore_ascii_case("xfl"))
+                        })
+                        .unwrap_or(false)
+                })
+            })
+            .unwrap_or(false);
+        if !(has_document || has_marker) {
+            return Err(FormatError::Unsupported(format!(
+                "Verzeichnis ist kein XFL-Projekt (DOMDocument.xml fehlt): {}",
+                path.display()
+            )));
+        }
+        let imported = fla::import_dir(path)?;
+        return Ok(ImportedProject {
+            project: imported.project,
+            report: imported.report,
+            source_format: FormatKind::XflPackage,
+            source_version: imported.source_version,
+            source_path: Some(path.to_path_buf()),
+            source_bytes: Vec::new(),
+        });
     }
     let bytes = std::fs::read(path)?;
     let format = FormatKind::from_path(path).unwrap_or_else(|| detect_format(&bytes));
@@ -95,6 +123,11 @@ pub fn detect_format(bytes: &[u8]) -> FormatKind {
         return FormatKind::Swf;
     }
     if bytes.starts_with(b"PK\x03\x04") {
+        return FormatKind::Fla;
+    }
+    // OLE2 compound document = native binary .fla (pre-CS5). Routed to the
+    // FLA importer which reports it as unsupported with guidance.
+    if bytes.starts_with(&[0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]) {
         return FormatKind::Fla;
     }
     let trimmed = bytes

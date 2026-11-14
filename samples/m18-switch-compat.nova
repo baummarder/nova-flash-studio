@@ -1,0 +1,149 @@
+{
+ "format": "nova-flash-studio",
+ "formatVersion": 4,
+ "project": {
+  "id": "3774165b-97ad-4cc3-80f2-a8135944d889",
+  "metadata": {
+   "name": "M18 Switch & Compatibility",
+   "author": "",
+   "description": "",
+   "createdUnix": 0,
+   "modifiedUnix": 0
+  },
+  "scenes": [
+   {
+    "id": "74b76c92-9ae6-4e91-90dc-47acb9a712d3",
+    "name": "Szene 1",
+    "width": 640.0,
+    "height": 360.0,
+    "background": {
+     "r": 18,
+     "g": 20,
+     "b": 26,
+     "a": 255
+    },
+    "fps": 24.0,
+    "layers": [
+     {
+      "id": "7fe96d43-1cdc-450b-b2f0-2819750762d2",
+      "name": "Ebene 1",
+      "visible": true,
+      "locked": false,
+      "kind": "normal",
+      "frames": [
+       {
+        "keyframe": true,
+        "objects": [
+         {
+          "id": "c824d260-e973-40f0-b84f-ba8ae4a4de32",
+          "name": "GradientCard",
+          "kind": {
+           "kind": "path",
+           "width": 200.0,
+           "height": 100.0,
+           "paths": [
+            {
+             "fill": {
+              "r": 255,
+              "g": 255,
+              "b": 255,
+              "a": 255
+             },
+             "gradient": {
+              "kind": "linear",
+              "angle": 0.0,
+              "stops": [
+               {
+                "position": 0.0,
+                "color": {
+                 "r": 80,
+                 "g": 200,
+                 "b": 255,
+                 "a": 255
+                }
+               },
+               {
+                "position": 1.0,
+                "color": {
+                 "r": 200,
+                 "g": 80,
+                 "b": 255,
+                 "a": 255
+                }
+               }
+              ]
+             },
+             "commands": [
+              {
+               "kind": "move_to",
+               "x": -100.0,
+               "y": -50.0
+              },
+              {
+               "kind": "line_to",
+               "x": 100.0,
+               "y": -50.0
+              },
+              {
+               "kind": "line_to",
+               "x": 100.0,
+               "y": 50.0
+              },
+              {
+               "kind": "line_to",
+               "x": -100.0,
+               "y": 50.0
+              },
+              {
+               "kind": "line_to",
+               "x": -100.0,
+               "y": -50.0
+              }
+             ]
+            }
+           ]
+          },
+          "transform": {
+           "x": 320.0,
+           "y": 120.0,
+           "scale_x": 1.0,
+           "scale_y": 1.0,
+           "rotation": 0.0
+          },
+          "fill": {
+           "r": 255,
+           "g": 255,
+           "b": 255,
+           "a": 255
+          }
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "game": null
+   }
+  ],
+  "symbols": [],
+  "assets": [],
+  "tilesets": [],
+  "scripts": [
+   {
+    "id": "437c38a1-e361-445e-9b9f-d598a72875c7",
+    "name": "Main.as",
+    "path": "scripts/Main.as",
+    "source": "package {\n    import flash.display.MovieClip;\n    import flash.events.Event;\n\n    public dynamic class Main extends MovieClip {\n        private var frame:int = 0;\n\n        public function Main() {\n            addEventListener(\"enterFrame\", onTick);\n        }\n\n        private function probe(value:int):int {\n            var out:int = 0;\n            switch (value) {\n                case 1:\n                    out += 10;      // fall-through into case 2\n                case 2:\n                    out += 20;\n                    break;\n                case 3, 4:\n                    out += 30;\n                    break;\n                default:\n                    out = -1;\n            }\n            return out;\n        }\n\n        private function onTick(e:Event):void {\n            frame++;\n            if (frame == 5) {\n                trace(\"SW1=\" + probe(1));   // 30 (fall-through 10+20)\n                trace(\"SW2=\" + probe(2));   // 20\n                trace(\"SW3=\" + probe(3));   // 30\n                trace(\"SW4=\" + probe(4));   // 30\n                trace(\"SW5=\" + probe(9));   // -1 (default)\n            }\n            if (frame == 21) {\n                trace(\"M18DONE\");\n            }\n        }\n    }\n}\n",
+    "provenance": "original_source"
+   }
+  ],
+  "export": {
+   "target": "avm2",
+   "swfVersion": 13,
+   "compression": "zlib",
+   "includeScripts": true,
+   "exportAllScenes": false
+  },
+  "activeScene": "74b76c92-9ae6-4e91-90dc-47acb9a712d3"
+ }
+}
