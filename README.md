@@ -8,7 +8,23 @@ the project format is versioned JSON, and the SWF writer is implemented directly
 against the published SWF file-format specification. Tools and extensions run in
 an embedded QuickJS context; ActionScript is **not** executed by QuickJS.
 
-> **Status: Mega Milestone 11.1 release candidate `0.7.1-rc1`, not stable.**
+> **Status: Mega Milestone 12 release candidate `0.8.0-rc1`, not stable.**
+> The validated `0.7.1-rc1` artifacts remain under `dist/` and
+> `dist/archive/`. M12 ("Runtime Parity & Release Engineering") moves
+> supported gameplay behaviour from preview-only operation into exported
+> SWFs: a reusable AS3 runtime bridge (`game.NovaGame` + generated
+> `game.NovaGameData`) covering scene transitions, a typed event bus,
+> rect/circle/convex-polygon collision with layer/mask filtering and
+> enter/exit events, camera follow/bounds/zoom, pause/resume and a full
+> particle emitter runtime — all verified by trace assertions in Ruffle
+> via `tools/ruffle-runtime-test.py` (four new `samples/m12-*` demos).
+> Release packaging is now archive-safe: prior artifacts are preserved
+> under `dist/archive/<version>/` with SHA-256 verification before any
+> replacement. See [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md),
+> [docs/NOVAGAME_API.md](docs/NOVAGAME_API.md) and
+> [docs/MEGA_MILESTONE_12_REPORT.md](docs/MEGA_MILESTONE_12_REPORT.md).
+>
+> M11.1 baseline `0.7.1-rc1`:
 > The validated `0.6.0-rc2`/`0.6.0-rc1` artifacts remain under
 > `dist/` and `dist/archive/`. M10 added game development on top of M9:
 > optional game metadata in the `.nova` format (version 3, backwards

@@ -1,0 +1,701 @@
+{
+  "format": "nova-flash-studio",
+  "formatVersion": 4,
+  "project": {
+    "id": "86fdb7e4-c231-4c6f-9dc0-5ed1d8d3110b",
+    "name": "M12 Demo",
+    "version": 4,
+    "activeScene": "614ed48a-8bed-4d02-b770-d43194ff9ea4",
+    "scenes": [
+      {
+        "id": "614ed48a-8bed-4d02-b770-d43194ff9ea4",
+        "name": "Menu",
+        "width": 640.0,
+        "height": 360.0,
+        "background": {
+          "r": 24,
+          "g": 18,
+          "b": 40,
+          "a": 255
+        },
+        "fps": 30.0,
+        "layers": [
+          {
+            "id": "79d8d409-8daf-49fc-9f1e-050636fc4a7a",
+            "name": "Ebene 1",
+            "visible": true,
+            "locked": false,
+            "kind": "normal",
+            "frames": [
+              {
+                "keyframe": true,
+                "objects": [
+                  {
+                    "id": "a2938d97-67bb-4d69-b0a6-7580d9b4b488",
+                    "name": "Title",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 360,
+                      "height": 80,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 320,
+                      "y": 120,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 70,
+                      "g": 120,
+                      "b": 200,
+                      "a": 255
+                    }
+                  },
+                  {
+                    "id": "25f12b95-906c-43bc-abca-b505aab287af",
+                    "name": "Hint",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 300,
+                      "height": 40,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 320,
+                      "y": 200,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 90,
+                      "g": 100,
+                      "b": 140,
+                      "a": 255
+                    }
+                  }
+                ]
+              },
+              {
+                "keyframe": true,
+                "objects": [
+                  {
+                    "id": "a2938d97-67bb-4d69-b0a6-7580d9b4b488",
+                    "name": "Title",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 360,
+                      "height": 80,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 320,
+                      "y": 120,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 70,
+                      "g": 120,
+                      "b": 200,
+                      "a": 255
+                    }
+                  },
+                  {
+                    "id": "25f12b95-906c-43bc-abca-b505aab287af",
+                    "name": "Hint",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 300,
+                      "height": 40,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 320,
+                      "y": 200,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 90,
+                      "g": 100,
+                      "b": 140,
+                      "a": 255
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "game": {
+          "transitions": [
+            {
+              "key": "Enter",
+              "target": "Level1"
+            }
+          ]
+        }
+      },
+      {
+        "id": "87590172-87ea-4694-9bf6-3d30532a644b",
+        "name": "Level1",
+        "width": 640.0,
+        "height": 360.0,
+        "background": {
+          "r": 18,
+          "g": 20,
+          "b": 26,
+          "a": 255
+        },
+        "fps": 30.0,
+        "layers": [
+          {
+            "id": "901dcc8b-812e-423e-9321-194f61af3af9",
+            "name": "Ebene 1",
+            "visible": true,
+            "locked": false,
+            "kind": "normal",
+            "frames": [
+              {
+                "keyframe": true,
+                "objects": [
+                  {
+                    "id": "f72feabe-88da-434b-91c7-9969af8e8eb7",
+                    "name": "Ground",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 640,
+                      "height": 30,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 320,
+                      "y": 330,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 80,
+                      "g": 90,
+                      "b": 110,
+                      "a": 255
+                    },
+                    "game": {
+                      "collision": {
+                        "shape": "rectangle",
+                        "width": 640,
+                        "height": 30,
+                        "layer": 1,
+                        "mask": 4294967295
+                      },
+                      "physics": {
+                        "body": "static",
+                        "gravityScale": 1.0,
+                        "friction": 0.0,
+                        "bounce": 0.0,
+                        "controlled": false
+                      }
+                    }
+                  },
+                  {
+                    "id": "50f569b5-3294-40dc-a06f-b8fbc3b44c4b",
+                    "name": "Player",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 30,
+                      "height": 40,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 80,
+                      "y": 300,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 255,
+                      "g": 210,
+                      "b": 74,
+                      "a": 255
+                    },
+                    "game": {
+                      "collision": {
+                        "shape": "rectangle",
+                        "width": 30,
+                        "height": 40,
+                        "layer": 1,
+                        "mask": 4294967295
+                      },
+                      "physics": {
+                        "body": "dynamic",
+                        "gravityScale": 1.0,
+                        "friction": 0.0,
+                        "bounce": 0.0,
+                        "controlled": true
+                      }
+                    }
+                  },
+                  {
+                    "id": "2e8b609c-420f-4da2-9025-9bcbfc67acc2",
+                    "name": "Decor",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 60,
+                      "height": 60,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 500,
+                      "y": 150,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 120,
+                      "g": 160,
+                      "b": 220,
+                      "a": 255
+                    }
+                  }
+                ]
+              },
+              {
+                "keyframe": true,
+                "objects": [
+                  {
+                    "id": "f72feabe-88da-434b-91c7-9969af8e8eb7",
+                    "name": "Ground",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 640,
+                      "height": 30,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 320,
+                      "y": 330,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 80,
+                      "g": 90,
+                      "b": 110,
+                      "a": 255
+                    },
+                    "game": {
+                      "collision": {
+                        "shape": "rectangle",
+                        "width": 640,
+                        "height": 30,
+                        "layer": 1,
+                        "mask": 4294967295
+                      },
+                      "physics": {
+                        "body": "static",
+                        "gravityScale": 1.0,
+                        "friction": 0.0,
+                        "bounce": 0.0,
+                        "controlled": false
+                      }
+                    }
+                  },
+                  {
+                    "id": "50f569b5-3294-40dc-a06f-b8fbc3b44c4b",
+                    "name": "Player",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 30,
+                      "height": 40,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 80,
+                      "y": 300,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 255,
+                      "g": 210,
+                      "b": 74,
+                      "a": 255
+                    },
+                    "game": {
+                      "collision": {
+                        "shape": "rectangle",
+                        "width": 30,
+                        "height": 40,
+                        "layer": 1,
+                        "mask": 4294967295
+                      },
+                      "physics": {
+                        "body": "dynamic",
+                        "gravityScale": 1.0,
+                        "friction": 0.0,
+                        "bounce": 0.0,
+                        "controlled": true
+                      }
+                    }
+                  },
+                  {
+                    "id": "2e8b609c-420f-4da2-9025-9bcbfc67acc2",
+                    "name": "Decor",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 60,
+                      "height": 60,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 500,
+                      "y": 150,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 120,
+                      "g": 160,
+                      "b": 220,
+                      "a": 255
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "game": {
+          "transitions": [
+            {
+              "key": "Space",
+              "target": "Level2"
+            }
+          ]
+        }
+      },
+      {
+        "id": "3d1c2eeb-551f-4775-b892-4056c58622f6",
+        "name": "Level2",
+        "width": 640.0,
+        "height": 360.0,
+        "background": {
+          "r": 30,
+          "g": 26,
+          "b": 18,
+          "a": 255
+        },
+        "fps": 30.0,
+        "layers": [
+          {
+            "id": "f93b14a5-471e-4155-8f5e-b785c696fcea",
+            "name": "Ebene 1",
+            "visible": true,
+            "locked": false,
+            "kind": "normal",
+            "frames": [
+              {
+                "keyframe": true,
+                "objects": [
+                  {
+                    "id": "3a72d529-2d6b-424c-b329-9c5dd1274be3",
+                    "name": "Ground",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 640,
+                      "height": 30,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 320,
+                      "y": 330,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 90,
+                      "g": 80,
+                      "b": 70,
+                      "a": 255
+                    },
+                    "game": {
+                      "collision": {
+                        "shape": "rectangle",
+                        "width": 640,
+                        "height": 30,
+                        "layer": 1,
+                        "mask": 4294967295
+                      },
+                      "physics": {
+                        "body": "static",
+                        "gravityScale": 1.0,
+                        "friction": 0.0,
+                        "bounce": 0.0,
+                        "controlled": false
+                      }
+                    }
+                  },
+                  {
+                    "id": "8713d0c9-d83a-4018-b4d1-5850bab50725",
+                    "name": "Player",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 30,
+                      "height": 40,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 80,
+                      "y": 300,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 120,
+                      "g": 220,
+                      "b": 255,
+                      "a": 255
+                    },
+                    "game": {
+                      "collision": {
+                        "shape": "rectangle",
+                        "width": 30,
+                        "height": 40,
+                        "layer": 1,
+                        "mask": 4294967295
+                      },
+                      "physics": {
+                        "body": "dynamic",
+                        "gravityScale": 1.0,
+                        "friction": 0.0,
+                        "bounce": 0.0,
+                        "controlled": true
+                      }
+                    }
+                  },
+                  {
+                    "id": "ad84abd7-a16e-45d5-bb01-d9906c2d6ebe",
+                    "name": "Goal",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 40,
+                      "height": 60,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 560,
+                      "y": 300,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 90,
+                      "g": 220,
+                      "b": 120,
+                      "a": 255
+                    }
+                  }
+                ]
+              },
+              {
+                "keyframe": true,
+                "objects": [
+                  {
+                    "id": "3a72d529-2d6b-424c-b329-9c5dd1274be3",
+                    "name": "Ground",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 640,
+                      "height": 30,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 320,
+                      "y": 330,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 90,
+                      "g": 80,
+                      "b": 70,
+                      "a": 255
+                    },
+                    "game": {
+                      "collision": {
+                        "shape": "rectangle",
+                        "width": 640,
+                        "height": 30,
+                        "layer": 1,
+                        "mask": 4294967295
+                      },
+                      "physics": {
+                        "body": "static",
+                        "gravityScale": 1.0,
+                        "friction": 0.0,
+                        "bounce": 0.0,
+                        "controlled": false
+                      }
+                    }
+                  },
+                  {
+                    "id": "8713d0c9-d83a-4018-b4d1-5850bab50725",
+                    "name": "Player",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 30,
+                      "height": 40,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 80,
+                      "y": 300,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 120,
+                      "g": 220,
+                      "b": 255,
+                      "a": 255
+                    },
+                    "game": {
+                      "collision": {
+                        "shape": "rectangle",
+                        "width": 30,
+                        "height": 40,
+                        "layer": 1,
+                        "mask": 4294967295
+                      },
+                      "physics": {
+                        "body": "dynamic",
+                        "gravityScale": 1.0,
+                        "friction": 0.0,
+                        "bounce": 0.0,
+                        "controlled": true
+                      }
+                    }
+                  },
+                  {
+                    "id": "ad84abd7-a16e-45d5-bb01-d9906c2d6ebe",
+                    "name": "Goal",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 40,
+                      "height": 60,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 560,
+                      "y": 300,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 90,
+                      "g": 220,
+                      "b": 120,
+                      "a": 255
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "game": {
+          "transitions": [
+            {
+              "key": "KeyR",
+              "target": "Menu"
+            }
+          ]
+        }
+      }
+    ],
+    "scripts": [
+      {
+        "id": "2bba3c8b-e5e8-4b0b-a89a-58d81530095e",
+        "name": "Main.as",
+        "path": "scripts/Main.as",
+        "source": "package {\n    import flash.display.MovieClip;\n    import flash.events.Event;\n    import game.NovaGame;\n\n    /// M12 scene-transition demo. Three scenes; Enter is configured as the\n    /// transition key in project metadata, and this script additionally\n    /// exercises the public gotoScene API, an invalid target and a return\n    /// to an earlier scene. Traces are consumed by the Ruffle harness.\n    public dynamic class Main extends MovieClip {\n        private var frame:int = 0;\n        private var loads:int = 0;\n        private var unloads:int = 0;\n        private var transitions:int = 0;\n\n        public function Main() {\n            NovaGame.init(this);\n            addEventListener(\"nova:sceneLoad\", onLoad);\n            addEventListener(\"nova:sceneUnload\", onUnload);\n            addEventListener(\"nova:sceneTransition\", onTrans);\n            addEventListener(Event.ENTER_FRAME, onTick);\n        }\n\n        private function onLoad(e:Event):void {\n            loads++;\n            trace(\"M12 load \" + NovaGame.currentScene());\n        }\n        private function onUnload(e:Event):void {\n            unloads++;\n            trace(\"M12 unload \" + NovaGame.eventInfo.a);\n        }\n        private function onTrans(e:Event):void {\n            transitions++;\n            trace(\"M12 trans \" + NovaGame.eventInfo.a + \"->\" + NovaGame.eventInfo.b);\n        }\n        private function onTick(e:Event):void {\n            frame++;\n            if (frame == 30) {\n                trace(\"M12 scenes=\" + NovaGame.sceneCount());\n                trace(\"M12 goto Level2 -> \" + NovaGame.gotoScene(\"Level2\"));\n            }\n            if (frame == 70) {\n                trace(\"M12 goto Menu -> \" + NovaGame.gotoScene(\"Menu\"));\n            }\n            if (frame == 110) {\n                trace(\"M12 goto Nope -> \" + NovaGame.gotoScene(\"Nope\"));\n                trace(\"M12 still=\" + NovaGame.currentScene());\n            }\n            if (frame == 150) {\n                trace(\"M12 loads=\" + loads + \" unloads=\" + unloads + \" trans=\" + transitions);\n                trace(\"M12 ok loads=\" + (loads == 2) + \" unloads=\" + (unloads == 2) + \" trans=\" + (transitions == 2));\n                trace(\"M12DONE\");\n            }\n        }\n    }\n}\n",
+        "provenance": "original_source"
+      },
+      {
+        "id": "0773ddd6-aae8-40d5-b7f9-e4bf295dd442",
+        "name": "Input.as",
+        "path": "scripts/game/Input.as",
+        "source": "package game {\n    import flash.display.Stage;\n    import flash.events.KeyboardEvent;\n    import flash.events.MouseEvent;\n\n    /// Keyboard/mouse state helper. Call `init(stage)` once from the document\n    /// class constructor, `poll()` once per frame, then query `down`/`pressed`.\n    public class Input {\n        private static var held:Object = {};\n        private static var consumed:Object = {};\n        private static var target:Stage = null;\n        public static var mouseX:Number = 0;\n        public static var mouseY:Number = 0;\n\n        public static function init(stage:Stage):void {\n            target = stage;\n            stage.addEventListener(KeyboardEvent.KEY_DOWN, onKeyDown);\n            stage.addEventListener(KeyboardEvent.KEY_UP, onKeyUp);\n            stage.addEventListener(MouseEvent.MOUSE_MOVE, onMouseMove);\n        }\n\n        private static function onKeyDown(e:KeyboardEvent):void {\n            held[e.keyCode] = true;\n        }\n\n        private static function onKeyUp(e:KeyboardEvent):void {\n            held[e.keyCode] = false;\n            consumed[e.keyCode] = false;\n        }\n\n        private static function onMouseMove(e:MouseEvent):void {\n            mouseX = e.stageX;\n            mouseY = e.stageY;\n        }\n\n        /// Called once per frame after all `pressed` queries of the previous\n        /// frame are done. Resets edge-detection memory for released keys.\n        public static function poll():void {\n            // Nothing to copy: `consumed` is cleared lazily inside `pressed`.\n        }\n\n        public static function down(code:int):Boolean {\n            return held[code] == true;\n        }\n\n        /// True only on the frame the key went down (edge trigger).\n        public static function pressed(code:int):Boolean {\n            if (held[code] == true && consumed[code] != true) {\n                consumed[code] = true;\n                return true;\n            }\n            if (held[code] != true) {\n                consumed[code] = false;\n            }\n            return false;\n        }\n    }\n}\n",
+        "provenance": "original_source"
+      },
+      {
+        "id": "37bfbba3-0ff9-4c54-9c03-aad4bf142a8f",
+        "name": "Collision.as",
+        "path": "scripts/game/Collision.as",
+        "source": "package game {\n    import flash.display.DisplayObject;\n\n    /// Axis-aligned and radial collision helpers operating on plain numbers.\n    /// Display objects are measured by their `x`/`y`/`width`/`height` bounds,\n    /// which works for programmatically drawn sprites.\n    public class Collision {\n        public static function aabb(\n            x1:Number, y1:Number, w1:Number, h1:Number,\n            x2:Number, y2:Number, w2:Number, h2:Number\n        ):Boolean {\n            return x1 < x2 + w2 && x1 + w1 > x2 && y1 < y2 + h2 && y1 + h1 > y2;\n        }\n\n        public static function circle(\n            cx1:Number, cy1:Number, r1:Number,\n            cx2:Number, cy2:Number, r2:Number\n        ):Boolean {\n            var dx:Number = cx1 - cx2;\n            var dy:Number = cy1 - cy2;\n            var rr:Number = r1 + r2;\n            return dx * dx + dy * dy < rr * rr;\n        }\n\n        public static function pointInRect(\n            px:Number, py:Number, x:Number, y:Number, w:Number, h:Number\n        ):Boolean {\n            return px >= x && px <= x + w && py >= y && py <= y + h;\n        }\n\n        /// AABB test between two display objects using their bounds.\n        public static function objectsOverlap(a:DisplayObject, b:DisplayObject):Boolean {\n            return aabb(a.x, a.y, a.width, a.height, b.x, b.y, b.width, b.height);\n        }\n    }\n}\n",
+        "provenance": "original_source"
+      },
+      {
+        "id": "51e52ef0-7cc0-4c84-a23d-1691d88c47b7",
+        "name": "Physics.as",
+        "path": "scripts/game/Physics.as",
+        "source": "package game {\n    import flash.display.DisplayObject;\n\n    /// Minimal velocity/gravity integration for display objects. Velocity is\n    /// stored in dynamic `vx`/`vy` properties on the object itself.\n    public class Physics {\n        /// Integrates one body: gravity, then position. `gravity` is px/s^2.\n        public static function stepBody(body:DisplayObject, dt:Number, gravity:Number):void {\n            body.vy = body.vy + gravity * dt;\n            body.x = body.x + body.vx * dt;\n            body.y = body.y + body.vy * dt;\n        }\n\n        /// Applies a horizontal acceleration, clamped to `maxSpeed`.\n        public static function accelerate(body:DisplayObject, accel:Number, maxSpeed:Number, dt:Number):void {\n            body.vx = body.vx + accel * dt;\n            if (body.vx > maxSpeed) {\n                body.vx = maxSpeed;\n            }\n            if (body.vx < -maxSpeed) {\n                body.vx = -maxSpeed;\n            }\n        }\n\n        /// Simple ground collision response: keeps `body` above `floorY`\n        /// (bottom edge) and kills downward velocity on contact.\n        /// Returns true while the body rests on the floor.\n        public static function floor(body:DisplayObject, floorY:Number):Boolean {\n            if (body.y + body.height > floorY) {\n                body.y = floorY - body.height;\n                if (body.vy > 0) {\n                    body.vy = 0;\n                }\n                return true;\n            }\n            return false;\n        }\n    }\n}\n",
+        "provenance": "original_source"
+      },
+      {
+        "id": "12660650-c131-4f24-a3b1-7b8aa0a315fe",
+        "name": "Camera.as",
+        "path": "scripts/game/Camera.as",
+        "source": "package game {\n    import flash.display.DisplayObject;\n\n    /// Follow camera for games built on a single world container. Apply the\n    /// result with `applyTo(world)` each frame.\n    public class Camera {\n        public var x:Number = 0;\n        public var y:Number = 0;\n        public var zoom:Number = 1;\n        private var target:DisplayObject = null;\n        private var lerp:Number = 6;\n\n        public function follow(mc:DisplayObject):void {\n            target = mc;\n        }\n\n        /// Advances the camera toward the follow target. Pass world bounds as\n        /// four numbers; use 0/0/0/0 for unbounded.\n        public function update(\n            dt:Number, viewW:Number, viewH:Number,\n            boundL:Number, boundT:Number, boundR:Number, boundB:Number\n        ):void {\n            if (target == null) {\n                return;\n            }\n            var tx:Number = target.x + target.width / 2;\n            var ty:Number = target.y + target.height / 2;\n            var t:Number = dt * lerp;\n            if (t > 1) {\n                t = 1;\n            }\n            x = x + (tx - x) * t;\n            y = y + (ty - y) * t;\n            var halfW:Number = viewW / (2 * zoom);\n            var halfH:Number = viewH / (2 * zoom);\n            if (boundR > boundL) {\n                var loX:Number = boundL + halfW;\n                var hiX:Number = boundR - halfW;\n                if (loX <= hiX) {\n                    if (x < loX) { x = loX; }\n                    if (x > hiX) { x = hiX; }\n                }\n            }\n            if (boundB > boundT) {\n                var loY:Number = boundT + halfH;\n                var hiY:Number = boundB - halfH;\n                if (loY <= hiY) {\n                    if (y < loY) { y = loY; }\n                    if (y > hiY) { y = hiY; }\n                }\n            }\n        }\n\n        /// Positions `world` so the camera centre lands mid-view.\n        public function applyTo(world:DisplayObject):void {\n            world.x = world.stage.stageWidth / 2 - x * zoom;\n            world.y = world.stage.stageHeight / 2 - y * zoom;\n            world.scaleX = zoom;\n            world.scaleY = zoom;\n        }\n    }\n}\n",
+        "provenance": "original_source"
+      },
+      {
+        "id": "a4a05831-a8a3-4dea-b713-3c91232cb2a2",
+        "name": "Random.as",
+        "path": "scripts/game/Random.as",
+        "source": "package game {\n    import flash.utils.getTimer;\n\n    /// Small deterministic PRNG (linear congruential generator). Seeded from\n    /// `getTimer()`; call `srand` for a fixed sequence in tests.\n    public class Random {\n        private static var state:Number = getTimer() + 1;\n\n        public static function srand(seed:Number):void {\n            state = seed;\n        }\n\n        /// Returns a value in [0, 1).\n        public static function next():Number {\n            state = (state * 1103515245 + 12345) % 2147483648;\n            return state / 2147483648;\n        }\n\n        /// Returns a value in [0, bound).\n        public static function range(bound:Number):Number {\n            return next() * bound;\n        }\n    }\n}\n",
+        "provenance": "original_source"
+      },
+      {
+        "id": "22f0f35c-367f-400f-81e7-c3c0fe68025f",
+        "name": "NovaGame.as",
+        "path": "scripts/game/NovaGame.as",
+        "source": "package game {\n    import flash.display.MovieClip;\n    import flash.display.DisplayObject;\n    import flash.events.Event;\n    import flash.events.KeyboardEvent;\n    import flash.utils.getTimer;\n    import game.Input;\n    import game.NovaGameData;\n\n    /// N\u00d8VA game runtime bridge for exported SWFs.\n    ///\n    /// Mirrors the editor preview runtime (`nova_core::game` /\n    /// `GameRuntime`) inside AVM2: scene lifecycle driven by the concatenated\n    /// scene timeline, key-triggered scene transitions, a typed event bus on\n    /// custom `nova:*` event types, rect/circle/polygon collision with\n    /// layer/mask filtering and enter/exit events, and per-scene camera,\n    /// world and input configuration read from the generated\n    /// `game.NovaGameData` table.\n    ///\n    /// Usage from the document class:\n    ///   public function Main() {\n    ///       NovaGame.init(this);\n    ///   }\n    ///\n    /// Listen for events on the document clip itself:\n    ///   addEventListener(\"nova:collisionEnter\", onHit);\n    ///   // NovaGame.eventInfo.a / .b carry the body names.\n    ///\n    /// Deliberate subset constraints: no Math (own helpers below), Object\n    /// hash maps instead of Array, static methods only.\n    public class NovaGame {\n        // ------------------------------------------------------------------\n        // Public state\n        // ------------------------------------------------------------------\n        public static var time:Number = 0;\n        public static var paused:Boolean = false;\n        public static var sceneName:String = \"\";\n        public static var eventInfo:Object = {};\n        public static var camX:Number = 0;\n        public static var camY:Number = 0;\n        public static var camZoom:Number = 1;\n\n        // ------------------------------------------------------------------\n        // Internals\n        // ------------------------------------------------------------------\n        private static var root:MovieClip = null;\n        private static var started:Boolean = false;\n        private static var sceneIdx:int = -1;\n        private static var sceneStart:int = 1;\n        private static var sceneEnd:int = 1;\n        private static var sceneTick:int = 0;\n        private static var prevKeys:Object = {};\n        private static var bodies:Object = {};\n        private static var bodyCount:int = 0;\n        private static var contacts:Object = {};\n        private static var contactKeys:Object = {};\n        private static var contactCount:int = 0;\n        private static var bodiesReady:Boolean = false;\n        private static var camCfg:Object = null;\n        private static var worldW:Number = 0;\n        private static var worldH:Number = 0;\n        private static var inputCfg:Object = null;\n        private static var camBase:Object = null;\n        private static var viewW:Number = 550;\n        private static var viewH:Number = 400;\n        private static var timeSec:Number = 0;\n        private static var dispatchDepth:int = 0;\n        private static var droppedEvents:int = 0;\n\n        // Physics constants mirrored from nova_core::game.\n        private static const GRAVITY:Number = 2200.0;\n        private static const MOVE_ACCEL:Number = 2600.0;\n        private static const JUMP_VELOCITY:Number = -560.0;\n        private static const MAX_SPEED:Number = 320.0;\n        private static const GROUND_FRICTION:Number = 10.0;\n        private static const CAMERA_LERP:Number = 6.0;\n        private static const MAX_DT:Number = 0.1;\n        private static const MAX_DISPATCH:Number = 8;\n\n        // ------------------------------------------------------------------\n        // Lifecycle\n        // ------------------------------------------------------------------\n\n        /// Attach the runtime to the document clip. Call once from the\n        /// document class constructor.\n        public static function init(mc:MovieClip):void {\n            if (root != null) {\n                return;\n            }\n            root = mc;\n            NovaGameData.init();\n            if (mc.stage != null) {\n                Input.init(mc.stage);\n                viewW = mc.stage.stageWidth;\n                viewH = mc.stage.stageHeight;\n                mc.stage.addEventListener(KeyboardEvent.KEY_DOWN, onKeyDown);\n                mc.stage.addEventListener(KeyboardEvent.KEY_UP, onKeyUp);\n            }\n            mc.addEventListener(Event.ENTER_FRAME, tick);\n            sceneIdx = sceneForFrame(mc.currentFrame);\n            if (sceneIdx >= 0) {\n                enterScene(sceneIdx, false);\n            }\n            started = true;\n            emit(\"nova:gameStart\", null);\n        }\n\n        public static function start():void {\n            if (!paused) {\n                return;\n            }\n            paused = false;\n            emit(\"nova:gameResume\", null);\n        }\n\n        public static function pause():void {\n            if (paused || !started) {\n                return;\n            }\n            paused = true;\n            emit(\"nova:gamePause\", null);\n        }\n\n        public static function resume():void {\n            start();\n        }\n\n        /// Reloads the current scene frame and resets simulation state.\n        public static function restart():void {\n            if (root == null) {\n                return;\n            }\n            var idx:int = sceneIdx;\n            if (idx < 0) {\n                idx = sceneForFrame(root.currentFrame);\n            }\n            bodies = {};\n            bodyCount = 0;\n            bodiesReady = false;\n            contacts = {};\n            contactKeys = {};\n            contactCount = 0;\n            clearEmitters();\n            syncEmitters();\n            time = 0;\n            timeSec = 0;\n            if (idx >= 0) {\n                enterScene(idx, true);\n            }\n            paused = false;\n            emit(\"nova:gameRestart\", null);\n        }\n\n        public static function stop():void {\n            if (!started) {\n                return;\n            }\n            started = false;\n            paused = false;\n            time = 0;\n            emit(\"nova:gameStop\", null);\n        }\n\n        // ------------------------------------------------------------------\n        // Queries\n        // ------------------------------------------------------------------\n\n        public static function getTime():Number {\n            return timeSec;\n        }\n\n        public static function isPaused():Boolean {\n            return paused;\n        }\n\n        public static function currentScene():String {\n            return sceneName;\n        }\n\n        public static function sceneCount():int {\n            return NovaGameData.SCENE_COUNT;\n        }\n\n        /// Switch to the scene with the given name. Returns false and emits a\n        /// warning event when the target does not exist.\n        public static function gotoScene(name:String):Boolean {\n            var idx:int = sceneIndexByName(name);\n            if (idx < 0) {\n                trace(\"NovaGame: unbekanntes Szenenziel '\" + name + \"'\");\n                eventInfo = { kind: \"error\", scene: sceneName, a: sceneName, b: name, key: 0, data: null };\n                emit(\"nova:sceneError\", name);\n                return false;\n            }\n            if (idx == sceneIdx) {\n                return true;\n            }\n            enterScene(idx, true);\n            return true;\n        }\n\n        /// Dispatch a custom event of type `type` on the document clip.\n        /// `data` is exposed to listeners via `NovaGame.eventInfo.data`.\n        public static function emit(type:String, data):void {\n            if (root == null) {\n                return;\n            }\n            if (dispatchDepth >= MAX_DISPATCH) {\n                droppedEvents++;\n                return;\n            }\n            eventInfo.data = data;\n            dispatchDepth++;\n            root.dispatchEvent(new Event(type));\n            dispatchDepth--;\n        }\n\n        public static function droppedEventCount():int {\n            return droppedEvents;\n        }\n\n        /// Live particle count across all emitters of the current scene.\n        /// Useful for runtime validation.\n        public static function particleCount():int {\n            var n:int = 0;\n            for (var i:int = 0; i < emitCount; i++) {\n                var e:Object = emitters[i];\n                if (e != null) {\n                    n += e.live;\n                }\n            }\n            return n;\n        }\n\n        /// Teleports a named dynamic/kinematic body and zeroes its velocity.\n        /// Mainly a test/debug hook; returns false for unknown names.\n        public static function setBodyPosition(name:String, x:Number, y:Number):Boolean {\n            for (var i:int = 0; i < bodyCount; i++) {\n                var b:Object = bodies[i];\n                if (b != null && b.name == name) {\n                    b.px = x;\n                    b.py = y;\n                    b.vx = 0;\n                    b.vy = 0;\n                    if (b.o != null) {\n                        b.o.x = x;\n                        b.o.y = y;\n                    }\n                    invalidatePoints(b);\n                    return true;\n                }\n            }\n            return false;\n        }\n\n        /// Diagnostic dump for runtime validation: scene, body count and the\n        /// first few body positions/types.\n        public static function debugInfo():String {\n            var s:String = \"scene=\" + sceneName + \" bodies=\" + bodyCount\n                + \" contacts=\" + contactCount;\n            for (var i:int = 0; i < bodyCount && i < 6; i++) {\n                var b:Object = bodies[i];\n                s += \" | \" + b.name + \"(\" + b.btype + \",\" + b.shape + \",\"\n                    + b.px + \",\" + b.py + \",\" + b.extentW + \"x\" + b.extentH + \")\";\n            }\n            return s;\n        }\n\n        // ------------------------------------------------------------------\n        // Frame loop\n        // ------------------------------------------------------------------\n\n        private static function tick(e:Event):void {\n            if (root == null || paused || !started) {\n                return;\n            }\n            // Fixed-step simulation: one ENTER_FRAME == one authored frame,\n            // independent of the renderer's actual frame rate. This matches\n            // Flash-style frame semantics and keeps runtime behaviour\n            // deterministic for tests (Ruffle may tick faster than the SWF\n            // fps when uncapped).\n            var dt:Number = 1.0 / NovaGameData.FPS;\n            if (dt > MAX_DT) {\n                dt = MAX_DT;\n            }\n            time += dt;\n            timeSec += dt;\n\n            // NovaGame owns the playhead inside the active scene range: the\n            // concatenated SWF timeline would otherwise play straight through\n            // neighbouring scenes. Each ENTER_FRAME advances one frame inside\n            // [sceneStart, sceneEnd] and loops; gotoAndStop keeps the position\n            // deterministic (no reliance on currentFrame updating synchronously).\n            if (sceneIdx >= 0) {\n                sceneTick++;\n                var len:int = sceneEnd - sceneStart + 1;\n                if (len < 1) {\n                    len = 1;\n                }\n                var target:int = sceneStart + (sceneTick % len);\n                if (root.currentFrame != target) {\n                    root.gotoAndStop(target);\n                }\n            } else {\n                var idx:int = sceneForFrame(root.currentFrame);\n                if (idx >= 0) {\n                    enterScene(idx, true);\n                }\n            }\n\n            checkTransitions();\n            syncBodies();\n            stepPhysics(dt);\n            stepCamera(dt);\n            stepParticles(dt);\n            Input.poll();\n        }\n\n        private static function sceneForFrame(frame:int):int {\n            for (var i:int = 0; i < NovaGameData.SCENE_COUNT; i++) {\n                if (frame >= NovaGameData.SCENE_START[i] && frame <= NovaGameData.SCENE_END[i]) {\n                    return i;\n                }\n            }\n            return -1;\n        }\n\n        private static function sceneIndexByName(name:String):int {\n            for (var i:int = 0; i < NovaGameData.SCENE_COUNT; i++) {\n                if (NovaGameData.SCENE_NAMES[i] == name) {\n                    return i;\n                }\n            }\n            return -1;\n        }\n\n        private static function enterScene(idx:int, announce:Boolean):void {\n            var oldName:String = sceneName;\n            sceneIdx = idx;\n            sceneName = NovaGameData.SCENE_NAMES[idx];\n            sceneStart = NovaGameData.SCENE_START[idx];\n            sceneEnd = NovaGameData.SCENE_END[idx];\n            sceneTick = 0;\n            if (root != null) {\n                root.gotoAndStop(sceneStart);\n            }\n            bodies = {};\n            bodyCount = 0;\n            bodiesReady = false;\n            contacts = {};\n            contactKeys = {};\n            contactCount = 0;\n            prevKeys = {};\n            camBase = {};\n            clearEmitters();\n            syncEmitters();\n            loadSceneConfig(idx);\n            if (announce) {\n                if (oldName != \"\") {\n                    eventInfo = { kind: \"unload\", scene: oldName, a: oldName, b: sceneName, key: 0, data: null };\n                    emit(\"nova:sceneUnload\", oldName);\n                }\n                eventInfo = { kind: \"transition\", scene: sceneName, a: oldName, b: sceneName, key: 0, data: null };\n                emit(\"nova:sceneTransition\", oldName + \"->\" + sceneName);\n                eventInfo = { kind: \"load\", scene: sceneName, a: oldName, b: sceneName, key: 0, data: null };\n                emit(\"nova:sceneLoad\", sceneName);\n            } else {\n                eventInfo = { kind: \"load\", scene: sceneName, a: \"\", b: sceneName, key: 0, data: null };\n                emit(\"nova:sceneLoad\", sceneName);\n            }\n        }\n\n        private static function loadSceneConfig(idx:int):void {\n            var name:String = NovaGameData.SCENE_NAMES[idx];\n            var cam:String = NovaGameData.CAMERAS[name];\n            camCfg = null;\n            if (cam != null && cam != \"\") {\n                camCfg = splitPipe(cam);\n                camZoom = f(camCfg, 5);\n                camX = (worldWFor(idx)) / 2;\n                camY = (worldHFor(idx)) / 2;\n            } else {\n                camZoom = 1;\n                camX = viewW / 2;\n                camY = viewH / 2;\n            }\n            var world:String = NovaGameData.WORLDS[name];\n            if (world != null && world != \"\") {\n                var w:Object = splitPipe(world);\n                worldW = f(w, 0);\n                worldH = f(w, 1);\n            } else {\n                worldW = viewW;\n                worldH = viewH;\n            }\n            var inp:String = NovaGameData.INPUTS[name];\n            inputCfg = null;\n            if (inp != null && inp != \"\") {\n                inputCfg = splitPipe(inp);\n            }\n        }\n\n        private static function worldWFor(idx:int):Number {\n            var name:String = NovaGameData.SCENE_NAMES[idx];\n            var world:String = NovaGameData.WORLDS[name];\n            if (world != null && world != \"\") {\n                var w:Object = splitPipe(world);\n                if (f(w, 0) > 0) {\n                    return f(w, 0);\n                }\n            }\n            return viewW;\n        }\n\n        private static function worldHFor(idx:int):Number {\n            var name:String = NovaGameData.SCENE_NAMES[idx];\n            var world:String = NovaGameData.WORLDS[name];\n            if (world != null && world != \"\") {\n                var w:Object = splitPipe(world);\n                if (f(w, 1) > 0) {\n                    return f(w, 1);\n                }\n            }\n            return viewH;\n        }\n\n        // ------------------------------------------------------------------\n        // Input\n        // ------------------------------------------------------------------\n\n        private static function onKeyDown(e:KeyboardEvent):void {\n            eventInfo = { kind: \"key\", scene: sceneName, a: \"\", b: \"\", key: e.keyCode, data: null };\n            emit(\"nova:keyPressed\", e.keyCode);\n        }\n\n        private static function onKeyUp(e:KeyboardEvent):void {\n            eventInfo = { kind: \"key\", scene: sceneName, a: \"\", b: \"\", key: e.keyCode, data: null };\n            emit(\"nova:keyReleased\", e.keyCode);\n        }\n\n        private static function inputDown(slot:int):Boolean {\n            if (inputCfg == null || slot < 0 || slot >= inputCfg.n) {\n                return false;\n            }\n            return Input.down(parseInt(inputCfg[slot], 10));\n        }\n\n        private static function checkTransitions():void {\n            for (var i:int = 0; i < NovaGameData.TRANS_COUNT; i++) {\n                var spec:String = NovaGameData.TRANSITIONS[i];\n                var p:Object = splitPipe(spec);\n                if (p.n < 2) {\n                    continue;\n                }\n                var code:int = parseInt(p[0], 10);\n                var down:Boolean = Input.down(code);\n                var was:Boolean = prevKeys[code] == true;\n                prevKeys[code] = down;\n                if (down && !was) {\n                    gotoScene(p[1]);\n                    return;\n                }\n            }\n        }\n\n        // ------------------------------------------------------------------\n        // Bodies / collision\n        // ------------------------------------------------------------------\n\n        /// (Re)builds body records for the current scene from NovaGameData.\n        private static function syncBodies():void {\n            if (bodiesReady || sceneName == \"\") {\n                return;\n            }\n            bodiesReady = true;\n            var table:Object = NovaGameData.COLLIDERS[sceneName];\n            if (table == null) {\n                return;\n            }\n            var count:int = table.count;\n            for (var i:int = 0; i < count; i++) {\n                var spec:String = table[i];\n                var p:Object = splitPipe(spec);\n                if (p.n < 12) {\n                    continue;\n                }\n                var objName:String = p[0];\n                var obj:DisplayObject = root.getChildByName(objName);\n                if (obj == null) {\n                    continue;\n                }\n                var body:Object = {};\n                body.name = objName;\n                body.o = obj;\n                body.shape = parseFloat(p[1]);\n                body.w = parseFloat(p[2]);\n                body.h = parseFloat(p[3]);\n                body.layer = parseFloat(p[4]);\n                body.mask = parseFloat(p[5]);\n                body.btype = parseFloat(p[6]);\n                body.gx = parseFloat(p[7]);\n                body.fr = parseFloat(p[8]);\n                body.bo = parseFloat(p[9]);\n                body.ctrl = parseFloat(p[10]);\n                body.npts = 0;\n                body.pts = {};\n                var pts:String = p[11];\n                if (pts != \"\") {\n                    loadPoints(body, pts);\n                }\n                body.vx = 0;\n                body.vy = 0;\n                body.grounded = false;\n                body.px = obj.x;\n                body.py = obj.y;\n                bodies[i] = body;\n            }\n            bodyCount = count;\n        }\n\n        private static function loadPoints(body:Object, pts:String):void {\n            var parts:Object = splitSemi(pts);\n            var n:int = parts.n;\n            if (n > 64) {\n                n = 64;\n            }\n            for (var i:int = 0; i < n; i++) {\n                var xy:Object = splitComma(parts[i]);\n                var pt:Object = {};\n                pt[0] = parseFloat(xy[0]);\n                pt[1] = parseFloat(xy[1]);\n                body.pts[i] = pt;\n            }\n            body.npts = n;\n        }\n\n        /// Integrates forces, moves bodies and resolves collisions \u2014 mirrors\n        /// `nova_core::game::step` phase order (forces, then resolve, then\n        /// world clamp).\n        private static function stepPhysics(dt:Number):void {\n            if (bodyCount == 0) {\n                return;\n            }\n            // Phase 1: forces + integration.\n            for (var i:int = 0; i < bodyCount; i++) {\n                var a:Object = bodies[i];\n                if (a == null || a.o == null) {\n                    continue;\n                }\n                if (a.btype == 0) {\n                    // Static bodies keep their authored position; the bridge\n                    // does not adopt display-transform writes (the camera\n                    // owns those). Use setBodyPosition() to move them.\n                    continue;\n                }\n                if (a.btype == 2) {\n                    // Kinematic: velocity only.\n                    a.px += a.vx * dt;\n                    a.py += a.vy * dt;\n                } else {\n                    // Dynamic.\n                    a.vy += GRAVITY * a.gx * dt;\n                    var damp:Number = 1.0 - a.fr * dt;\n                    if (damp < 0) {\n                        damp = 0;\n                    }\n                    a.vx *= damp;\n                    a.vy *= damp;\n                    if (a.ctrl == 1) {\n                        if (inputDown(0)) {\n                            a.vx -= MOVE_ACCEL * dt;\n                        }\n                        if (inputDown(1)) {\n                            a.vx += MOVE_ACCEL * dt;\n                        }\n                        if (a.vx > MAX_SPEED) {\n                            a.vx = MAX_SPEED;\n                        }\n                        if (a.vx < -MAX_SPEED) {\n                            a.vx = -MAX_SPEED;\n                        }\n                        if (inputDown(4) && a.grounded) {\n                            a.vy = JUMP_VELOCITY;\n                            a.grounded = false;\n                        }\n                        if (a.grounded) {\n                            var gd:Number = 1.0 - GROUND_FRICTION * dt;\n                            if (gd < 0) {\n                                gd = 0;\n                            }\n                            a.vx *= gd;\n                        }\n                    }\n                    a.px += a.vx * dt;\n                    a.py += a.vy * dt;\n                    a.grounded = false;\n                }\n            }\n            // Phase 2a: contact detection on post-integration, PRE-resolution\n            // positions. Measuring after resolvePair would report resting\n            // contacts as \"no overlap\" (depth ~0) and lose enter/exit events.\n            // Cached world-space polygon vertices are stale after integration,\n            // so drop them before measuring.\n            for (var ic:int = 0; ic < bodyCount; ic++) {\n                var bc:Object = bodies[ic];\n                if (bc != null) {\n                    invalidatePoints(bc);\n                }\n            }\n            var current:Object = {};\n            var currentKeys:Object = {};\n            var currentCount:int = 0;\n            for (var ci:int = 0; ci < bodyCount; ci++) {\n                var ca:Object = bodies[ci];\n                if (ca == null) {\n                    continue;\n                }\n                for (var cj:int = ci + 1; cj < bodyCount; cj++) {\n                    var cb:Object = bodies[cj];\n                    if (cb == null || !interacts(ca, cb)) {\n                        continue;\n                    }\n                    if (collide(ca, cb) != null) {\n                        var key:String = pairKey(ca.name, cb.name);\n                        if (current[key] != true) {\n                            current[key] = true;\n                            currentKeys[currentCount] = key;\n                            currentCount++;\n                        }\n                    }\n                }\n            }\n            // Phase 2b: positional correction, dynamic vs non-dynamic only\n            // (mirrors the preview's resolution pass).\n            for (var i2:int = 0; i2 < bodyCount; i2++) {\n                var da:Object = bodies[i2];\n                if (da == null || da.btype != 1) {\n                    continue;\n                }\n                for (var j:int = 0; j < bodyCount; j++) {\n                    if (j == i2) {\n                        continue;\n                    }\n                    var db:Object = bodies[j];\n                    if (db == null || db.btype == 1) {\n                        continue;\n                    }\n                    if (!interacts(da, db)) {\n                        continue;\n                    }\n                    resolvePair(da, db);\n                }\n            }\n            // Phase 3: world bounds + write back.\n            for (var k:int = 0; k < bodyCount; k++) {\n                var b:Object = bodies[k];\n                if (b == null || b.o == null) {\n                    continue;\n                }\n                if (b.btype != 0) {\n                    var hw:Number = extentW(b) / 2;\n                    var hh:Number = extentH(b) / 2;\n                    var minX:Number = hw;\n                    var maxX:Number = worldW - hw;\n                    if (maxX < minX) {\n                        maxX = minX;\n                    }\n                    var minY:Number = hh;\n                    var maxY:Number = worldH - hh;\n                    if (maxY < minY) {\n                        maxY = minY;\n                    }\n                    if (b.px < minX) { b.px = minX; }\n                    if (b.px > maxX) { b.px = maxX; }\n                    if (b.py < minY) { b.py = minY; }\n                    if (b.py > maxY) { b.py = maxY; }\n                    b.o.x = b.px;\n                    b.o.y = b.py;\n                }\n            }\n            updateContacts(current, currentKeys, currentCount);\n        }\n\n        private static function extentW(b:Object):Number {\n            if (b.w > 0) {\n                return b.w;\n            }\n            return 32;\n        }\n\n        private static function extentH(b:Object):Number {\n            if (b.shape == 1) {\n                return extentW(b);\n            }\n            if (b.h > 0) {\n                return b.h;\n            }\n            return extentW(b);\n        }\n\n        private static function interacts(a:Object, b:Object):Boolean {\n            // Shape 3 = physics-only body: it moves but has no collider.\n            if (a.shape == 3 || b.shape == 3) {\n                return false;\n            }\n            return (a.layer & b.mask) != 0 && (b.layer & a.mask) != 0;\n        }\n\n        /// SAT contact between two bodies; returns Object {nx,ny,depth} or null.\n        private static function collide(a:Object, b:Object):Object {\n            var asCircle:Boolean = a.shape == 1;\n            var bsCircle:Boolean = b.shape == 1;\n            if (asCircle && bsCircle) {\n                return circleCircle(a, b);\n            }\n            if (asCircle) {\n                return circlePoly(a, b);\n            }\n            if (bsCircle) {\n                var c:Object = circlePoly(b, a);\n                if (c == null) {\n                    return null;\n                }\n                // Normal must point from b(=poly a-side?) \u2014 swap: contact was\n                // computed circle=b vs poly=a, normal points a->b; flip it.\n                c.nx = -c.nx;\n                c.ny = -c.ny;\n                return c;\n            }\n            return polyPoly(a, b);\n        }\n\n        private static function circleCircle(a:Object, b:Object):Object {\n            var ra:Number = extentW(a) / 2;\n            var rb:Number = extentW(b) / 2;\n            var dx:Number = a.px - b.px;\n            var dy:Number = a.py - b.py;\n            var dist:Number = fSqrt(dx * dx + dy * dy);\n            var overlap:Number = ra + rb - dist;\n            if (overlap <= 0) {\n                return null;\n            }\n            if (dist < 0.001) {\n                return { nx: 0, ny: -1, depth: overlap };\n            }\n            return { nx: dx / dist, ny: dy / dist, depth: overlap };\n        }\n\n        private static function circlePoly(circle:Object, poly:Object):Object {\n            var r:Number = extentW(circle) / 2;\n            var n:int = polyPoints(poly, null);\n            if (n < 3) {\n                // Degenerate: fall back to AABB overlap.\n                var hw:Number = extentW(poly) / 2;\n                var hh:Number = extentH(poly) / 2;\n                var ox:Number = fMin(circle.px + r, poly.px + hw) - fMax(circle.px - r, poly.px - hw);\n                var oy:Number = fMin(circle.py + r, poly.py + hh) - fMax(circle.py - r, poly.py - hh);\n                if (ox > 0 && oy > 0) {\n                    return { nx: 0, ny: -1, depth: fMin(ox, oy) };\n                }\n                return null;\n            }\n            var pxs:Object = worldPoints(poly, n, \"ptsWorld\");\n            // Closest point on polygon boundary to circle centre.\n            var cx:Number = circle.px;\n            var cy:Number = circle.py;\n            var bestD:Number = 1e30;\n            var bnx:Number = 0;\n            var bny:Number = -1;\n            var inside:Boolean = pointInPoly(cx, cy, pxs, n);\n            for (var e:int = 0; e < n; e++) {\n                var p1:Object = pxs[e];\n                var p2:Object = pxs[(e + 1) % n];\n                var ex:Number = p2.x - p1.x;\n                var ey:Number = p2.y - p1.y;\n                var len2:Number = ex * ex + ey * ey;\n                var t:Number = 0;\n                if (len2 > 0.0001) {\n                    t = ((cx - p1.x) * ex + (cy - p1.y) * ey) / len2;\n                    if (t < 0) { t = 0; }\n                    if (t > 1) { t = 1; }\n                }\n                var qx:Number = p1.x + ex * t;\n                var qy:Number = p1.y + ey * t;\n                var ddx:Number = cx - qx;\n                var ddy:Number = cy - qy;\n                var d:Number = fSqrt(ddx * ddx + ddy * ddy);\n                if (inside) {\n                    // Edge normal (outward): perpendicular, sign by winding.\n                    var en:Number = fSqrt(len2);\n                    if (en > 0.0001) {\n                        var nx0:Number = -ey / en;\n                        var ny0:Number = ex / en;\n                        // Orient outward: normal should point away from centroid.\n                        var mx:Number = (p1.x + p2.x) / 2 - poly.px;\n                        var my:Number = (p1.y + p2.y) / 2 - poly.py;\n                        if (nx0 * mx + ny0 * my < 0) {\n                            nx0 = -nx0;\n                            ny0 = -ny0;\n                        }\n                        // Signed distance from centre to edge along normal.\n                        var sd:Number = (cx - p1.x) * nx0 + (cy - p1.y) * ny0;\n                        if (sd < bestD) {\n                            bestD = sd;\n                            bnx = nx0;\n                            bny = ny0;\n                        }\n                    }\n                } else if (d < bestD) {\n                    bestD = d;\n                    if (d > 0.0001) {\n                        bnx = ddx / d;\n                        bny = ddy / d;\n                    }\n                }\n            }\n            if (inside) {\n                // Depth = r + distance to nearest edge (centre inside).\n                return { nx: bnx, ny: bny, depth: r + bestD };\n            }\n            var depth:Number = r - bestD;\n            if (depth <= 0) {\n                return null;\n            }\n            return { nx: bnx, ny: bny, depth: depth };\n        }\n\n        private static function pointInPoly(x:Number, y:Number, pts:Object, n:int):Boolean {\n            var inside:Boolean = false;\n            var j:int = n - 1;\n            for (var i:int = 0; i < n; i++) {\n                var pi:Object = pts[i];\n                var pj:Object = pts[j];\n                if ((pi.y > y) != (pj.y > y) && x < (pj.x - pi.x) * (y - pi.y) / (pj.y - pi.y) + pi.x) {\n                    inside = !inside;\n                }\n                j = i;\n            }\n            return inside;\n        }\n\n        private static function polyPoly(a:Object, b:Object):Object {\n            var na:int = polyPoints(a, a.ptsA);\n            var nb:int = polyPoints(b, b.ptsB);\n            if (na < 3 || nb < 3) {\n                return null;\n            }\n            var pa:Object = worldPoints(a, na, \"ptsA\");\n            var pb:Object = worldPoints(b, nb, \"ptsB\");\n            var minOverlap:Number = 1e30;\n            var nx:Number = 0;\n            var ny:Number = 0;\n            // Axes from both polygons' edges.\n            for (var pass:int = 0; pass < 2; pass++) {\n                var pts:Object = pass == 0 ? pa : pb;\n                var cnt:int = pass == 0 ? na : nb;\n                for (var i:int = 0; i < cnt; i++) {\n                    var p1:Object = pts[i];\n                    var p2:Object = pts[(i + 1) % cnt];\n                    var ex:Number = p2.x - p1.x;\n                    var ey:Number = p2.y - p1.y;\n                    var len:Number = fSqrt(ex * ex + ey * ey);\n                    if (len < 0.0001) {\n                        continue;\n                    }\n                    var ax:Number = -ey / len;\n                    var ay:Number = ex / len;\n                    var minA:Number = 1e30;\n                    var maxA:Number = -1e30;\n                    for (var k:int = 0; k < na; k++) {\n                        var d:Number = pa[k].x * ax + pa[k].y * ay;\n                        if (d < minA) { minA = d; }\n                        if (d > maxA) { maxA = d; }\n                    }\n                    var minB:Number = 1e30;\n                    var maxB:Number = -1e30;\n                    for (var k2:int = 0; k2 < nb; k2++) {\n                        var d2:Number = pb[k2].x * ax + pb[k2].y * ay;\n                        if (d2 < minB) { minB = d2; }\n                        if (d2 > maxB) { maxB = d2; }\n                    }\n                    var overlap:Number = fMin(maxA, maxB) - fMax(minA, minB);\n                    if (overlap <= 0) {\n                        return null;\n                    }\n                    if (overlap < minOverlap) {\n                        minOverlap = overlap;\n                        // Orient normal from b toward a: check centroid side.\n                        var cax:Number = (maxA + minA) / 2;\n                        var cbx:Number = (maxB + minB) / 2;\n                        if (cax >= cbx) {\n                            nx = ax;\n                            ny = ay;\n                        } else {\n                            nx = -ax;\n                            ny = -ay;\n                        }\n                    }\n                }\n            }\n            return { nx: nx, ny: ny, depth: minOverlap };\n        }\n\n        /// Number of polygon vertices for a body (rect -> 4, poly -> npts).\n        private static function polyPoints(b:Object, cache:Object):int {\n            if (b.shape == 2 && b.npts >= 3) {\n                return b.npts;\n            }\n            return 4;\n        }\n\n        /// World-space polygon vertices; rects are generated from w/h.\n        private static function worldPoints(b:Object, n:int, cacheName:String):Object {\n            var cache:Object = b[cacheName];\n            if (cache != null) {\n                return cache;\n            }\n            cache = {};\n            if (b.shape == 2 && b.npts >= 3) {\n                for (var i:int = 0; i < n; i++) {\n                    var p:Object = b.pts[i];\n                    cache[i] = { x: b.px + p[0], y: b.py + p[1] };\n                }\n            } else {\n                var hw:Number = extentW(b) / 2;\n                var hh:Number = extentH(b) / 2;\n                cache[0] = { x: b.px - hw, y: b.py - hh };\n                cache[1] = { x: b.px + hw, y: b.py - hh };\n                cache[2] = { x: b.px + hw, y: b.py + hh };\n                cache[3] = { x: b.px - hw, y: b.py + hh };\n            }\n            b[cacheName] = cache;\n            return cache;\n        }\n\n        private static function invalidatePoints(b:Object):void {\n            b.ptsA = null;\n            b.ptsB = null;\n            b.ptsWorld = null;\n        }\n\n        private static function resolvePair(a:Object, b:Object):void {\n            var c:Object = collide(a, b);\n            if (c == null) {\n                return;\n            }\n            a.px += c.nx * c.depth;\n            a.py += c.ny * c.depth;\n            var vn:Number = a.vx * c.nx + a.vy * c.ny;\n            if (vn < 0) {\n                a.vx -= (1.0 + a.bo) * vn * c.nx;\n                a.vy -= (1.0 + a.bo) * vn * c.ny;\n                var tx:Number = -c.ny;\n                var ty:Number = c.nx;\n                var vt:Number = a.vx * tx + a.vy * ty;\n                var fr:Number = a.fr;\n                if (fr > 1) {\n                    fr = 1;\n                }\n                a.vx -= vt * fr * tx;\n                a.vy -= vt * fr * ty;\n                if (c.ny < -0.5) {\n                    a.grounded = true;\n                }\n            }\n            invalidatePoints(a);\n            invalidatePoints(b);\n        }\n\n        /// Enter/exit tracking over the pre-resolution contact set computed in\n        /// stepPhysics phase 2a (post-integration positions, like the preview).\n        private static function updateContacts(current:Object, currentKeys:Object, currentCount:int):void {\n            // Exits: previous keys absent from the current set.\n            for (var e:int = 0; e < contactCount; e++) {\n                var oldKey:String = contactKeys[e];\n                if (oldKey == null) {\n                    continue;\n                }\n                if (current[oldKey] != true) {\n                    fireContactEvent(false, oldKey);\n                }\n            }\n            // Enters: current keys absent from the previous set.\n            for (var n:int = 0; n < currentCount; n++) {\n                var newKey:String = currentKeys[n];\n                if (contacts[newKey] != true) {\n                    fireContactEvent(true, newKey);\n                }\n            }\n            contacts = current;\n            contactKeys = currentKeys;\n            contactCount = currentCount;\n        }\n\n        private static function pairKey(a:String, b:String):String {\n            if (a < b) {\n                return a + \"<\" + b;\n            }\n            return b + \"<\" + a;\n        }\n\n        private static function fireContactEvent(enter:Boolean, key:String):void {\n            var sep:int = key.indexOf(\"<\");\n            var a:String = key.substring(0, sep);\n            var b:String = key.substring(sep + 1);\n            eventInfo = { kind: enter ? \"collisionEnter\" : \"collisionExit\", scene: sceneName, a: a, b: b, key: 0, data: null };\n            emit(enter ? \"nova:collisionEnter\" : \"nova:collisionExit\", a + \"<>\" + b);\n        }\n\n        /// Boolean overlap used by contact tracking (cheap broad+SAT check).\n        private static function overlapTest(ca:Object, cb:Object):Boolean {\n            // Broad phase on AABBs first.\n            var aMinX:Number = ca.px - ca.hw;\n            var aMaxX:Number = ca.px + ca.hw;\n            var aMinY:Number = ca.py - ca.hh;\n            var aMaxY:Number = ca.py + ca.hh;\n            var bMinX:Number = cb.px - cb.hw;\n            var bMaxX:Number = cb.px + cb.hw;\n            var bMinY:Number = cb.py - cb.hh;\n            var bMaxY:Number = cb.py + cb.hh;\n            if (aMaxX < bMinX || bMaxX < aMinX || aMaxY < bMinY || bMaxY < aMinY) {\n                return false;\n            }\n            // Reuse the body-based collide by wrapping minimal records.\n            var ta:Object = { px: ca.px, py: ca.py, shape: ca.shape, w: ca.w, h: ca.h, npts: ca.npts, pts: ca.pts, ptsA: null, ptsB: null, ptsWorld: null };\n            var tb:Object = { px: cb.px, py: cb.py, shape: cb.shape, w: cb.w, h: cb.h, npts: cb.npts, pts: cb.pts, ptsA: null, ptsB: null, ptsWorld: null };\n            return collide(ta, tb) != null;\n        }\n\n        private static function bodyCollider(b:Object):Object {\n            // Circle bounding radius uses width; rect/polygon use w/h.\n            var hw:Number = extentW(b) / 2;\n            var hh:Number = extentH(b) / 2;\n            return { px: b.px, py: b.py, shape: b.shape, w: b.w, h: b.h, npts: b.npts, pts: b.pts, hw: hw, hh: hh };\n        }\n\n        // ------------------------------------------------------------------\n        // Camera\n        // ------------------------------------------------------------------\n\n        private static function stepCamera(dt:Number):void {\n            if (camCfg == null) {\n                // No camera config: still apply identity pan? Do nothing.\n                return;\n            }\n            var enabled:Boolean = f(camCfg, 0) != 0;\n            if (!enabled) {\n                return;\n            }\n            // Camera spec fields: 0 enabled, 1 left, 2 top, 3 right, 4 bottom,\n            // 5 zoom, 6 smoothing, 7 deadZoneX, 8 deadZoneY, 9 shake,\n            // 10 follow (object name, string).\n            var follow:String = camCfg[10];\n            var tx:Number = camX;\n            var ty:Number = camY;\n            var fp:Object = null;\n            if (follow != null && follow != \"\") {\n                fp = worldPosOf(follow);\n            }\n            if (fp != null) {\n                tx = fp.x;\n                ty = fp.y;\n            } else {\n                tx = worldW / 2;\n                ty = worldH / 2;\n            }\n            // Dead zone.\n            var dzx:Number = f(camCfg, 7);\n            var dzy:Number = f(camCfg, 8);\n            if (dzx > 0 && fAbs(tx - camX) <= dzx) {\n                tx = camX;\n            }\n            if (dzy > 0 && fAbs(ty - camY) <= dzy) {\n                ty = camY;\n            }\n            // Smoothing (same formula as preview).\n            var smooth:Number = f(camCfg, 6);\n            if (smooth > 0.95) {\n                smooth = 0.95;\n            }\n            if (smooth < 0) {\n                smooth = 0;\n            }\n            var t:Number = CAMERA_LERP * dt * (1.0 - smooth);\n            if (t > 1) {\n                t = 1;\n            }\n            camX += (tx - camX) * t;\n            camY += (ty - camY) * t;\n            camZoom = f(camCfg, 5);\n            if (camZoom < 0.1) {\n                camZoom = 0.1;\n            }\n            // Bounds (same clamp/centre-on-small-world rules as preview).\n            var l:Number = f(camCfg, 1);\n            var tp:Number = f(camCfg, 2);\n            var r:Number = f(camCfg, 3);\n            var b:Number = f(camCfg, 4);\n            var halfW:Number = viewW / (2 * camZoom);\n            var halfH:Number = viewH / (2 * camZoom);\n            if (r > l) {\n                var loX:Number = l + halfW;\n                var hiX:Number = r - halfW;\n                if (loX <= hiX) {\n                    if (camX < loX) { camX = loX; }\n                    if (camX > hiX) { camX = hiX; }\n                } else {\n                    camX = (l + r) / 2;\n                }\n            }\n            if (b > tp) {\n                var loY:Number = tp + halfH;\n                var hiY:Number = b - halfH;\n                if (loY <= hiY) {\n                    if (camY < loY) { camY = loY; }\n                    if (camY > hiY) { camY = hiY; }\n                } else {\n                    camY = (tp + b) / 2;\n                }\n            }\n            // Shake.\n            var shake:Number = f(camCfg, 9);\n            if (shake > 0) {\n                camX += fSin(timeSec * 39.7) * shake;\n                camY += fSin(timeSec * 47.3 + 1.7) * shake * 0.8;\n            }\n            applyCamera();\n        }\n\n        /// Resolves the WORLD position of a named child. Physics bodies are\n        /// authoritative via their body record; other children use the camera\n        /// base transform, refreshed whenever an external write (script,\n        /// timeline, physics) changes the display value away from the last\n        /// camera-applied screen position.\n        private static function worldPosOf(name:String):Object {\n            for (var i:int = 0; i < bodyCount; i++) {\n                var b:Object = bodies[i];\n                if (b != null && b.name == name) {\n                    return { x: b.px, y: b.py };\n                }\n            }\n            var c:DisplayObject = root.getChildByName(name);\n            var base:Object = camBase[name];\n            if (c != null && base != null && (c.x != base.sx || c.y != base.sy)) {\n                return { x: c.x, y: c.y };\n            }\n            if (base != null) {\n                return { x: base.bx, y: base.by };\n            }\n            if (c != null) {\n                return { x: c.x, y: c.y };\n            }\n            return null;\n        }\n\n        /// Applies the camera to every named top-level child. For each child\n        /// the \"world\" position is whatever was last written by game logic:\n        /// if the display transform still equals the value the camera itself\n        /// produced last frame, the stored base is kept; any other value is\n        /// treated as a fresh world-space write. This keeps physics-driven,\n        /// script-driven and static children correct without a container.\n        private static function applyCamera():void {\n            var n:int = root.numChildren;\n            var zoom:Number = camZoom;\n            for (var i:int = 0; i < n; i++) {\n                var c:DisplayObject = root.getChildAt(i);\n                if (c == null) {\n                    continue;\n                }\n                var key:String = c.name;\n                if (key == \"\") {\n                    continue;\n                }\n                var base:Object = camBase[key];\n                if (base == null) {\n                    base = {\n                        bx: c.x, by: c.y, bsx: c.scaleX, bsy: c.scaleY,\n                        sx: c.x, sy: c.y, ssx: c.scaleX, ssy: c.scaleY\n                    };\n                    camBase[key] = base;\n                }\n                // World position: bodies are authoritative via their record;\n                // other children use external-write detection.\n                var wp:Object = worldPosOf(key);\n                if (wp != null) {\n                    base.bx = wp.x;\n                    base.by = wp.y;\n                } else if (c.x != base.sx || c.y != base.sy) {\n                    base.bx = c.x;\n                    base.by = c.y;\n                }\n                if (c.scaleX != base.ssx || c.scaleY != base.ssy) {\n                    base.bsx = c.scaleX;\n                    base.bsy = c.scaleY;\n                }\n                c.x = viewW / 2 + (base.bx - camX) * zoom;\n                c.y = viewH / 2 + (base.by - camY) * zoom;\n                c.scaleX = base.bsx * zoom;\n                c.scaleY = base.bsy * zoom;\n                base.sx = c.x;\n                base.sy = c.y;\n                base.ssx = c.scaleX;\n                base.ssy = c.scaleY;\n            }\n        }\n\n        // ------------------------------------------------------------------\n        // Particles (ported from nova_core::particles semantics)\n        // ------------------------------------------------------------------\n\n        private static var emitters:Object = {};\n        private static var emitCount:int = 0;\n\n        /// Builds emitter runtime records for the current scene.\n        private static function syncEmitters():void {\n            emitters = {};\n            emitCount = 0;\n            if (sceneName == \"\") {\n                return;\n            }\n            var table:Object = NovaGameData.EMITTERS[sceneName];\n            if (table == null) {\n                return;\n            }\n            var count:int = table.count;\n            for (var i:int = 0; i < count; i++) {\n                var spec:String = table[i];\n                var p:Object = splitPipe(spec);\n                if (p.n < 29) {\n                    continue;\n                }\n                var e:Object = {};\n                e.name = p[0];\n                e.spec = p;\n                e.o = null;\n                e.pool = {};\n                e.live = 0;\n                e.acc = 0;\n                e.burstDone = false;\n                e.rng = 12345 + i * 7919;\n                e.prevX = 0;\n                e.prevY = 0;\n                e.hasPrev = false;\n                emitters[i] = e;\n            }\n            emitCount = count;\n        }\n\n        private static function clearEmitters():void {\n            for (var i:int = 0; i < emitCount; i++) {\n                var e:Object = emitters[i];\n                if (e == null) {\n                    continue;\n                }\n                for (var s:int = 0; s < 512; s++) {\n                    var slot:Object = e.pool[s];\n                    if (slot != null && slot.view != null) {\n                        root.removeChild(slot.view);\n                    }\n                }\n            }\n            emitters = {};\n            emitCount = 0;\n        }\n\n        private static function stepParticles(dt:Number):void {\n            if (emitCount == 0 || root == null) {\n                return;\n            }\n            for (var i:int = 0; i < emitCount; i++) {\n                var e:Object = emitters[i];\n                if (e == null) {\n                    continue;\n                }\n                var obj:DisplayObject = findObject(e.name);\n                if (obj == null) {\n                    continue;\n                }\n                e.o = obj;\n                updateEmitter(e, obj.x, obj.y, dt);\n            }\n        }\n\n        /// Finds a display object by (sanitised) name, tolerating the\n        /// `_<depth>` suffix the exporter adds to duplicate instance names.\n        private static function findObject(name:String):DisplayObject {\n            var obj:DisplayObject = root.getChildByName(name);\n            if (obj != null) {\n                return obj;\n            }\n            for (var k:int = 2; k <= 64; k++) {\n                obj = root.getChildByName(name + \"_\" + k);\n                if (obj != null) {\n                    return obj;\n                }\n            }\n            return null;\n        }\n\n        private static function updateEmitter(e:Object, ox:Number, oy:Number, dt:Number):void {\n            var spec:Object = e.spec;\n            var local:Boolean = f(spec, 28) == 0;\n            // Local space: drag live particles by the emitter delta.\n            if (local && e.hasPrev) {\n                var dx:Number = ox - e.prevX;\n                var dy:Number = oy - e.prevY;\n                if (dx != 0 || dy != 0) {\n                    for (var s:int = 0; s < 512; s++) {\n                        var slot:Object = e.pool[s];\n                        if (slot != null && slot.alive == true) {\n                            slot.x += dx;\n                            slot.y += dy;\n                        }\n                    }\n                }\n            }\n            e.prevX = ox;\n            e.prevY = oy;\n            e.hasPrev = true;\n\n            var maxP:int = parseInt(spec[27], 10);\n            if (maxP < 1) {\n                maxP = 1;\n            }\n            if (maxP > 512) {\n                maxP = 512;\n            }\n            // Continuous emission.\n            var rate:Number = f(spec, 1);\n            if (rate > 0) {\n                e.acc += rate * dt;\n                while (e.acc >= 1.0 && e.live < maxP) {\n                    e.acc -= 1.0;\n                    spawnParticle(e, ox, oy, local);\n                }\n            }\n            // One-shot burst on first update.\n            if (e.burstDone != true) {\n                e.burstDone = true;\n                var burst:int = parseInt(spec[2], 10);\n                if (burst > maxP) {\n                    burst = maxP;\n                }\n                for (var b:int = 0; b < burst; b++) {\n                    if (e.live >= maxP) {\n                        break;\n                    }\n                    spawnParticle(e, ox, oy, local);\n                }\n            }\n\n            var grav:Number = f(spec, 23);\n            var drag:Number = f(spec, 24);\n            for (var i:int = 0; i < 512; i++) {\n                var p:Object = e.pool[i];\n                if (p == null || p.alive != true) {\n                    continue;\n                }\n                p.age += dt;\n                if (p.age >= p.life) {\n                    p.alive = false;\n                    p.view.visible = false;\n                    e.live--;\n                    continue;\n                }\n                p.vy += grav * dt;\n                var damp:Number = 1.0 - drag * dt;\n                if (damp < 0) {\n                    damp = 0;\n                }\n                p.vx *= damp;\n                p.vy *= damp;\n                p.x += p.vx * dt;\n                p.y += p.vy * dt;\n                p.rot += p.rotV * dt;\n                renderParticle(e, p, ox, oy, local);\n            }\n        }\n\n        private static function rand01(e:Object):Number {\n            // Park-Miller LCG; product stays below 2^53 so doubles are exact.\n            e.rng = (e.rng * 48271) % 2147483647;\n            return e.rng / 2147483647;\n        }\n\n        private static function prange(e:Object, spec:Object, i0:int, i1:int):Number {\n            var a:Number = f(spec, i0);\n            var b:Number = f(spec, i1);\n            return a + (b - a) * rand01(e);\n        }\n\n        private static function spawnParticle(e:Object, ox:Number, oy:Number, local:Boolean):void {\n            var spec:Object = e.spec;\n            // Find a free pool slot.\n            var slot:Object = null;\n            var slotIdx:int = -1;\n            for (var i:int = 0; i < 512; i++) {\n                var cand:Object = e.pool[i];\n                if (cand == null) {\n                    cand = {};\n                    cand.view = new flash.display.Sprite();\n                    cand.view.visible = false;\n                    root.addChild(cand.view);\n                    e.pool[i] = cand;\n                }\n                if (cand.alive != true) {\n                    slot = cand;\n                    slotIdx = i;\n                    break;\n                }\n            }\n            if (slot == null) {\n                return;\n            }\n            var speed:Number = prange(e, spec, 19, 20);\n            var dirDeg:Number = f(spec, 21);\n            var spreadDeg:Number = f(spec, 22);\n            var angle:Number = (dirDeg + (rand01(e) - 0.5) * 2.0 * spreadDeg) * 3.141592653589793 / 180.0;\n            slot.alive = true;\n            slot.x = local ? 0 : ox;\n            slot.y = local ? 0 : oy;\n            slot.vx = speed * fCos(angle);\n            slot.vy = speed * fSin(angle);\n            slot.age = 0;\n            slot.life = prange(e, spec, 3, 4);\n            if (slot.life < 0.01) {\n                slot.life = 0.01;\n            }\n            slot.ss = prange(e, spec, 5, 6);\n            slot.se = prange(e, spec, 7, 8);\n            slot.os = prange(e, spec, 9, 10);\n            slot.oe = prange(e, spec, 11, 12);\n            slot.csr = f(spec, 13);\n            slot.csg = f(spec, 14);\n            slot.csb = f(spec, 15);\n            slot.cer = f(spec, 16);\n            slot.ceg = f(spec, 17);\n            slot.ceb = f(spec, 18);\n            slot.rot = rand01(e) * 360.0;\n            slot.rotV = prange(e, spec, 25, 26) * 3.141592653589793 / 180.0;\n            e.live++;\n            renderParticle(e, slot, ox, oy, local);\n        }\n\n        private static function renderParticle(e:Object, p:Object, ox:Number, oy:Number, local:Boolean):void {\n            var t:Number = p.age / p.life;\n            if (t > 1) {\n                t = 1;\n            }\n            if (t < 0) {\n                t = 0;\n            }\n            var size:Number = p.ss + (p.se - p.ss) * t;\n            var op:Number = p.os + (p.oe - p.os) * t;\n            if (op < 0) {\n                op = 0;\n            }\n            if (op > 1) {\n                op = 1;\n            }\n            var r:int = p.csr + (p.cer - p.csr) * t;\n            var g:int = p.csg + (p.ceg - p.csg) * t;\n            var b:int = p.csb + (p.ceb - p.csb) * t;\n            if (size < 0.5) {\n                size = 0.5;\n            }\n            var v = p.view;\n            v.x = local ? ox + p.x : p.x;\n            v.y = local ? oy + p.y : p.y;\n            v.rotation = p.rot;\n            var half:Number = size / 2;\n            v.graphics.clear();\n            v.graphics.beginFill((r << 16) | (g << 8) | b, op);\n            v.graphics.drawRect(-half, -half, size, size);\n            v.graphics.endFill();\n        }\n\n        // ------------------------------------------------------------------\n        // String / number helpers (no Math in the AS3 subset)\n        // ------------------------------------------------------------------\n\n        /// Splits \"a|b|c\" into Object {n, 0..n-1}.\n        private static function splitPipe(s:String):Object {\n            var out:Object = { n: 0 };\n            var start:int = 0;\n            var idx:int = 0;\n            while (true) {\n                var bar:int = s.indexOf(\"|\", start);\n                var piece:String;\n                if (bar < 0) {\n                    piece = s.substring(start);\n                } else {\n                    piece = s.substring(start, bar);\n                }\n                out[idx] = piece;\n                idx++;\n                if (bar < 0) {\n                    break;\n                }\n                start = bar + 1;\n            }\n            out.n = idx;\n            return out;\n        }\n\n        /// Splits \"a;b;c\" into Object {n, 0..n-1}.\n        private static function splitSemi(s:String):Object {\n            var out:Object = { n: 0 };\n            var start:int = 0;\n            var idx:int = 0;\n            while (true) {\n                var bar:int = s.indexOf(\";\", start);\n                var piece:String;\n                if (bar < 0) {\n                    piece = s.substring(start);\n                } else {\n                    piece = s.substring(start, bar);\n                }\n                out[idx] = piece;\n                idx++;\n                if (bar < 0) {\n                    break;\n                }\n                start = bar + 1;\n            }\n            out.n = idx;\n            return out;\n        }\n\n        /// Splits \"x,y\" into Object {0:x, 1:y}.\n        private static function splitComma(s:String):Object {\n            var out:Object = { n: 2 };\n            var comma:int = s.indexOf(\",\");\n            if (comma < 0) {\n                out[0] = s;\n                out[1] = \"0\";\n            } else {\n                out[0] = s.substring(0, comma);\n                out[1] = s.substring(comma + 1);\n            }\n            return out;\n        }\n\n        /// Numeric field of a pipe-split spec; NaN when not numeric.\n        private static function f(parts:Object, idx:int):Number {\n            if (idx >= parts.n) {\n                return 0;\n            }\n            return parseFloat(parts[idx]);\n        }\n\n        private static function fAbs(x:Number):Number {\n            return x < 0 ? -x : x;\n        }\n\n        private static function fMin(a:Number, b:Number):Number {\n            return a < b ? a : b;\n        }\n\n        private static function fMax(a:Number, b:Number):Number {\n            return a > b ? a : b;\n        }\n\n        private static function fSqrt(x:Number):Number {\n            if (x <= 0) {\n                return 0;\n            }\n            var r:Number = x;\n            if (r > 1) {\n                r = x / 2 + 1;\n            }\n            for (var i:int = 0; i < 24; i++) {\n                r = (r + x / r) / 2;\n            }\n            return r;\n        }\n\n        private static function fSin(x:Number):Number {\n            // Range reduction to [-PI, PI], then Taylor (7 terms).\n            var pi:Number = 3.141592653589793;\n            var twoPi:Number = 6.283185307179586;\n            var y:Number = x % twoPi;\n            if (y > pi) {\n                y -= twoPi;\n            }\n            if (y < -pi) {\n                y += twoPi;\n            }\n            var y2:Number = y * y;\n            var term:Number = y;\n            var sum:Number = y;\n            // sin(y) = y - y^3/3! + y^5/5! - ...\n            var sign:Number = -1;\n            var fact:Number = 6;\n            var pow:Number = y2;\n            for (var i:int = 1; i <= 6; i++) {\n                term = pow * y / fact;\n                sum += sign * term;\n                sign = -sign;\n                fact *= (2 * i + 2) * (2 * i + 3);\n                pow *= y2;\n            }\n            return sum;\n        }\n\n        private static function fCos(x:Number):Number {\n            return fSin(x + 1.5707963267948966);\n        }\n    }\n}\n",
+        "provenance": "original_source"
+      }
+    ],
+    "symbols": [],
+    "assets": [],
+    "export": {
+      "target": "avm2",
+      "swfVersion": 10,
+      "compression": "zlib",
+      "includeScripts": true,
+      "exportAllScenes": false
+    },
+    "metadata": {
+      "name": "M12 Demo",
+      "author": "",
+      "description": "Mega Milestone 12 runtime parity demo",
+      "createdUnix": 1763000000,
+      "modifiedUnix": 1763000000
+    }
+  }
+}

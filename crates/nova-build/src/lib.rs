@@ -769,7 +769,7 @@ fn warn_unsupported_features(project: &Project, scenes: &[&Scene], warnings: &mu
                 for object in &frame.objects {
                     if object.particles.is_some() && seen.insert(object.id) {
                         warnings.push(format!(
-                            "Partikelemitter '{}' wird in der SWF-Vorschau nicht dargestellt; die Einstellung bleibt im Projekt erhalten.",
+                            "Partikelemitter '{}' läuft in der SWF nur, wenn das Spiel die game.NovaGame-Laufzeit verwendet (NovaGame.init); sonst bleibt die Einstellung ohne Darstellung.",
                             object.name
                         ));
                     }
@@ -1677,7 +1677,7 @@ fn nova_game_data_source(
         (0..scene.frame_count()).any(|frame| {
             resolve_scene(scene, frame)
                 .iter()
-                .any(|o| o.instance.game.is_some())
+                .any(|o| o.instance.game.is_some() || o.instance.particles.is_some())
         })
     });
     if export_scenes.len() <= 1 && !has_scene_game && !has_object_game {
@@ -1698,7 +1698,13 @@ fn nova_game_data_source(
     out.push_str("        public static var WORLDS:Object = {};\n");
     out.push_str("        public static var INPUTS:Object = {};\n");
     out.push_str("        public static var TRANSITIONS:Object = {};\n");
+    out.push_str("        public static var EMITTERS:Object = {};\n");
     out.push_str("        public static var TRANS_COUNT:int = 0;\n");
+    let fps = export_scenes.first().map(|s| s.fps).unwrap_or(30.0);
+    out.push_str(&format!(
+        "        public static var FPS:Number = {};\n",
+        num(fps)
+    ));
     out.push_str("        private static var ready:Boolean = false;\n");
     out.push_str("        public static function init():void {\n");
     out.push_str("            if (ready) { return; }\n");
@@ -1827,6 +1833,45 @@ fn nova_game_data_source(
         }
     }
     out.push_str(&format!("            TRANS_COUNT = {trans_idx};\n"));
+
+    // Per-scene particle emitters (NovaGame bridge only).
+    // spec: name|rate|burst|lt0|lt1|ss0|ss1|se0|se1|os0|os1|oe0|oe1|
+    //       csr|csg|csb|cer|ceg|ceb|sp0|sp1|dir|spread|grav|drag|rs0|rs1|max|space
+    for scene in export_scenes {
+        let mut seen_emit: HashMap<Uuid, ()> = HashMap::new();
+        let mut emit_entries: Vec<String> = Vec::new();
+        for frame_idx in 0..scene.frame_count() {
+            for object in resolve_scene(scene, frame_idx) {
+                let Some(emitter) = &object.instance.particles else {
+                    continue;
+                };
+                if !seen_emit.insert(object.instance.id, ()).is_none() {
+                    continue;
+                }
+                emit_entries.push(emitter_spec(
+                    &sanitize_as3_name(&object.instance.name),
+                    emitter,
+                ));
+            }
+        }
+        if emit_entries.is_empty() {
+            continue;
+        }
+        let scene_key = as3_string(&scene.name);
+        let table_var = format!("e{}", table_n);
+        table_n += 1;
+        out.push_str(&format!(
+            "            var {table_var}:Object = {{}}; {table_var}.count = {};\n",
+            emit_entries.len()
+        ));
+        for (i, spec) in emit_entries.iter().enumerate() {
+            out.push_str(&format!("            {table_var}[{i}] = \"{spec}\";\n"));
+        }
+        out.push_str(&format!(
+            "            EMITTERS[\"{scene_key}\"] = {table_var};\n"
+        ));
+    }
+
     out.push_str("        }\n");
     out.push_str("    }\n");
     out.push_str("}\n");
@@ -1912,6 +1957,48 @@ fn collider_spec(
         ));
     }
     Some((sanitize_as3_name(name), format!("{spec}|{points}")))
+}
+
+/// Serialises a [`nova_core::ParticleEmitter`] into the pipe-delimited spec
+/// consumed by `game.NovaGame` (29 fields, indices documented in
+/// `nova_game_data_source`).
+fn emitter_spec(name: &str, e: &nova_core::ParticleEmitter) -> String {
+    let space = match e.space {
+        nova_core::ParticleSpace::Local => 0,
+        nova_core::ParticleSpace::World => 1,
+    };
+    format!(
+        "{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}",
+        name,
+        num(e.rate),
+        e.burst,
+        num(e.lifetime.0),
+        num(e.lifetime.1),
+        num(e.size_start.0),
+        num(e.size_start.1),
+        num(e.size_end.0),
+        num(e.size_end.1),
+        num(e.opacity_start.0),
+        num(e.opacity_start.1),
+        num(e.opacity_end.0),
+        num(e.opacity_end.1),
+        e.color_start.r,
+        e.color_start.g,
+        e.color_start.b,
+        e.color_end.r,
+        e.color_end.g,
+        e.color_end.b,
+        num(e.speed.0),
+        num(e.speed.1),
+        num(e.direction),
+        num(e.spread),
+        num(e.gravity),
+        num(e.drag),
+        num(e.rotation_speed.0),
+        num(e.rotation_speed.1),
+        e.max_particles,
+        space
+    )
 }
 
 /// egui-style key names -> AVM2 KeyboardEvent.keyCode values.

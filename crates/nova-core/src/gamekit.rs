@@ -1,4 +1,4 @@
-﻿//! Built-in ActionScript 3 game kit shipped with game projects.
+//! Built-in ActionScript 3 game kit shipped with game projects.
 //!
 //! Each entry is `(virtual path, source)` and becomes a regular project
 //! [`Script`]. The sources deliberately use only the subset `nova-as`
@@ -295,7 +295,6 @@ const NOVA_GAME: &str = r#"package game {
         // Internals
         // ------------------------------------------------------------------
         private static var root:MovieClip = null;
-        private static var lastTick:int = 0;
         private static var started:Boolean = false;
         private static var sceneIdx:int = -1;
         private static var sceneStart:int = 1;
@@ -349,7 +348,6 @@ const NOVA_GAME: &str = r#"package game {
                 mc.stage.addEventListener(KeyboardEvent.KEY_UP, onKeyUp);
             }
             mc.addEventListener(Event.ENTER_FRAME, tick);
-            lastTick = getTimer();
             sceneIdx = sceneForFrame(mc.currentFrame);
             if (sceneIdx >= 0) {
                 enterScene(sceneIdx, false);
@@ -393,6 +391,8 @@ const NOVA_GAME: &str = r#"package game {
             contacts = {};
             contactKeys = {};
             contactCount = 0;
+            clearEmitters();
+            syncEmitters();
             time = 0;
             timeSec = 0;
             if (idx >= 0) {
@@ -469,6 +469,53 @@ const NOVA_GAME: &str = r#"package game {
             return droppedEvents;
         }
 
+        /// Live particle count across all emitters of the current scene.
+        /// Useful for runtime validation.
+        public static function particleCount():int {
+            var n:int = 0;
+            for (var i:int = 0; i < emitCount; i++) {
+                var e:Object = emitters[i];
+                if (e != null) {
+                    n += e.live;
+                }
+            }
+            return n;
+        }
+
+        /// Teleports a named dynamic/kinematic body and zeroes its velocity.
+        /// Mainly a test/debug hook; returns false for unknown names.
+        public static function setBodyPosition(name:String, x:Number, y:Number):Boolean {
+            for (var i:int = 0; i < bodyCount; i++) {
+                var b:Object = bodies[i];
+                if (b != null && b.name == name) {
+                    b.px = x;
+                    b.py = y;
+                    b.vx = 0;
+                    b.vy = 0;
+                    if (b.o != null) {
+                        b.o.x = x;
+                        b.o.y = y;
+                    }
+                    invalidatePoints(b);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// Diagnostic dump for runtime validation: scene, body count and the
+        /// first few body positions/types.
+        public static function debugInfo():String {
+            var s:String = "scene=" + sceneName + " bodies=" + bodyCount
+                + " contacts=" + contactCount;
+            for (var i:int = 0; i < bodyCount && i < 6; i++) {
+                var b:Object = bodies[i];
+                s += " | " + b.name + "(" + b.btype + "," + b.shape + ","
+                    + b.px + "," + b.py + "," + b.extentW + "x" + b.extentH + ")";
+            }
+            return s;
+        }
+
         // ------------------------------------------------------------------
         // Frame loop
         // ------------------------------------------------------------------
@@ -477,12 +524,12 @@ const NOVA_GAME: &str = r#"package game {
             if (root == null || paused || !started) {
                 return;
             }
-            var now:int = getTimer();
-            var dt:Number = (now - lastTick) / 1000.0;
-            lastTick = now;
-            if (dt < 0) {
-                dt = 0;
-            }
+            // Fixed-step simulation: one ENTER_FRAME == one authored frame,
+            // independent of the renderer's actual frame rate. This matches
+            // Flash-style frame semantics and keeps runtime behaviour
+            // deterministic for tests (Ruffle may tick faster than the SWF
+            // fps when uncapped).
+            var dt:Number = 1.0 / NovaGameData.FPS;
             if (dt > MAX_DT) {
                 dt = MAX_DT;
             }
@@ -515,6 +562,7 @@ const NOVA_GAME: &str = r#"package game {
             syncBodies();
             stepPhysics(dt);
             stepCamera(dt);
+            stepParticles(dt);
             Input.poll();
         }
 
@@ -554,6 +602,8 @@ const NOVA_GAME: &str = r#"package game {
             contactCount = 0;
             prevKeys = {};
             camBase = {};
+            clearEmitters();
+            syncEmitters();
             loadSceneConfig(idx);
             if (announce) {
                 if (oldName != "") {
@@ -748,9 +798,9 @@ const NOVA_GAME: &str = r#"package game {
                     continue;
                 }
                 if (a.btype == 0) {
-                    // Static: follow the display object (scripts may move it).
-                    a.px = a.o.x;
-                    a.py = a.o.y;
+                    // Static bodies keep their authored position; the bridge
+                    // does not adopt display-transform writes (the camera
+                    // owns those). Use setBodyPosition() to move them.
                     continue;
                 }
                 if (a.btype == 2) {
@@ -796,7 +846,42 @@ const NOVA_GAME: &str = r#"package game {
                     a.grounded = false;
                 }
             }
-            // Phase 2: collisions (dynamic vs non-dynamic only, like preview).
+            // Phase 2a: contact detection on post-integration, PRE-resolution
+            // positions. Measuring after resolvePair would report resting
+            // contacts as "no overlap" (depth ~0) and lose enter/exit events.
+            // Cached world-space polygon vertices are stale after integration,
+            // so drop them before measuring.
+            for (var ic:int = 0; ic < bodyCount; ic++) {
+                var bc:Object = bodies[ic];
+                if (bc != null) {
+                    invalidatePoints(bc);
+                }
+            }
+            var current:Object = {};
+            var currentKeys:Object = {};
+            var currentCount:int = 0;
+            for (var ci:int = 0; ci < bodyCount; ci++) {
+                var ca:Object = bodies[ci];
+                if (ca == null) {
+                    continue;
+                }
+                for (var cj:int = ci + 1; cj < bodyCount; cj++) {
+                    var cb:Object = bodies[cj];
+                    if (cb == null || !interacts(ca, cb)) {
+                        continue;
+                    }
+                    if (collide(ca, cb) != null) {
+                        var key:String = pairKey(ca.name, cb.name);
+                        if (current[key] != true) {
+                            current[key] = true;
+                            currentKeys[currentCount] = key;
+                            currentCount++;
+                        }
+                    }
+                }
+            }
+            // Phase 2b: positional correction, dynamic vs non-dynamic only
+            // (mirrors the preview's resolution pass).
             for (var i2:int = 0; i2 < bodyCount; i2++) {
                 var da:Object = bodies[i2];
                 if (da == null || da.btype != 1) {
@@ -843,7 +928,7 @@ const NOVA_GAME: &str = r#"package game {
                     b.o.y = b.py;
                 }
             }
-            updateContacts();
+            updateContacts(current, currentKeys, currentCount);
         }
 
         private static function extentW(b:Object):Number {
@@ -925,15 +1010,7 @@ const NOVA_GAME: &str = r#"package game {
                 }
                 return null;
             }
-            var pxs:Object = poly.ptsWorld;
-            if (pxs == null) {
-                pxs = {};
-                for (var i:int = 0; i < n; i++) {
-                    var p:Object = poly.pts[i];
-                    pxs[i] = { x: poly.px + p[0], y: poly.py + p[1] };
-                }
-                poly.ptsWorld = pxs;
-            }
+            var pxs:Object = worldPoints(poly, n, "ptsWorld");
             // Closest point on polygon boundary to circle centre.
             var cx:Number = circle.px;
             var cy:Number = circle.py;
@@ -1140,39 +1217,9 @@ const NOVA_GAME: &str = r#"package game {
             invalidatePoints(b);
         }
 
-        /// Enter/exit tracking, mirroring GameRuntime::update_contacts but on
-        /// post-integration positions (documented difference: preview uses
-        /// pre-integration positions).
-        private static function updateContacts():void {
-            var current:Object = {};
-            var currentKeys:Object = {};
-            var currentCount:int = 0;
-            for (var i:int = 0; i < bodyCount; i++) {
-                var a:Object = bodies[i];
-                if (a == null) {
-                    continue;
-                }
-                for (var j:int = i + 1; j < bodyCount; j++) {
-                    var b:Object = bodies[j];
-                    if (b == null) {
-                        continue;
-                    }
-                    if (!interacts(a, b)) {
-                        continue;
-                    }
-                    var ca:Object = bodyCollider(a);
-                    var cb:Object = bodyCollider(b);
-                    if (!overlapTest(ca, cb)) {
-                        continue;
-                    }
-                    var key:String = pairKey(a.name, b.name);
-                    if (current[key] != true) {
-                        current[key] = true;
-                        currentKeys[currentCount] = key;
-                        currentCount++;
-                    }
-                }
-            }
+        /// Enter/exit tracking over the pre-resolution contact set computed in
+        /// stepPhysics phase 2a (post-integration positions, like the preview).
+        private static function updateContacts(current:Object, currentKeys:Object, currentCount:int):void {
             // Exits: previous keys absent from the current set.
             for (var e:int = 0; e < contactCount; e++) {
                 var oldKey:String = contactKeys[e];
@@ -1256,15 +1303,13 @@ const NOVA_GAME: &str = r#"package game {
             var follow:String = camCfg[10];
             var tx:Number = camX;
             var ty:Number = camY;
+            var fp:Object = null;
             if (follow != null && follow != "") {
-                var target:DisplayObject = root.getChildByName(follow);
-                if (target != null) {
-                    tx = target.x;
-                    ty = target.y;
-                } else {
-                    tx = worldW / 2;
-                    ty = worldH / 2;
-                }
+                fp = worldPosOf(follow);
+            }
+            if (fp != null) {
+                tx = fp.x;
+                ty = fp.y;
             } else {
                 tx = worldW / 2;
                 ty = worldH / 2;
@@ -1332,10 +1377,38 @@ const NOVA_GAME: &str = r#"package game {
             applyCamera();
         }
 
-        /// Applies the camera to every named top-level child. Base transforms
-        /// are captured once per scene; baked keyframe placements are
-        /// re-captured only on scene change (documented approximation — a
-        /// container-based camera is not possible on the baked timeline).
+        /// Resolves the WORLD position of a named child. Physics bodies are
+        /// authoritative via their body record; other children use the camera
+        /// base transform, refreshed whenever an external write (script,
+        /// timeline, physics) changes the display value away from the last
+        /// camera-applied screen position.
+        private static function worldPosOf(name:String):Object {
+            for (var i:int = 0; i < bodyCount; i++) {
+                var b:Object = bodies[i];
+                if (b != null && b.name == name) {
+                    return { x: b.px, y: b.py };
+                }
+            }
+            var c:DisplayObject = root.getChildByName(name);
+            var base:Object = camBase[name];
+            if (c != null && base != null && (c.x != base.sx || c.y != base.sy)) {
+                return { x: c.x, y: c.y };
+            }
+            if (base != null) {
+                return { x: base.bx, y: base.by };
+            }
+            if (c != null) {
+                return { x: c.x, y: c.y };
+            }
+            return null;
+        }
+
+        /// Applies the camera to every named top-level child. For each child
+        /// the "world" position is whatever was last written by game logic:
+        /// if the display transform still equals the value the camera itself
+        /// produced last frame, the stored base is kept; any other value is
+        /// treated as a fresh world-space write. This keeps physics-driven,
+        /// script-driven and static children correct without a container.
         private static function applyCamera():void {
             var n:int = root.numChildren;
             var zoom:Number = camZoom;
@@ -1350,14 +1423,306 @@ const NOVA_GAME: &str = r#"package game {
                 }
                 var base:Object = camBase[key];
                 if (base == null) {
-                    base = { x: c.x, y: c.y, sx: c.scaleX, sy: c.scaleY };
+                    base = {
+                        bx: c.x, by: c.y, bsx: c.scaleX, bsy: c.scaleY,
+                        sx: c.x, sy: c.y, ssx: c.scaleX, ssy: c.scaleY
+                    };
                     camBase[key] = base;
                 }
-                c.x = viewW / 2 + (base.x - camX) * zoom;
-                c.y = viewH / 2 + (base.y - camY) * zoom;
-                c.scaleX = base.sx * zoom;
-                c.scaleY = base.sy * zoom;
+                // World position: bodies are authoritative via their record;
+                // other children use external-write detection.
+                var wp:Object = worldPosOf(key);
+                if (wp != null) {
+                    base.bx = wp.x;
+                    base.by = wp.y;
+                } else if (c.x != base.sx || c.y != base.sy) {
+                    base.bx = c.x;
+                    base.by = c.y;
+                }
+                if (c.scaleX != base.ssx || c.scaleY != base.ssy) {
+                    base.bsx = c.scaleX;
+                    base.bsy = c.scaleY;
+                }
+                c.x = viewW / 2 + (base.bx - camX) * zoom;
+                c.y = viewH / 2 + (base.by - camY) * zoom;
+                c.scaleX = base.bsx * zoom;
+                c.scaleY = base.bsy * zoom;
+                base.sx = c.x;
+                base.sy = c.y;
+                base.ssx = c.scaleX;
+                base.ssy = c.scaleY;
             }
+        }
+
+        // ------------------------------------------------------------------
+        // Particles (ported from nova_core::particles semantics)
+        // ------------------------------------------------------------------
+
+        private static var emitters:Object = {};
+        private static var emitCount:int = 0;
+
+        /// Builds emitter runtime records for the current scene.
+        private static function syncEmitters():void {
+            emitters = {};
+            emitCount = 0;
+            if (sceneName == "") {
+                return;
+            }
+            var table:Object = NovaGameData.EMITTERS[sceneName];
+            if (table == null) {
+                return;
+            }
+            var count:int = table.count;
+            for (var i:int = 0; i < count; i++) {
+                var spec:String = table[i];
+                var p:Object = splitPipe(spec);
+                if (p.n < 29) {
+                    continue;
+                }
+                var e:Object = {};
+                e.name = p[0];
+                e.spec = p;
+                e.o = null;
+                e.pool = {};
+                e.live = 0;
+                e.acc = 0;
+                e.burstDone = false;
+                e.rng = 12345 + i * 7919;
+                e.prevX = 0;
+                e.prevY = 0;
+                e.hasPrev = false;
+                emitters[i] = e;
+            }
+            emitCount = count;
+        }
+
+        private static function clearEmitters():void {
+            for (var i:int = 0; i < emitCount; i++) {
+                var e:Object = emitters[i];
+                if (e == null) {
+                    continue;
+                }
+                for (var s:int = 0; s < 512; s++) {
+                    var slot:Object = e.pool[s];
+                    if (slot != null && slot.view != null) {
+                        root.removeChild(slot.view);
+                    }
+                }
+            }
+            emitters = {};
+            emitCount = 0;
+        }
+
+        private static function stepParticles(dt:Number):void {
+            if (emitCount == 0 || root == null) {
+                return;
+            }
+            for (var i:int = 0; i < emitCount; i++) {
+                var e:Object = emitters[i];
+                if (e == null) {
+                    continue;
+                }
+                var obj:DisplayObject = findObject(e.name);
+                if (obj == null) {
+                    continue;
+                }
+                e.o = obj;
+                updateEmitter(e, obj.x, obj.y, dt);
+            }
+        }
+
+        /// Finds a display object by (sanitised) name, tolerating the
+        /// `_<depth>` suffix the exporter adds to duplicate instance names.
+        private static function findObject(name:String):DisplayObject {
+            var obj:DisplayObject = root.getChildByName(name);
+            if (obj != null) {
+                return obj;
+            }
+            for (var k:int = 2; k <= 64; k++) {
+                obj = root.getChildByName(name + "_" + k);
+                if (obj != null) {
+                    return obj;
+                }
+            }
+            return null;
+        }
+
+        private static function updateEmitter(e:Object, ox:Number, oy:Number, dt:Number):void {
+            var spec:Object = e.spec;
+            var local:Boolean = f(spec, 28) == 0;
+            // Local space: drag live particles by the emitter delta.
+            if (local && e.hasPrev) {
+                var dx:Number = ox - e.prevX;
+                var dy:Number = oy - e.prevY;
+                if (dx != 0 || dy != 0) {
+                    for (var s:int = 0; s < 512; s++) {
+                        var slot:Object = e.pool[s];
+                        if (slot != null && slot.alive == true) {
+                            slot.x += dx;
+                            slot.y += dy;
+                        }
+                    }
+                }
+            }
+            e.prevX = ox;
+            e.prevY = oy;
+            e.hasPrev = true;
+
+            var maxP:int = parseInt(spec[27], 10);
+            if (maxP < 1) {
+                maxP = 1;
+            }
+            if (maxP > 512) {
+                maxP = 512;
+            }
+            // Continuous emission.
+            var rate:Number = f(spec, 1);
+            if (rate > 0) {
+                e.acc += rate * dt;
+                while (e.acc >= 1.0 && e.live < maxP) {
+                    e.acc -= 1.0;
+                    spawnParticle(e, ox, oy, local);
+                }
+            }
+            // One-shot burst on first update.
+            if (e.burstDone != true) {
+                e.burstDone = true;
+                var burst:int = parseInt(spec[2], 10);
+                if (burst > maxP) {
+                    burst = maxP;
+                }
+                for (var b:int = 0; b < burst; b++) {
+                    if (e.live >= maxP) {
+                        break;
+                    }
+                    spawnParticle(e, ox, oy, local);
+                }
+            }
+
+            var grav:Number = f(spec, 23);
+            var drag:Number = f(spec, 24);
+            for (var i:int = 0; i < 512; i++) {
+                var p:Object = e.pool[i];
+                if (p == null || p.alive != true) {
+                    continue;
+                }
+                p.age += dt;
+                if (p.age >= p.life) {
+                    p.alive = false;
+                    p.view.visible = false;
+                    e.live--;
+                    continue;
+                }
+                p.vy += grav * dt;
+                var damp:Number = 1.0 - drag * dt;
+                if (damp < 0) {
+                    damp = 0;
+                }
+                p.vx *= damp;
+                p.vy *= damp;
+                p.x += p.vx * dt;
+                p.y += p.vy * dt;
+                p.rot += p.rotV * dt;
+                renderParticle(e, p, ox, oy, local);
+            }
+        }
+
+        private static function rand01(e:Object):Number {
+            // Park-Miller LCG; product stays below 2^53 so doubles are exact.
+            e.rng = (e.rng * 48271) % 2147483647;
+            return e.rng / 2147483647;
+        }
+
+        private static function prange(e:Object, spec:Object, i0:int, i1:int):Number {
+            var a:Number = f(spec, i0);
+            var b:Number = f(spec, i1);
+            return a + (b - a) * rand01(e);
+        }
+
+        private static function spawnParticle(e:Object, ox:Number, oy:Number, local:Boolean):void {
+            var spec:Object = e.spec;
+            // Find a free pool slot.
+            var slot:Object = null;
+            var slotIdx:int = -1;
+            for (var i:int = 0; i < 512; i++) {
+                var cand:Object = e.pool[i];
+                if (cand == null) {
+                    cand = {};
+                    cand.view = new flash.display.Sprite();
+                    cand.view.visible = false;
+                    root.addChild(cand.view);
+                    e.pool[i] = cand;
+                }
+                if (cand.alive != true) {
+                    slot = cand;
+                    slotIdx = i;
+                    break;
+                }
+            }
+            if (slot == null) {
+                return;
+            }
+            var speed:Number = prange(e, spec, 19, 20);
+            var dirDeg:Number = f(spec, 21);
+            var spreadDeg:Number = f(spec, 22);
+            var angle:Number = (dirDeg + (rand01(e) - 0.5) * 2.0 * spreadDeg) * 3.141592653589793 / 180.0;
+            slot.alive = true;
+            slot.x = local ? 0 : ox;
+            slot.y = local ? 0 : oy;
+            slot.vx = speed * fCos(angle);
+            slot.vy = speed * fSin(angle);
+            slot.age = 0;
+            slot.life = prange(e, spec, 3, 4);
+            if (slot.life < 0.01) {
+                slot.life = 0.01;
+            }
+            slot.ss = prange(e, spec, 5, 6);
+            slot.se = prange(e, spec, 7, 8);
+            slot.os = prange(e, spec, 9, 10);
+            slot.oe = prange(e, spec, 11, 12);
+            slot.csr = f(spec, 13);
+            slot.csg = f(spec, 14);
+            slot.csb = f(spec, 15);
+            slot.cer = f(spec, 16);
+            slot.ceg = f(spec, 17);
+            slot.ceb = f(spec, 18);
+            slot.rot = rand01(e) * 360.0;
+            slot.rotV = prange(e, spec, 25, 26) * 3.141592653589793 / 180.0;
+            e.live++;
+            renderParticle(e, slot, ox, oy, local);
+        }
+
+        private static function renderParticle(e:Object, p:Object, ox:Number, oy:Number, local:Boolean):void {
+            var t:Number = p.age / p.life;
+            if (t > 1) {
+                t = 1;
+            }
+            if (t < 0) {
+                t = 0;
+            }
+            var size:Number = p.ss + (p.se - p.ss) * t;
+            var op:Number = p.os + (p.oe - p.os) * t;
+            if (op < 0) {
+                op = 0;
+            }
+            if (op > 1) {
+                op = 1;
+            }
+            var r:int = p.csr + (p.cer - p.csr) * t;
+            var g:int = p.csg + (p.ceg - p.csg) * t;
+            var b:int = p.csb + (p.ceb - p.csb) * t;
+            if (size < 0.5) {
+                size = 0.5;
+            }
+            var v = p.view;
+            v.x = local ? ox + p.x : p.x;
+            v.y = local ? oy + p.y : p.y;
+            v.rotation = p.rot;
+            var half:Number = size / 2;
+            v.graphics.clear();
+            v.graphics.beginFill((r << 16) | (g << 8) | b, op);
+            v.graphics.drawRect(-half, -half, size, size);
+            v.graphics.endFill();
         }
 
         // ------------------------------------------------------------------
