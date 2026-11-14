@@ -1359,6 +1359,7 @@ mod tests {
                 bottom: 600.0,
                 zoom: 1.5,
             }),
+            transitions: Vec::new(),
             input: Some(crate::model::InputBindings {
                 left: "A".into(),
                 right: "D".into(),

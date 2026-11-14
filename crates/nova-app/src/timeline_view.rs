@@ -282,6 +282,13 @@ fn toolbar(
             actions.push(UiAction::Stop);
         }
         if ui
+            .button("Neu")
+            .on_hover_text("Wiedergabe neu starten (Szene zurücksetzen)")
+            .clicked()
+        {
+            actions.push(UiAction::RestartPlayback);
+        }
+        if ui
             .button(">")
             .on_hover_text("Ein Frame vor (Pfeil rechts)")
             .clicked()
@@ -297,6 +304,9 @@ fn toolbar(
         }
 
         ui.separator();
+        ui.label("Lautstärke");
+        ui.add(egui::Slider::new(&mut state.preview_volume, 0.0..=1.0).fixed_decimals(2))
+            .on_hover_text("Vorschau-Lautstärke (0.0 = stumm)");
 
         ui.label(egui::RichText::new("Frame").small().color(theme::TEXT_DIM));
         let mut frame = (state.frame + 1) as u32;

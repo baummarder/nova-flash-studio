@@ -198,7 +198,11 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
                 continue;
             };
             let (w, h, circle) = match body.collision {
-                Some(spec) => (spec.width, spec.height, spec.shape == nova_core::CollisionShape::Circle),
+                Some(spec) => (
+                    spec.width,
+                    spec.height,
+                    spec.shape == nova_core::CollisionShape::Circle,
+                ),
                 None => (body.width, body.height, false),
             };
             if w <= 0.0 || h <= 0.0 {
@@ -617,6 +621,24 @@ fn draw_playhead_hint(
         FontId::proportional(11.0),
         theme::TEXT_FAINT,
     );
+
+    if let Some(runtime) = &state.game_preview {
+        let status = match runtime.status {
+            nova_core::game::runtime::RuntimeStatus::Running => "läuft",
+            nova_core::game::runtime::RuntimeStatus::Paused => "pausiert",
+            nova_core::game::runtime::RuntimeStatus::Stopped => "gestoppt",
+        };
+        painter.text(
+            Pos2::new(stage_rect.center().x, stage_rect.top() - 8.0),
+            Align2::CENTER_BOTTOM,
+            format!(
+                "{} · t={:.1}s · {}",
+                runtime.scene_name, runtime.time, status
+            ),
+            FontId::proportional(11.0),
+            theme::ACCENT,
+        );
+    }
 
     if state.onion_skin {
         painter.text(

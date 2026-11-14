@@ -273,6 +273,18 @@ pub enum ProjectOperation {
     /// `game.Collision`, `game.Camera`, `game.Random`, `game.Physics`).
     /// Existing scripts are never overwritten.
     InstallGameKit,
+    /// Adds, updates or removes a key-triggered scene transition on a
+    /// scene's game config. `key` uses the same naming space as the input
+    /// bindings ("Space", "Enter", "A", ...); `target` must name an existing
+    /// scene. `remove` deletes the transition for `key`.
+    SetSceneTransition {
+        key: String,
+        target: String,
+        #[serde(default)]
+        scene: Option<String>,
+        #[serde(default)]
+        remove: bool,
+    },
 }
 
 #[derive(Debug, thiserror::Error, Clone, PartialEq, Eq)]
@@ -1189,12 +1201,7 @@ fn apply_one(
             no_physics,
             clear,
         } => {
-            if collision.is_none()
-                && physics.is_none()
-                && !no_collision
-                && !no_physics
-                && !clear
-            {
+            if collision.is_none() && physics.is_none() && !no_collision && !no_physics && !clear {
                 return Err(OperationError::invalid(
                     "SetGameObject benötigt mindestens eine Änderung (collision, physics, no_*, clear).",
                 ));
@@ -1226,8 +1233,7 @@ fn apply_one(
                 }
             }
             let (layer_index, frame_index, object_index) = matches[0];
-            let target =
-                &mut scene.layers[layer_index].frames[frame_index].objects[object_index];
+            let target = &mut scene.layers[layer_index].frames[frame_index].objects[object_index];
             if *clear {
                 target.game = None;
             } else {
@@ -1321,7 +1327,9 @@ fn apply_one(
                 scene.game = Some(config);
             }
             project.touch();
-            Ok(format!("Spielkonfiguration für Szene '{scene_name}' gesetzt"))
+            Ok(format!(
+                "Spielkonfiguration für Szene '{scene_name}' gesetzt"
+            ))
         }
         ProjectOperation::InstallGameKit => {
             let before = project.scripts.len();
@@ -1330,6 +1338,56 @@ fn apply_one(
             project.touch();
             Ok(format!(
                 "Spiel-Kit installiert ({added} Skript(e) hinzugefügt; vorhandene bleiben unverändert)"
+            ))
+        }
+        ProjectOperation::SetSceneTransition {
+            key,
+            target,
+            scene,
+            remove,
+        } => {
+            let key = key.trim();
+            if key.is_empty() || key.chars().count() > 40 {
+                return Err(OperationError::invalid(
+                    "Transition-Taste ist leer oder zu lang.",
+                ));
+            }
+            let scene_names: Vec<String> = project.scenes.iter().map(|s| s.name.clone()).collect();
+            let scene = scene_mut(project, scene.as_deref())?;
+            let scene_name = scene.name.clone();
+            let mut config = scene.game.clone().unwrap_or_default();
+            if *remove {
+                let before = config.transitions.len();
+                config.transitions.retain(|t| t.key != key);
+                if config.transitions.len() == before {
+                    return Err(OperationError::invalid(format!(
+                        "Keine Transition für Taste '{key}' in Szene '{scene_name}'."
+                    )));
+                }
+            } else {
+                let target = target.trim();
+                if target.is_empty() || target.chars().count() > 120 {
+                    return Err(OperationError::invalid(
+                        "Transition-Zielszene ist leer oder zu lang.",
+                    ));
+                }
+                if !scene_names.iter().any(|name| name == target) {
+                    return Err(OperationError::invalid(format!(
+                        "Zielszene '{target}' existiert nicht."
+                    )));
+                }
+                match config.transitions.iter_mut().find(|t| t.key == key) {
+                    Some(existing) => existing.target = target.to_string(),
+                    None => config.transitions.push(nova_core::SceneTransition {
+                        key: key.to_string(),
+                        target: target.to_string(),
+                    }),
+                }
+            }
+            scene.game = Some(config);
+            project.touch();
+            Ok(format!(
+                "Szene-Transition '{key}' in Szene '{scene_name}' aktualisiert"
             ))
         }
     }
@@ -2240,5 +2298,75 @@ mod tests {
             .find(|object| object.name == "Held")
             .unwrap();
         assert!(object.game.is_none());
+    }
+
+    #[test]
+    fn scene_transition_operation_validates_and_updates() {
+        let mut project = Project::new_empty("Scenes");
+        let first_scene = project.scenes[0].name.clone();
+        apply_operations(
+            &mut project,
+            &[
+                ProjectOperation::AddScene {
+                    name: "Level".into(),
+                },
+                ProjectOperation::SetSceneTransition {
+                    key: "Enter".into(),
+                    target: "Level".into(),
+                    scene: None,
+                    remove: false,
+                },
+            ],
+        )
+        .unwrap();
+        let scene = project.active_scene().unwrap();
+        let transitions = &scene.game.as_ref().unwrap().transitions;
+        assert_eq!(transitions.len(), 1);
+        assert_eq!(transitions[0].target, "Level");
+
+        // Same key updates the target instead of duplicating.
+        apply_operations(
+            &mut project,
+            &[ProjectOperation::SetSceneTransition {
+                key: "Enter".into(),
+                target: first_scene.clone(),
+                scene: None,
+                remove: false,
+            }],
+        )
+        .unwrap();
+        let scene = project.active_scene().unwrap();
+        let transitions = &scene.game.as_ref().unwrap().transitions;
+        assert_eq!(transitions.len(), 1);
+        assert_eq!(transitions[0].target, first_scene);
+
+        // Unknown target is rejected and leaves state untouched.
+        let before = project.clone();
+        let err = apply_operations(
+            &mut project,
+            &[ProjectOperation::SetSceneTransition {
+                key: "Space".into(),
+                target: "Missing".into(),
+                scene: None,
+                remove: false,
+            }],
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("Missing"));
+        assert_eq!(project, before);
+
+        // Remove works.
+        apply_operations(
+            &mut project,
+            &[ProjectOperation::SetSceneTransition {
+                key: "Enter".into(),
+                target: String::new(),
+                scene: None,
+                remove: true,
+            }],
+        )
+        .unwrap();
+        let scene = project.active_scene().unwrap();
+        assert!(scene.game.as_ref().unwrap().transitions.is_empty());
     }
 }

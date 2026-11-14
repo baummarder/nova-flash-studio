@@ -554,6 +554,12 @@ crates/nova-core/src/
   model/object.rs       ObjectInstance, ObjectKind, Symbol
   model/transform.rs    center-origin transform + matrix/lerp
   model/color.rs        RGBA, hex, lerp
+  model/game.rs         game metadata (collision, physics, camera, input,
+                        scene transitions)
+  game.rs               preview simulation primitives (bodies, step, camera)
+  game/runtime.rs       GameRuntime: scene lifecycle, event bus, transitions
+  gamekit.rs            installable AS3 game-kit scripts
+  games.rs              built-in game template definitions
   time.rs               frame/time conversion and playback stepping
   error.rs              ProjectError
   lib.rs                public re-exports
@@ -608,6 +614,7 @@ crates/nova-app/src/
   code_view.rs          editor and problems
   highlight.rs          AS3 highlighting
   console.rs            QuickJS console
+  audio.rs              rodio preview audio engine and cue collection
   theme.rs util.rs      styling and geometry helpers
 ```
 
@@ -716,7 +723,7 @@ IO, `nova-ai` owns provider/privacy/operations and `nova-app` is the egui shell.
   MovieClip-like sprites with a warning.
 - XFL: the experimental `.xfl` ZIP importer/exporter round-trips symbols,
   nested instances, layers, keyframes, tweens, assets and sound references;
-  a structural XFL?NØVA?XFL?NØVA test guards the M9 fields. It is not validated
+  a structural XFL?Nï¿½VA?XFL?Nï¿½VA test guards the M9 fields. It is not validated
   in Adobe Animate and native `.fla` remains unsupported.
 
 ### Application
@@ -738,3 +745,77 @@ accept a `symbol` name selector. Asset imports never touch the filesystem
 directly: `preview_operations_with`/`apply_operations_with` take a
 workspace-confined `read_asset` callback (`Workspace::read_bytes`), so path
 traversal is rejected before any read and the batch stays transactional.
+
+## 14. Mega Milestones 10/10.1 additions (0.6.0-rc2)
+
+M10/M10.1 keep the crate boundaries: `nova-core` owns all game runtime state,
+`nova-app` is the egui shell that drives it, `nova-ai` mutates game metadata
+through typed operations only.
+
+### Game document model (format version 3)
+
+- `ObjectInstance.game: Option<GameObjectConfig>` carries optional collision
+  (`CollisionSpec`: rect/circle) and physics (`PhysicsSpec`: static/dynamic/
+  kinematic, gravity scale, friction, bounce, controlled flag).
+- `Scene.game: Option<GameSceneConfig>` carries camera (`CameraConfig`),
+  input bindings (`InputBindings`) and, since M10.1, `transitions:
+  Vec<SceneTransition>` (key name + target scene name, rising-edge trigger).
+  All fields are serde-defaulted; v2 projects load unchanged.
+
+### Game runtime (`nova_core::game::runtime`)
+
+- `GameRuntime` snapshots the active scene (bodies via `collect_bodies`,
+  per-body `BodyState`, `CameraState`, scene config) and owns the lifecycle:
+  `start`/`pause`/`resume`/`stop`/`restart`/`reset_scene`/`goto_scene`.
+- `goto_scene` resolves targets by name or id, refuses unknown targets with
+  `RuntimeError::SceneNotFound` without touching state, persists per-scene
+  body states (returning to a scene restores positions), and dispatches
+  `SceneUnload`/`SceneTransition`/`SceneLoad` events.
+- `EventBus` is a typed multi-listener registry keyed by `GameEventKind`
+  (lifecycle, scene, `CollisionEnter`/`CollisionExit`, `InputPressed`).
+  Listeners are `Fn(&GameEvent)` callbacks returning opaque `ListenerId`s;
+  `remove` detaches exactly one registration. Dispatch snapshots the
+  listener list, allows safe register/remove during dispatch and caps
+  re-entrant depth at `MAX_DISPATCH_DEPTH` (8) counting dropped events.
+- Collision events are computed from pre-integration positions each step
+  (enter/exit edges); sustained contacts re-fire only after a real gap.
+- `step` clamps `dt` to 100 ms (tab-switch safe), integrates via the M10
+  `game::step`/`step_camera` primitives, emits input rising-edge events and
+  evaluates configured key-triggered scene transitions (at most one per
+  step; failed targets dispatch a `SceneTransition` event with the error
+  and keep running).
+
+### Application
+
+- The egui shell owns one `GameRuntime` per play session
+  (`AppState::game_preview`). Transport buttons map to lifecycle calls:
+  play/pause toggles `start`/`pause`, "Neu" calls `restart`, "Stop" calls
+  `stop`. Scene-tree selection during play routes through `goto_scene`.
+- The stage overlay shows active scene name, simulation time and runtime
+  status while a preview runs.
+- `audio.rs` wraps rodio (`DeviceSinkBuilder::open_default_sink`,
+  per-sound `Player`): embedded asset bytes decode via symphonia
+  (WAV/MP3/FLAC/OGG), multiple instances overlap, a master volume slider
+  lives in the timeline transport, and pause/resume/stop follow playback.
+  `play_sound_cues` fires `SoundCue`s when the playhead enters a frame;
+  missing assets and decode failures are logged as warnings.
+- Properties inspector gained a per-scene "Szenenwechsel" editor (key +
+  target scene combo + remove).
+
+### AI operations
+
+`SetSceneTransition { key, target, scene?, remove? }` adds, updates or
+removes a scene transition with validation (non-empty bounded key, existing
+target scene, no duplicates per key). Audio cues and game objects were
+already covered by M9/M10 operations.
+
+### Honest scope
+
+- Scene transitions exist in the editor preview runtime only. AS3 cannot
+  call into the host, so exported SWFs implement navigation themselves;
+  `gotoAndStop`-style timeline jumps are not part of the AS3 subset.
+- Event listeners are Rust-side (editor/tests). No AS3 event API exists.
+- Preview audio plays each cue once per frame entry; `loop_count`,
+  `offset` and `duration` are honoured by the SWF exporter, not the preview.
+- Ruffle validation covers SWF export regression; it does not exercise the
+  editor runtime. Actual audible output was not verified headless.

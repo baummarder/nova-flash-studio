@@ -8,23 +8,34 @@ the project format is versioned JSON, and the SWF writer is implemented directly
 against the published SWF file-format specification. Tools and extensions run in
 an embedded QuickJS context; ActionScript is **not** executed by QuickJS.
 
-> **Status: Mega Milestone 10 release candidate `0.6.0-rc1`, not stable.**
-> The validated `0.5.0-rc2`/`0.5.0-rc1` artifacts remain under `dist/` and
-> `dist/archive/`. M10 adds game development on top of M9: optional game
-> metadata in the `.nova` format (now version 3, backwards compatible),
-> collision/physics/camera/input configuration per object and scene, a
-> real-time editor preview simulation with keyboard-driven controlled
-> bodies and a follow camera, an installable AS3 game kit
+> **Status: Mega Milestone 10.1 release candidate `0.6.0-rc2`, not stable.**
+> The validated `0.6.0-rc1`, `0.5.0-rc2`/`0.5.0-rc1` artifacts remain under
+> `dist/` and `dist/archive/`. M10 added game development on top of M9:
+> optional game metadata in the `.nova` format (version 3, backwards
+> compatible), collision/physics/camera/input configuration per object and
+> scene, a real-time editor preview simulation, an installable AS3 game kit
 > (`game.Input`/`Collision`/`Camera`/`Random`/`Physics`), seven game
 > templates (blank, pong, breakout, platformer, topdown, racing, menu)
-> that compile to working SWFs, three new AI operations, and three fixed
-> AVM2 emission bugs (MultinameL namespace sets, missing `label` ops for
-> backward jumps, `dynamic` class rejection). All seven templates were
-> verified running in Ruffle 0.7.1 with live `trace()` output. Scene
-> transitions, a game-event bus and audio in the preview remain
-> unimplemented and are labelled as such in the report. macOS and Linux
-> packages are scripted and structurally checked but were not built on
+> that compile to working SWFs, and three fixed AVM2 emission bugs
+> (MultinameL namespace sets, missing `label` ops for backward jumps,
+> `dynamic` class rejection). All seven templates were verified running in
+> Ruffle 0.7.1.
+>
+> M10.1 closes the three documented M10 gaps: a unified game runtime in
+> `nova-core` (`GameRuntime`) with a defined scene lifecycle
+> (load/unload/transition, per-scene state memory, invalid-target
+> protection), a typed event bus (lifecycle, scene, collision enter/exit
+> and input events with listener removal and recursion limits), key-triggered
+> scene transitions configurable per scene, real audio playback in the game
+> preview via rodio (multi-instance, master volume, pause/resume/stop,
+> timeline sound cues), a start/pause/resume/stop/restart lifecycle with
+> delta-time clamping and an on-stage status readout, one new AI operation
+> (`SetSceneTransition`), and a regression re-run of all seven templates in
+> Ruffle 0.7.1. Audio inside the SWF runtime and AS3-side scene switching
+> remain unimplemented and are labelled as such in the report. macOS and
+> Linux packages are scripted and structurally checked but were not built on
 > their native hosts here. See [Limitations](#limitations),
+> [docs/MEGA_MILESTONE_10_1_REPORT.md](docs/MEGA_MILESTONE_10_1_REPORT.md),
 > [docs/MEGA_MILESTONE_10_REPORT.md](docs/MEGA_MILESTONE_10_REPORT.md),
 > [docs/MEGA_MILESTONE_9_REPORT.md](docs/MEGA_MILESTONE_9_REPORT.md),
 > [docs/AI_AGENT_EDITOR.md](docs/AI_AGENT_EDITOR.md),
@@ -79,7 +90,7 @@ Rust.
 
 | Platform | Package | Status in this repository |
 | --- | --- | --- |
-| Windows 10/11 x64 | `NOVA-Flash-Studio-<version>-windows-x64-Setup.exe` installer, or the portable `NØVA Flash Studio.exe` in the ZIP under `dist/windows/` | Rebuilt and smoke-tested for `0.6.0-rc1`; headless install/uninstall verified |
+| Windows 10/11 x64 | `NOVA-Flash-Studio-<version>-windows-x64-Setup.exe` installer, or the portable `NØVA Flash Studio.exe` in the ZIP under `dist/windows/` | Rebuilt and smoke-tested for `0.6.0-rc2`; headless install/uninstall verified |
 | macOS 10.15+ | `NØVA Flash Studio.app` ZIP | Bundle script and metadata prepared; not built here |
 | Linux x86_64 | `NØVA-Flash-Studio.AppImage` | AppImage recipe prepared; not built here |
 
@@ -119,9 +130,9 @@ bash scripts/package-macos.sh
 bash scripts/package-linux.sh
 ```
 
-The current Windows artifacts are produced from workspace version `0.6.0-rc1`:
+The current Windows artifacts are produced from workspace version `0.6.0-rc2`:
 the portable ZIP, the staged `NØVA Flash Studio.exe`, and the self-contained
-`NOVA-Flash-Studio-0.6.0-rc1-windows-x64-Setup.exe`. Sizes and SHA-256 values are
+`NOVA-Flash-Studio-0.6.0-rc2-windows-x64-Setup.exe`. Sizes and SHA-256 values are
 listed in `dist/windows/SHA256SUMS.txt`, which is authoritative even if a
 documentation-only rebuild changes a ZIP or Setup hash. The validated
 `0.4.0-rc1` artifacts are preserved under `dist/archive/0.4.0-rc1` and

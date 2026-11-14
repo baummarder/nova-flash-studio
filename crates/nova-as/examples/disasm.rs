@@ -1,7 +1,9 @@
 use std::io::Read;
 
 fn main() {
-    let path = std::env::args().nth(1).expect("usage: disasm <file.swf|file.abc>");
+    let path = std::env::args()
+        .nth(1)
+        .expect("usage: disasm <file.swf|file.abc>");
     let data = std::fs::read(&path).unwrap();
     // If raw ABC (starts with minor/major 0x10 0x00), use directly; else find DoABC2 in SWF.
     let abcs: Vec<Vec<u8>> = if data.len() > 4 && data[0] == 0x10 && data[1] == 0x00 {
@@ -36,7 +38,8 @@ fn extract_doabc_fws(data: &[u8]) -> Vec<Vec<u8>> {
         pos += 2;
         let code = tag_head >> 6;
         let len = if tag_head & 0x3f == 0x3f {
-            let l = u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]]) as usize;
+            let l = u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]])
+                as usize;
             pos += 4;
             l
         } else {
@@ -59,11 +62,22 @@ fn extract_doabc_fws(data: &[u8]) -> Vec<Vec<u8>> {
 
 fn dump_abc(file: &swf::avm2::types::AbcFile) {
     for (mi, m) in file.methods.iter().enumerate() {
-        println!("method[{mi}] params={} ret={:?}", m.params.len(), m.return_type);
+        println!(
+            "method[{mi}] params={} ret={:?}",
+            m.params.len(),
+            m.return_type
+        );
     }
     for (bi, body) in file.method_bodies.iter().enumerate() {
-        println!("--- body[{bi}] method={:?} locals={} max_stack={} init_scope={} max_scope={} code_len={}",
-            body.method.0, body.num_locals, body.max_stack, body.init_scope_depth, body.max_scope_depth, body.code.len());
+        println!(
+            "--- body[{bi}] method={:?} locals={} max_stack={} init_scope={} max_scope={} code_len={}",
+            body.method.0,
+            body.num_locals,
+            body.max_stack,
+            body.init_scope_depth,
+            body.max_scope_depth,
+            body.code.len()
+        );
         // Re-serialize ops? swf crate stores ops; print raw code hex instead.
         for chunk in body.code.chunks(16) {
             print!("  ");

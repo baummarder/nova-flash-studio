@@ -3,6 +3,7 @@
 mod ai_editor;
 mod ai_providers;
 mod app;
+mod audio;
 mod autosave;
 mod branding;
 mod code_view;

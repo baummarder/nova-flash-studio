@@ -274,6 +274,7 @@ pub enum UiAction {
     SetBottomTab(BottomTab),
     TogglePlay,
     Stop,
+    RestartPlayback,
     Step(i32),
     FirstFrame,
     LastFrame,
@@ -390,17 +391,10 @@ pub struct AppState {
     pub asset_textures: HashMap<Uuid, egui::TextureHandle>,
     pub selected_asset: Option<Uuid>,
     pub selected_sound_cue: Option<(Uuid, usize)>,
-    /// Live game-preview simulation state while the timeline plays.
-    pub game_preview: Option<GamePreview>,
-}
-
-/// Renderer-side state for the game preview simulation (`nova_core::game`).
-pub struct GamePreview {
-    /// Scene the simulation belongs to; rebuilt when the scene changes.
-    pub scene: Uuid,
-    pub bodies: Vec<nova_core::game::GameBody>,
-    pub states: HashMap<Uuid, nova_core::game::BodyState>,
-    pub camera: nova_core::game::CameraState,
+    /// Live game-preview runtime while the timeline plays.
+    pub game_preview: Option<nova_core::game::runtime::GameRuntime>,
+    /// Master volume for preview audio, 0.0..=1.0.
+    pub preview_volume: f32,
 }
 
 impl AppState {
@@ -466,6 +460,7 @@ impl AppState {
             selected_asset: project.assets.first().map(|asset| asset.id),
             selected_sound_cue: None,
             game_preview: None,
+            preview_volume: 1.0,
         };
         state.log(
             LogLevel::Info,

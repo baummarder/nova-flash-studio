@@ -6,11 +6,11 @@
 //! execute inside Ruffle/Adobe like any other AS3 content — nothing here is a
 //! fake preview.
 
+use crate::gamekit;
 use crate::model::{
     BodyType, CollisionShape, CollisionSpec, Frame, GameObjectConfig, Layer, ObjectInstance,
     PhysicsSpec, Project, Rgba, Script,
 };
-use crate::gamekit;
 
 /// A shippable game template.
 pub struct GameTemplate {

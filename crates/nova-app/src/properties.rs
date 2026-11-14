@@ -214,6 +214,7 @@ fn game_scene_properties(ui: &mut Ui, project: &mut Project, state: &mut AppStat
     let index = project.active_scene_index();
     let mut changed = false;
     theme::section(ui, "Spiel");
+    let scene_names: Vec<String> = project.scenes.iter().map(|s| s.name.clone()).collect();
 
     let scene = &mut project.scenes[index];
     let mut enabled = scene.game.is_some();
@@ -310,11 +311,7 @@ fn game_scene_properties(ui: &mut Ui, project: &mut Project, state: &mut AppStat
                     ] {
                         ui.label(label);
                         changed |= ui
-                            .add(
-                                egui::DragValue::new(field)
-                                    .speed(1.0)
-                                    .suffix(" px"),
-                            )
+                            .add(egui::DragValue::new(field).speed(1.0).suffix(" px"))
                             .changed();
                         ui.end_row();
                     }
@@ -353,6 +350,55 @@ fn game_scene_properties(ui: &mut Ui, project: &mut Project, state: &mut AppStat
                         ui.end_row();
                     }
                 });
+        }
+
+        // Scene transitions ---------------------------------------------------
+        ui.label(
+            RichText::new("Szenenwechsel (Taste → Szene, rising edge)")
+                .small()
+                .color(theme::TEXT_DIM),
+        );
+        let mut remove_index: Option<usize> = None;
+        for (index, transition) in game.transitions.iter_mut().enumerate() {
+            ui.horizontal(|ui| {
+                ui.label("Taste");
+                changed |= ui
+                    .add(egui::TextEdit::singleline(&mut transition.key).desired_width(90.0))
+                    .changed();
+                ui.label("→");
+                let mut target = transition.target.clone();
+                egui::ComboBox::from_id_salt(("game_transition_target", index))
+                    .selected_text(if target.is_empty() {
+                        "(wählen)".to_string()
+                    } else {
+                        target.clone()
+                    })
+                    .show_ui(ui, |ui| {
+                        for name in &scene_names {
+                            if ui.selectable_label(target == *name, name).clicked() {
+                                target = name.clone();
+                            }
+                        }
+                    });
+                if target != transition.target {
+                    transition.target = target;
+                    changed = true;
+                }
+                if ui.small_button("×").clicked() {
+                    remove_index = Some(index);
+                }
+            });
+        }
+        if let Some(index) = remove_index {
+            game.transitions.remove(index);
+            changed = true;
+        }
+        if ui.small_button("+ Szenenwechsel").clicked() {
+            game.transitions.push(nova_core::SceneTransition {
+                key: "Enter".into(),
+                target: scene_names.first().cloned().unwrap_or_default(),
+            });
+            changed = true;
         }
     }
 
@@ -1260,7 +1306,10 @@ fn object_properties(
                                 (nova_core::CollisionShape::Rectangle, "Rechteck"),
                                 (nova_core::CollisionShape::Circle, "Kreis"),
                             ] {
-                                if ui.selectable_label(collision.shape == shape, label).clicked() {
+                                if ui
+                                    .selectable_label(collision.shape == shape, label)
+                                    .clicked()
+                                {
                                     collision.shape = shape;
                                     changed = true;
                                 }
@@ -1329,7 +1378,12 @@ fn object_properties(
                         });
                     ui.end_row();
                     for (label, value, range, speed) in [
-                        ("Schwerkraft", &mut physics.gravity_scale, -10.0..=10.0, 0.05),
+                        (
+                            "Schwerkraft",
+                            &mut physics.gravity_scale,
+                            -10.0..=10.0,
+                            0.05,
+                        ),
                         ("Reibung", &mut physics.friction, 0.0..=20.0, 0.05),
                         ("Federung", &mut physics.bounce, 0.0..=1.0, 0.01),
                     ] {

@@ -55,7 +55,9 @@ pub enum Multiname {
     /// `MultinameL` (0x1B): the property name is taken from the operand
     /// stack. Used by `receiver[index]` reads and writes. The namespace set
     /// restricts the lookup (public package by default).
-    Late { namespace_set: u32 },
+    Late {
+        namespace_set: u32,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

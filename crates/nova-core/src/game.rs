@@ -13,6 +13,8 @@
 //! - Rotation is ignored; all volumes are axis-aligned.
 //! - Only objects carrying game metadata participate at all.
 
+pub mod runtime;
+
 use std::collections::HashMap;
 
 use crate::model::{
@@ -123,7 +125,11 @@ pub fn collect_bodies(scene: &Scene, symbols: &[Symbol]) -> Vec<GameBody> {
 fn extent(body: &GameBody) -> (f32, f32, CollisionShape) {
     match body.collision {
         Some(c) => (c.width.max(1.0), c.height.max(1.0), c.shape),
-        None => (body.width.max(1.0), body.height.max(1.0), CollisionShape::Rectangle),
+        None => (
+            body.width.max(1.0),
+            body.height.max(1.0),
+            CollisionShape::Rectangle,
+        ),
     }
 }
 
@@ -217,12 +223,7 @@ pub fn step(
     }
 }
 
-fn resolve_pair(
-    bodies: &[GameBody],
-    states: &mut HashMap<Uuid, BodyState>,
-    i: usize,
-    j: usize,
-) {
+fn resolve_pair(bodies: &[GameBody], states: &mut HashMap<Uuid, BodyState>, i: usize, j: usize) {
     let a = &bodies[i];
     let b = &bodies[j];
     // BodyState is Copy; take both out to satisfy the borrow checker.
@@ -388,7 +389,14 @@ mod tests {
         Transform,
     };
 
-    fn game_object(name: &str, x: f32, y: f32, w: f32, h: f32, game: GameObjectConfig) -> ObjectInstance {
+    fn game_object(
+        name: &str,
+        x: f32,
+        y: f32,
+        w: f32,
+        h: f32,
+        game: GameObjectConfig,
+    ) -> ObjectInstance {
         let mut object = ObjectInstance::rect(name, x, y, w, h, Rgba::WHITE);
         object.game = Some(game);
         object
@@ -448,7 +456,14 @@ mod tests {
         assert_eq!(bodies.len(), 2);
         let mut states = HashMap::new();
         for _ in 0..120 {
-            step(&bodies, &mut states, &InputState::default(), 400.0, 300.0, 1.0 / 60.0);
+            step(
+                &bodies,
+                &mut states,
+                &InputState::default(),
+                400.0,
+                300.0,
+                1.0 / 60.0,
+            );
         }
         let player = bodies.iter().find(|b| b.name == "Spieler").unwrap();
         let state = states.get(&player.id).unwrap();
@@ -517,7 +532,14 @@ mod tests {
         let mover = bodies.iter().find(|b| b.name == "Mover").unwrap();
         let target = bodies.iter().find(|b| b.name == "Target").unwrap();
         let mut states = HashMap::new();
-        step(&bodies, &mut states, &InputState::default(), 400.0, 300.0, 1.0 / 60.0);
+        step(
+            &bodies,
+            &mut states,
+            &InputState::default(),
+            400.0,
+            300.0,
+            1.0 / 60.0,
+        );
         let sm = states.get(&mover.id).unwrap();
         let st = states.get(&target.id).unwrap();
         // Centres must be separated by at least r1+r2 = 20 after resolution.
@@ -552,8 +574,23 @@ mod tests {
             zoom: 1.0,
         };
         for _ in 0..60 {
-            step(&bodies, &mut states, &InputState::default(), 400.0, 300.0, 1.0 / 60.0);
-            step_camera(&mut camera, &config, &bodies, &states, 400.0, 300.0, 1.0 / 60.0);
+            step(
+                &bodies,
+                &mut states,
+                &InputState::default(),
+                400.0,
+                300.0,
+                1.0 / 60.0,
+            );
+            step_camera(
+                &mut camera,
+                &config,
+                &bodies,
+                &states,
+                400.0,
+                300.0,
+                1.0 / 60.0,
+            );
         }
         let hero = &bodies[0];
         let sx = states.get(&hero.id).unwrap().x;

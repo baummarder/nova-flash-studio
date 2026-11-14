@@ -252,8 +252,18 @@ fn linked_avm2_project_keeps_abc_and_as3_flag() {
     let buffer = swf::decompress_swf(output.bytes.as_slice()).expect("decompress");
     let parsed = parse(&buffer);
     assert!(parsed.header.is_action_script_3());
-    assert!(parsed.tags.iter().any(|tag| matches!(tag, swf::Tag::DoAbc2(_))));
-    assert!(parsed.tags.iter().any(|tag| matches!(tag, swf::Tag::SymbolClass(_))));
+    assert!(
+        parsed
+            .tags
+            .iter()
+            .any(|tag| matches!(tag, swf::Tag::DoAbc2(_)))
+    );
+    assert!(
+        parsed
+            .tags
+            .iter()
+            .any(|tag| matches!(tag, swf::Tag::SymbolClass(_)))
+    );
 }
 
 #[test]

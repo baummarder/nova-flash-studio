@@ -14,10 +14,7 @@ fn every_gamekit_script_compiles_without_errors() {
             .iter()
             .filter(|d| d.severity == nova_as::Severity::Error)
             .collect();
-        assert!(
-            errors.is_empty(),
-            "{path} produced errors: {errors:?}"
-        );
+        assert!(errors.is_empty(), "{path} produced errors: {errors:?}");
         assert!(!unit.abc.is_empty(), "{path} produced no ABC");
     }
 }
@@ -30,7 +27,11 @@ fn gamekit_install_is_idempotent() {
     let after_first = project.scripts.len();
     assert_eq!(after_first, before + gamekit::FILES.len());
     gamekit::install(&mut project);
-    assert_eq!(project.scripts.len(), after_first, "second install must not duplicate");
+    assert_eq!(
+        project.scripts.len(),
+        after_first,
+        "second install must not duplicate"
+    );
     for (path, _) in gamekit::FILES {
         assert!(project.scripts.iter().any(|s| s.path == *path));
     }

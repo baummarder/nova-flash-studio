@@ -12,7 +12,7 @@ mod transform;
 pub use color::Rgba;
 pub use game::{
     BodyType, CameraConfig, CollisionShape, CollisionSpec, GameObjectConfig, GameSceneConfig,
-    InputBindings, PhysicsSpec,
+    InputBindings, PhysicsSpec, SceneTransition,
 };
 pub use object::{
     BitmapCrop, ObjectInstance, ObjectKind, PathCommand, PathShape, ScriptId, Symbol, SymbolId,

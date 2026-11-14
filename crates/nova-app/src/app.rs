@@ -16,8 +16,8 @@ use crate::ai_editor::AiEditor;
 use crate::history::History;
 use crate::splash::Splash;
 use crate::state::{
-    AlignMode, AppState, BottomTab, Dialog, GamePreview, KeyframeRef, LogLevel, Mode, PendingAction,
-    Selection, Tool, UiAction,
+    AlignMode, AppState, BottomTab, Dialog, KeyframeRef, LogLevel, Mode, PendingAction, Selection,
+    Tool, UiAction,
 };
 use crate::{
     autosave, branding, code_view, console, flash, properties, stage_view, theme, timeline_view,
@@ -26,17 +26,48 @@ use crate::{
 
 fn egui_key_for_letter(index: usize) -> Key {
     const KEYS: [Key; 26] = [
-        Key::A, Key::B, Key::C, Key::D, Key::E, Key::F, Key::G, Key::H, Key::I, Key::J, Key::K, Key::L,
-        Key::M, Key::N, Key::O, Key::P, Key::Q, Key::R, Key::S, Key::T, Key::U, Key::V, Key::W, Key::X,
-        Key::Y, Key::Z,
+        Key::A,
+        Key::B,
+        Key::C,
+        Key::D,
+        Key::E,
+        Key::F,
+        Key::G,
+        Key::H,
+        Key::I,
+        Key::J,
+        Key::K,
+        Key::L,
+        Key::M,
+        Key::N,
+        Key::O,
+        Key::P,
+        Key::Q,
+        Key::R,
+        Key::S,
+        Key::T,
+        Key::U,
+        Key::V,
+        Key::W,
+        Key::X,
+        Key::Y,
+        Key::Z,
     ];
     KEYS[index.min(25)]
 }
 
 fn egui_key_for_digit(index: usize) -> Key {
     const KEYS: [Key; 10] = [
-        Key::Num0, Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5, Key::Num6, Key::Num7,
-        Key::Num8, Key::Num9,
+        Key::Num0,
+        Key::Num1,
+        Key::Num2,
+        Key::Num3,
+        Key::Num4,
+        Key::Num5,
+        Key::Num6,
+        Key::Num7,
+        Key::Num8,
+        Key::Num9,
     ];
     KEYS[index.min(9)]
 }
@@ -53,6 +84,7 @@ pub struct NovaApp {
     pending_swf: Option<PathBuf>,
     splash: Option<Splash>,
     ai: AiEditor,
+    audio: crate::audio::AudioEngine,
 }
 
 impl NovaApp {
@@ -100,6 +132,7 @@ impl NovaApp {
             pending_swf: None,
             splash: Some(Splash::new(Instant::now(), logo, warning.clone())),
             ai,
+            audio: crate::audio::AudioEngine::new(),
         };
         if let Some(path) = startup_project {
             if is_swf_path(path) {
@@ -814,9 +847,13 @@ impl NovaApp {
                     self.state.playing = false;
                     self.state.frame = 0;
                     self.state.play_accumulator = 0.0;
-                    self.state.game_preview = None;
+                    if let Some(runtime) = self.state.game_preview.as_mut() {
+                        runtime.stop(&self.project);
+                    }
+                    self.audio.stop_all();
                     self.state.set_status("Wiedergabe gestoppt");
                 }
+                UiAction::RestartPlayback => self.restart_playback(),
                 UiAction::Step(delta) => self.step(delta as i64),
                 UiAction::FirstFrame => self.jump_to_frame(0),
                 UiAction::LastFrame => {
@@ -3070,6 +3107,10 @@ impl NovaApp {
     fn toggle_play(&mut self) {
         if self.state.playing {
             self.state.playing = false;
+            self.audio.pause_all();
+            if let Some(runtime) = self.state.game_preview.as_mut() {
+                runtime.pause();
+            }
             self.state.set_status("Wiedergabe pausiert");
             return;
         }
@@ -3085,13 +3126,34 @@ impl NovaApp {
         self.state.playing = true;
         self.state.play_accumulator = 0.0;
         self.state.mode = Mode::Animation;
-        self.start_game_preview();
+        if let Some(runtime) = self.state.game_preview.as_mut() {
+            runtime.start();
+        } else {
+            self.start_game_preview();
+        }
+        self.audio.resume_all();
+        self.play_sound_cues();
         self.state.set_status("Wiedergabe läuft");
     }
 
-    /// (Re)builds the game-preview simulation for the active scene. Only
-    /// scenes that actually carry game metadata get a simulation; plain
-    /// timelines keep the classic frame playback.
+    fn restart_playback(&mut self) {
+        self.state.frame = 0;
+        self.state.play_accumulator = 0.0;
+        self.state.playing = true;
+        self.state.mode = Mode::Animation;
+        self.audio.stop_all();
+        if let Some(runtime) = self.state.game_preview.as_mut() {
+            runtime.restart(&self.project);
+        } else {
+            self.start_game_preview();
+        }
+        self.play_sound_cues();
+        self.state.set_status("Wiedergabe neu gestartet");
+    }
+
+    /// (Re)builds the game-preview runtime for the active scene. Only
+    /// scenes that carry game metadata (scene config or game objects) get a
+    /// runtime; plain timelines keep the classic frame playback.
     fn start_game_preview(&mut self) {
         self.state.game_preview = None;
         if self.state.edit_symbol.is_some() {
@@ -3100,24 +3162,27 @@ impl NovaApp {
         let Some(scene) = self.project.edit_scene(None) else {
             return;
         };
-        let bodies = nova_core::game::collect_bodies(scene, &self.project.symbols);
-        if bodies.is_empty() {
+        let has_game_data = scene.game.is_some()
+            || nova_core::game::collect_bodies(scene, &self.project.symbols)
+                .iter()
+                .any(|body| body.collision.is_some() || body.physics.is_some());
+        if !has_game_data {
             return;
         }
-        let scene_id = scene.id;
-        let center = (scene.width / 2.0, scene.height / 2.0);
-        self.state.game_preview = Some(GamePreview {
-            scene: scene_id,
-            bodies,
-            states: std::collections::HashMap::new(),
-            camera: nova_core::game::CameraState {
-                x: center.0,
-                y: center.1,
-                zoom: 1.0,
-            },
-        });
-        self.state
-            .log(LogLevel::Info, "Spiel-Vorschau gestartet (Editor-Simulation).");
+        match nova_core::game::runtime::GameRuntime::for_active_scene(&self.project) {
+            Ok(mut runtime) => {
+                runtime.start();
+                self.state.game_preview = Some(runtime);
+                self.state
+                    .log(LogLevel::Info, "Spiel-Vorschau gestartet (Editor-Runtime).");
+            }
+            Err(error) => {
+                self.state.log(
+                    LogLevel::Warn,
+                    format!("Spiel-Vorschau nicht gestartet: {error}"),
+                );
+            }
+        }
     }
 
     /// Maps an egui-style binding name ("ArrowLeft", "Space", "KeyE", "A")
@@ -3150,9 +3215,7 @@ impl NovaApp {
             if c.is_ascii_alphabetic() {
                 let index = c.to_ascii_uppercase() as usize - 'A' as usize;
                 if index < 26 {
-                    return ctx.input(|input| {
-                        input.key_down(egui_key_for_letter(index))
-                    });
+                    return ctx.input(|input| input.key_down(egui_key_for_letter(index)));
                 }
             }
             if c.is_ascii_digit() {
@@ -3163,22 +3226,37 @@ impl NovaApp {
         false
     }
 
-    /// Advances the game simulation one render frame while the timeline plays.
+    /// Advances the game runtime one render frame while the timeline plays.
     fn step_game_preview(&mut self, ctx: &Context, dt: f32) {
-        let Some(preview) = self.state.game_preview.as_mut() else {
-            return;
-        };
-        // Rebuild when the underlying scene changed underneath us.
-        let Some(scene) = self.project.edit_scene(None) else {
+        // Route external scene switches (scene tree during play) through the
+        // runtime so unload/load events and per-scene state memory apply.
+        let active_scene = self
+            .project
+            .edit_scene(None)
+            .map(|s| (s.id, s.name.clone()));
+        let mut scene_switched = false;
+        let mut scene_failed = false;
+        if let (Some(runtime), Some((scene_id, scene_name))) =
+            (self.state.game_preview.as_mut(), active_scene)
+        {
+            if runtime.scene != scene_id {
+                match runtime.goto_scene(&self.project, &scene_name) {
+                    Ok(()) => scene_switched = true,
+                    Err(_) => scene_failed = true,
+                }
+            }
+        }
+        if scene_failed {
             self.state.game_preview = None;
             return;
-        };
-        if scene.id != preview.scene {
-            self.start_game_preview();
+        }
+        if scene_switched {
             return;
         }
-        let config = nova_core::game::scene_config(scene);
-        let bindings = config.input.clone().unwrap_or_default();
+        let Some(runtime) = self.state.game_preview.as_mut() else {
+            return;
+        };
+        let bindings = runtime.config.input.clone().unwrap_or_default();
         let input = nova_core::game::InputState {
             left: Self::binding_pressed(ctx, &bindings.left),
             right: Self::binding_pressed(ctx, &bindings.right),
@@ -3187,21 +3265,12 @@ impl NovaApp {
             jump: Self::binding_pressed(ctx, &bindings.jump),
             action: Self::binding_pressed(ctx, &bindings.action),
         };
-        let (w, h) = (scene.width, scene.height);
-        let bodies = &preview.bodies;
-        let states = &mut preview.states;
-        nova_core::game::step(bodies, states, &input, w, h, dt);
-        if let Some(camera) = config.camera.as_ref() {
-            nova_core::game::step_camera(
-                &mut preview.camera,
-                camera,
-                bodies,
-                states,
-                w,
-                h,
-                dt,
-            );
-        }
+        runtime.step(
+            &self.project,
+            &input,
+            &|key| Self::binding_pressed(ctx, key),
+            dt,
+        );
     }
 
     fn step(&mut self, delta: i64) {
@@ -3239,6 +3308,7 @@ impl NovaApp {
             .edit_scene(self.state.edit_symbol)
             .map(|scene| (scene.frame_count().max(1), scene.fps.max(1.0)))
             .unwrap_or((1, 24.0));
+        let old_frame = self.state.frame;
         let dt = ctx.input(|input| input.stable_dt).min(0.25);
         self.step_game_preview(ctx, dt);
         self.state.play_accumulator += dt * fps;
@@ -3254,8 +3324,53 @@ impl NovaApp {
                 self.state.frame = count - 1;
                 self.state.playing = false;
             }
+            if self.state.frame != old_frame {
+                self.play_sound_cues();
+            }
         }
         ctx.request_repaint();
+    }
+
+    /// Plays the sound cues scheduled on the current timeline frame of the
+    /// active scene. Missing assets and decode failures are logged, never
+    /// silent.
+    fn play_sound_cues(&mut self) {
+        if self.state.edit_symbol.is_some() {
+            return;
+        }
+        let Some(scene) = self.project.edit_scene(None) else {
+            return;
+        };
+        let frame = self.state.frame.min(scene.frame_count().saturating_sub(1));
+        let mut missing = Vec::new();
+        for (asset, _cue) in crate::audio::cues_on_frame(scene, frame, &self.project.assets) {
+            if let Err(error) = self.audio.play(asset) {
+                self.state.log(
+                    LogLevel::Warn,
+                    format!(
+                        "Audio '{}' konnte nicht abgespielt werden: {error}",
+                        asset.name
+                    ),
+                );
+            }
+        }
+        for layer in &scene.layers {
+            if layer.kind != nova_core::LayerKind::Sound {
+                continue;
+            }
+            let Some(cue) = layer.frames.get(frame).and_then(|f| f.sound) else {
+                continue;
+            };
+            if !self.project.assets.iter().any(|a| a.id == cue.asset) {
+                missing.push(cue.asset);
+            }
+        }
+        for id in missing {
+            self.state.log(
+                LogLevel::Warn,
+                format!("Audio-Cue verweist auf fehlendes Asset {id}"),
+            );
+        }
     }
 
     // ------------------------------------------------------------ dialogs
@@ -4293,6 +4408,8 @@ impl eframe::App for NovaApp {
         }
 
         self.refresh_asset_textures(&ctx);
+        self.audio.set_volume(self.state.preview_volume);
+        self.audio.prune();
         self.update_playback(&ctx);
         self.handle_actions(actions, &ctx);
         self.dialogs(&ctx);

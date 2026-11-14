@@ -146,6 +146,19 @@ impl Default for CameraConfig {
     }
 }
 
+/// A key-triggered scene transition evaluated by the game preview runtime.
+/// `key` uses the same naming space as [`InputBindings`] values
+/// ("Space", "Enter", "A", "ArrowLeft", ...). The transition fires on the
+/// rising edge of the key while the scene is active.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SceneTransition {
+    pub key: String,
+    /// Name of the target scene. Validated when the transition fires; an
+    /// unknown target is reported and ignored without corrupting state.
+    pub target: String,
+}
+
 /// Scene-level game configuration.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase", default)]
@@ -154,4 +167,7 @@ pub struct GameSceneConfig {
     pub camera: Option<CameraConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub input: Option<InputBindings>,
+    /// Key-triggered scene transitions for the preview runtime.
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub transitions: Vec<SceneTransition>,
 }
