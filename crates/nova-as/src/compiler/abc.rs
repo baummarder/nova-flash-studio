@@ -53,8 +53,9 @@ pub enum Multiname {
         name: u32,
     },
     /// `MultinameL` (0x1B): the property name is taken from the operand
-    /// stack. Used by `receiver[index]` reads and writes.
-    Late,
+    /// stack. Used by `receiver[index]` reads and writes. The namespace set
+    /// restricts the lookup (public package by default).
+    Late { namespace_set: u32 },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -88,6 +89,7 @@ pub struct ConstantPool {
     namespace_set_cache: HashMap<Vec<u32>, u32>,
     multiname_set_cache: HashMap<(u32, u32), u32>,
     multiname_l: Option<u32>,
+    multiname_l_nsset: Option<u32>,
 }
 
 impl Default for ConstantPool {
@@ -124,6 +126,7 @@ impl ConstantPool {
             namespace_set_cache: HashMap::new(),
             multiname_set_cache: HashMap::new(),
             multiname_l: None,
+            multiname_l_nsset: None,
         }
     }
 
@@ -219,12 +222,27 @@ impl ConstantPool {
     }
 
     /// Interns the single `MultinameL` entry used for dynamic index access.
+    /// The namespace set contains the public package namespace so lookups
+    /// behave like ordinary `a[b]` member access; a zero set index is not
+    /// portable (Ruffle's verifier rejects it).
     pub fn add_multiname_l(&mut self) -> u32 {
         if let Some(index) = self.multiname_l {
             return index;
         }
+        let nsset = match self.multiname_l_nsset {
+            Some(index) => index,
+            None => {
+                let empty = self.intern_string("");
+                let public = self.add_namespace(NsKind::Package, empty);
+                let index = self.add_namespace_set(vec![public]);
+                self.multiname_l_nsset = Some(index);
+                index
+            }
+        };
         let index = self.multinames.len() as u32;
-        self.multinames.push(Multiname::Late);
+        self.multinames.push(Multiname::Late {
+            namespace_set: nsset,
+        });
         self.multiname_l = Some(index);
         index
     }
@@ -424,11 +442,9 @@ impl AbcFile {
                     write_u30(out, *name);
                     write_u30(out, *namespace_set);
                 }
-                Multiname::Late => {
+                Multiname::Late { namespace_set } => {
                     out.push(0x1b);
-                    // MultinameL carries a namespace-set operand. The empty
-                    // set (index zero) selects the public/dynamic namespace.
-                    write_u30(out, 0);
+                    write_u30(out, *namespace_set);
                 }
             }
         }

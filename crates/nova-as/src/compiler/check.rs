@@ -413,12 +413,8 @@ impl Checker {
     }
 
     fn check_class_modifiers(&mut self, class: &ClassDecl) {
-        if class.modifiers.dynamic {
-            self.error(
-                "'dynamic' wird vom ABC-Compiler nicht unterstützt",
-                class.span,
-            );
-        }
+        // `dynamic` is supported: the emitter clears the sealed class flag so
+        // instances accept ad-hoc properties (needed for document classes).
         if class.modifiers.native {
             self.error(
                 "'native' wird vom ABC-Compiler nicht unterstützt",

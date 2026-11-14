@@ -1052,6 +1052,8 @@ impl<'a> Emitter<'a> {
                 let start = ctx.builder.new_label();
                 let end = ctx.builder.new_label();
                 ctx.builder.place_label(start);
+                // AVM2 requires backward-jump targets to be `label` ops.
+                ctx.builder.op(op::LABEL);
                 self.emit_expr(ctx, condition);
                 ctx.builder.if_false(end);
                 ctx.loops.push(LoopLabels {
@@ -1068,6 +1070,7 @@ impl<'a> Emitter<'a> {
                 let condition_label = ctx.builder.new_label();
                 let end = ctx.builder.new_label();
                 ctx.builder.place_label(start);
+                ctx.builder.op(op::LABEL);
                 ctx.loops.push(LoopLabels {
                     break_label: end,
                     continue_label: condition_label,
@@ -1109,6 +1112,7 @@ impl<'a> Emitter<'a> {
                 let update_label = ctx.builder.new_label();
                 let end = ctx.builder.new_label();
                 ctx.builder.place_label(start);
+                ctx.builder.op(op::LABEL);
                 if let Some(condition) = condition {
                     self.emit_expr(ctx, condition);
                     ctx.builder.if_false(end);
