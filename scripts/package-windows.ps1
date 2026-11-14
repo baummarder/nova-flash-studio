@@ -1,26 +1,49 @@
 <#
 .SYNOPSIS
-    Build and package the Windows release of NØVA Flash Studio.
+    Build and package one edition of the NØVA Flash Studio Windows release.
 
 .DESCRIPTION
-    Produces dist/windows/NØVA Flash Studio/NØVA Flash Studio.exe and a
-    versioned ZIP. The executable embeds the ICO and version resource through
-    crates/nova-app/build.rs. This script refuses to publish an executable
-    without the expected version metadata.
+    Produces a self-contained edition payload under dist/windows/<edition>/:
+    the product folder with the branded executable, docs and legal files,
+    a portable ZIP named NOVA-<Edition>-Portable.zip, SHA256SUMS.txt and
+    BUILD-INFO.json. The executable embeds the ICO and version resource
+    through crates/nova-app/build.rs; NOVA_EDITION is set for the Rust
+    build so branding, configuration paths and module registration all
+    match the edition.
+
+    Editions: user (default), edu, enterprise. Each edition installs and
+    coexists independently; settings live in separate per-edition
+    configuration directories.
+
+.PARAMETER Edition
+    Product edition: user, edu or enterprise.
 
 .PARAMETER SkipTests
     Skip the workspace test suite. Intended for CI jobs that already ran it.
 
 .PARAMETER NoZip
-    Do not create the optional ZIP archive.
+    Do not create the portable ZIP archive.
 #>
 [CmdletBinding()]
 param(
+    [ValidateSet('user', 'edu', 'enterprise')]
+    [string]$Edition = 'user',
     [switch]$SkipTests,
     [switch]$NoZip
 )
 
 $ErrorActionPreference = 'Stop'
+
+# Edition table — single source for packaging. Keep in sync with
+# crates/nova-core/src/edition.rs and packaging/windows/installer/EditionInfo.cs.
+$editionTable = @{
+    user        = @{ Id = 'user';        Product = 'N' + [char]0x00D8 + 'VA Flash Studio';             Slug = 'User';        ZipName = 'NOVA-User-Portable.zip' }
+    edu         = @{ Id = 'edu';         Product = 'N' + [char]0x00D8 + 'VA Flash Studio Edu';         Slug = 'Edu';         ZipName = 'NOVA-Edu-Portable.zip' }
+    enterprise  = @{ Id = 'enterprise';  Product = 'N' + [char]0x00D8 + 'VA Flash Studio Enterprise';  Slug = 'Enterprise';  ZipName = 'NOVA-Enterprise-Portable.zip' }
+}
+$editionInfo = $editionTable[$Edition]
+$productName = $editionInfo.Product
+$editionId = $editionInfo.Id
 
 function Invoke-ReleaseCli {
     param(
@@ -60,15 +83,20 @@ try {
     $version = $versionMatch.Groups[1].Value
 
     if (-not $SkipTests) {
-        Write-Host '== cargo test --workspace ==' -ForegroundColor Cyan
+        Write-Host "== cargo test --workspace (edition: $editionId) ==" -ForegroundColor Cyan
         & cargo test --workspace
         if ($LASTEXITCODE -ne 0) {
             throw "cargo test failed with exit code $LASTEXITCODE"
         }
     }
 
-    Write-Host '== cargo build --release -p nova-app ==' -ForegroundColor Cyan
-    & cargo build --release -p nova-app
+    Write-Host "== cargo build --release -p nova-app (NOVA_EDITION=$editionId) ==" -ForegroundColor Cyan
+    $env:NOVA_EDITION = $editionId
+    try {
+        & cargo build --release -p nova-app
+    } finally {
+        Remove-Item Env:NOVA_EDITION -ErrorAction SilentlyContinue
+    }
     if ($LASTEXITCODE -ne 0) {
         throw "cargo build failed with exit code $LASTEXITCODE"
     }
@@ -78,16 +106,12 @@ try {
         throw "Missing release executable: $sourceExe"
     }
 
-    # Windows PowerShell 5.1 reads BOM-less scripts as ANSI. Build the product
-    # name from a code point so the folder and EXE keep the exact "NØVA" name
-    # regardless of the console or script encoding.
-    $productName = 'N' + [char]0x00D8 + 'VA Flash Studio'
     # Stage into a sibling directory so a failed build never destroys the
-    # previous release. The old dist/windows is archived (never deleted
-    # silently) and only swapped out after the new payload is complete.
+    # previous release of THIS edition. Edition payloads live in
+    # dist/windows/<edition>/; other editions are untouched.
     $distDir = Join-Path $root 'dist'
-    $stageRoot = Join-Path $distDir 'windows.staging'
-    $releaseRoot = Join-Path $distDir 'windows'
+    $stageRoot = Join-Path $distDir "windows.staging-$editionId"
+    $releaseRoot = Join-Path (Join-Path $distDir 'windows') $editionId
     if (Test-Path -LiteralPath $stageRoot) {
         Remove-Item -LiteralPath $stageRoot -Recurse -Force
     }
@@ -114,7 +138,7 @@ try {
 
     $info = (Get-Item -LiteralPath $targetExe).VersionInfo
     if ($info.ProductName -ne $productName) {
-        throw "Embedded ProductName is '$($info.ProductName)', expected '$productName'. Is rc.exe available?"
+        throw "Embedded ProductName is '$($info.ProductName)', expected '$productName'. Is rc.exe available and NOVA_EDITION set?"
     }
     if ([string]::IsNullOrWhiteSpace($info.FileVersion)) {
         throw 'Embedded FileVersion is empty.'
@@ -143,7 +167,7 @@ try {
     $checksums += (Get-FileHash -LiteralPath $targetExe -Algorithm SHA256).Hash + "  $productName.exe"
     $zipPath = $null
     if (-not $NoZip) {
-        $zipPath = Join-Path $stageRoot "NOVA-Flash-Studio-$version-windows-x64.zip"
+        $zipPath = Join-Path $stageRoot $editionInfo.ZipName
         if (Test-Path -LiteralPath $zipPath) {
             Remove-Item -LiteralPath $zipPath -Force
         }
@@ -156,6 +180,7 @@ try {
     # Record build metadata for reproducibility/traceability.
     $buildInfo = [ordered]@{
         product       = $productName
+        edition       = $editionId
         version       = $version
         gitCommit     = (& git rev-parse HEAD 2>$null)
         gitDirty      = [bool](& git status --porcelain 2>$null)
@@ -172,9 +197,9 @@ try {
         [System.Text.UTF8Encoding]::new($false)
     )
 
-    # Archive the PREVIOUS release artifacts before swapping directories.
-    # archive-releases.ps1 never deletes; it verifies checksums, copies into
-    # dist/archive/<version>/ and refuses silent overwrites.
+    # Archive the PREVIOUS release artifacts of this edition before swapping.
+    # archive-releases.ps1 never deletes; it verifies checksums and copies
+    # into dist/archive/<version>/<edition>/.
     & (Join-Path $PSScriptRoot 'archive-releases.ps1') -DistRoot $distDir
     if ($LASTEXITCODE -ne 0) {
         throw "archive-releases.ps1 failed with exit code $LASTEXITCODE; previous release left untouched in $releaseRoot"
@@ -184,10 +209,11 @@ try {
     if (Test-Path -LiteralPath $releaseRoot) {
         Remove-Item -LiteralPath $releaseRoot -Recurse -Force
     }
+    New-Item -ItemType Directory -Path (Split-Path -Parent $releaseRoot) -Force | Out-Null
     Move-Item -LiteralPath $stageRoot -Destination $releaseRoot
 
     Write-Host ''
-    Write-Host 'Windows package created:' -ForegroundColor Green
+    Write-Host "Windows package created (edition: $editionId):" -ForegroundColor Green
     Write-Host "  $targetExe"
     if ($zipPath) { Write-Host "  $zipPath" }
     Write-Host "  Version: $($info.FileVersion) / $($info.ProductVersion)"

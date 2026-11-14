@@ -3425,6 +3425,22 @@ impl NovaApp {
                             .small()
                             .color(theme::TEXT_DIM),
                     );
+                    if let Some(reserved) = crate::edition::profile()
+                        .modules
+                        .iter()
+                        .find(|module| module.reserved)
+                    {
+                        ui.label(
+                            RichText::new(format!(
+                                "{}: {} (geplant)",
+                                branding::app_name(),
+                                reserved.label
+                            ))
+                            .small()
+                            .italics()
+                            .color(theme::TEXT_FAINT),
+                        );
+                    }
                     ui.add_space(6.0);
                     let response = ui.add(
                         egui::TextEdit::singleline(&mut name)
@@ -3520,11 +3536,15 @@ impl NovaApp {
                 let mut open_help = false;
                 egui::Modal::new(egui::Id::unique("about_dialog")).show(ctx, |ui| {
                     ui.set_min_width(440.0);
-                    ui.heading("NØVA Flash Studio");
+                    ui.heading(branding::app_name());
                     ui.label(
-                        RichText::new(format!("Version {}", branding::VERSION))
-                            .small()
-                            .color(theme::TEXT_DIM),
+                        RichText::new(format!(
+                            "Version {} \u{00B7} {}",
+                            branding::VERSION,
+                            branding::audience()
+                        ))
+                        .small()
+                        .color(theme::TEXT_DIM),
                     );
                     ui.add_space(4.0);
                     ui.label(

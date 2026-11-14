@@ -1,4 +1,4 @@
-# Capability Audit — NØVA Flash Studio 0.14.0-rc1 (post-M18)
+# Capability Audit — NØVA Flash Studio 0.15.0-rc1 (post-M19)
 
 Status legend: ✅ fully implemented & tested · 🟡 partially implemented ·
 🔵 implemented but insufficiently tested · 🔴 not implemented.
@@ -176,6 +176,21 @@ is claimed from documentation alone.
 - Primary validation target; all milestone SWFs run with 0 ERROR lines.
 - Deterministic fixed-step design specifically accommodates Ruffle's
   uncapped frame ticking.
+
+## 19b. Product editions (M19) — ✅
+
+- Three editions (User/Edu/Enterprise) from one shared codebase:
+  edition-aware branding, splash, window title, exe version resource,
+  installer identity (uninstall key, ProgIds, install dir), portable
+  ZIP and Setup EXE per edition (package-editions.ps1).
+- Isolated per-edition configuration directories (settings, AI provider
+  config, credentials via DPAPI, recovery/autosave); User keeps the
+  legacy config path. NOVA_FLASH_STUDIO_CONFIG_DIR override retained.
+- .nova projects are edition-agnostic (no edition field; cross-edition
+  round-trip tested). Central EditionProfile module registry reserves
+  slots for M20 classroom / M21 administration features — explicitly
+  not implemented yet.
+- Not a licensing system: no keys, activation, online checks, DRM.
 
 ## 20. Windows installer & portable — ✅
 

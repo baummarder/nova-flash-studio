@@ -19,7 +19,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 
 const SETTINGS_FILE: &str = "flash-player.json";
-const CONFIG_OVERRIDE: &str = "NOVA_FLASH_STUDIO_CONFIG_DIR";
 
 #[derive(Debug, thiserror::Error)]
 pub enum FlashError {
@@ -603,43 +602,11 @@ fn runtime_command(executable: &Path, runtime: RuntimeKind) -> Command {
 }
 
 fn config_dir() -> Result<PathBuf, FlashError> {
-    if let Some(path) = std::env::var_os(CONFIG_OVERRIDE) {
-        return Ok(PathBuf::from(path));
-    }
-
-    #[cfg(target_os = "windows")]
-    {
-        let base = std::env::var_os("APPDATA")
-            .ok_or_else(|| FlashError::Config("APPDATA ist nicht gesetzt.".to_string()))?;
-        return Ok(PathBuf::from(base).join("NOVA Flash Studio"));
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        let home = std::env::var_os("HOME")
-            .ok_or_else(|| FlashError::Config("HOME ist nicht gesetzt.".to_string()))?;
-        return Ok(PathBuf::from(home)
-            .join("Library")
-            .join("Application Support")
-            .join("NOVA Flash Studio"));
-    }
-
-    #[cfg(all(unix, not(target_os = "macos")))]
-    {
-        if let Some(path) = std::env::var_os("XDG_CONFIG_HOME") {
-            return Ok(PathBuf::from(path).join("nova-flash-studio"));
-        }
-        let home = std::env::var_os("HOME")
-            .ok_or_else(|| FlashError::Config("HOME ist nicht gesetzt.".to_string()))?;
-        return Ok(PathBuf::from(home)
-            .join(".config")
-            .join("nova-flash-studio"));
-    }
-
-    #[allow(unreachable_code)]
-    Err(FlashError::Config(
-        "Für dieses Betriebssystem ist kein Konfigurationsverzeichnis definiert.".to_string(),
-    ))
+    // Edition-aware (M19): User keeps the legacy directory, Edu and
+    // Enterprise get isolated sibling directories.
+    nova_core::Edition::current()
+        .config_dir()
+        .ok_or_else(|| FlashError::Config("Kein Konfigurationsverzeichnis gefunden.".to_string()))
 }
 
 fn now_unix() -> u64 {

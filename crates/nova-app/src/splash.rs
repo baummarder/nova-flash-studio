@@ -148,19 +148,26 @@ impl Splash {
         painter.text(
             Pos2::new(center.x, title_y),
             Align2::CENTER_CENTER,
-            branding::APP_NAME,
+            branding::app_name(),
             FontId::proportional(38.0),
             fade(Color32::from_rgb(238, 247, 255)),
         );
         painter.text(
             Pos2::new(center.x, title_y + 38.0),
             Align2::CENTER_CENTER,
-            "ACTIONSCRIPT 3  ·  TIMELINE  ·  SWF",
+            branding::tagline(),
             FontId::proportional(13.0),
             fade(Color32::from_rgb(111, 210, 235)),
         );
         painter.text(
-            Pos2::new(center.x, title_y + 68.0),
+            Pos2::new(center.x, title_y + 56.0),
+            Align2::CENTER_CENTER,
+            branding::audience(),
+            FontId::proportional(11.0),
+            fade(Color32::from_rgb(135, 146, 176)),
+        );
+        painter.text(
+            Pos2::new(center.x, title_y + 80.0),
             Align2::CENTER_CENTER,
             format!("Version {}", branding::VERSION),
             FontId::proportional(13.0),

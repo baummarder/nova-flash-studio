@@ -6,17 +6,19 @@
     <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <AssemblyName>NOVA-Flash-Studio-Setup</AssemblyName>
+    <NovaSetupAssemblyName Condition="'$(NovaSetupAssemblyName)' == ''">NOVA-Flash-Studio-Setup</NovaSetupAssemblyName>
+    <AssemblyName>$(NovaSetupAssemblyName)</AssemblyName>
     <RootNamespace>NovaFlashStudio.Setup</RootNamespace>
     <ApplicationIcon>..\..\..\assets\icons\nova-flash-studio.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <NovaAppVersion Condition="'$(NovaAppVersion)' == ''">0.0.0</NovaAppVersion>
+    <NovaProductName Condition="'$(NovaProductName)' == ''">NØVA Flash Studio</NovaProductName>
     <Version>$(NovaAppVersion)</Version>
     <AssemblyVersion>0.4.0.0</AssemblyVersion>
     <FileVersion>0.4.0.0</FileVersion>
     <InformationalVersion>$(NovaAppVersion)</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
-    <Product>NØVA Flash Studio</Product>
+    <Product>$(NovaProductName)</Product>
     <Company>NØVA Flash Studio contributors</Company>
     <Copyright>© NØVA Flash Studio contributors</Copyright>
     <Description>NØVA Flash Studio installer and uninstaller</Description>

@@ -69,6 +69,12 @@ JavaScript.**
   cloud-consent enforcement, root-confined file previews/atomic apply/undo and
   build diagnostics. It depends on `nova-core`, `nova-as` and `nova-build`; it
   never depends on `egui`.
+- **`nova-core`** also owns `edition.rs` (M19): the shared `Edition`
+  enum (User/Edu/Enterprise), edition resolution (`NOVA_EDITION`
+  compile-time/runtime), per-edition configuration and recovery
+  directory names, and the platform config-dir resolver used by both
+  `nova-app` and `nova-ai`. The `.nova` project model deliberately has
+  no edition field — projects are interchangeable across editions.
 - **`nova-app`** is an `eframe` binary (`nova-flash-studio`) that composes the
   panels and maps user intent to `UiAction`s. Its `ai_editor`/`ai_providers`
   modules render the `nova-ai` state and execute prepared requests on a worker.

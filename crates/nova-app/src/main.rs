@@ -8,6 +8,7 @@ mod autosave;
 mod branding;
 mod code_view;
 mod console;
+mod edition;
 mod flash;
 mod highlight;
 mod history;
@@ -35,8 +36,8 @@ fn main() -> eframe::Result {
     let mut viewport = egui::ViewportBuilder::default()
         .with_inner_size([1440.0, 900.0])
         .with_min_inner_size([1060.0, 660.0])
-        .with_app_id(branding::BUNDLE_ID)
-        .with_title(branding::APP_NAME);
+        .with_app_id(branding::bundle_id())
+        .with_title(branding::app_name());
     if let Ok(icon) = branding::window_icon() {
         viewport = viewport.with_icon(icon);
     }
@@ -46,7 +47,7 @@ fn main() -> eframe::Result {
     };
 
     eframe::run_native(
-        branding::APP_NAME,
+        branding::app_name(),
         options,
         Box::new(move |cc| {
             theme::apply(&cc.egui_ctx);
@@ -77,19 +78,19 @@ fn startup_project_arg(args: &[String]) -> Option<PathBuf> {
 /// Return true when a command-line option was handled without opening a window.
 fn handle_cli(args: &[String]) -> bool {
     if args.iter().any(|arg| arg == "--version" || arg == "-V") {
-        println!("{} {}", branding::APP_NAME, branding::VERSION);
+        println!("{} {}", branding::app_name(), branding::VERSION);
         return true;
     }
     if args.iter().any(|arg| arg == "--help" || arg == "-h") {
         println!(
             "{}\nVersion {}\n\nUSAGE:\n    nova-flash-studio [OPTIONS] [PROJECT.nova]\n\nOPTIONS:\n    -h, --help             Diese Hilfe anzeigen\n    -V, --version          Version ausgeben\n        --open <PFAD>      NØVA-Projekt oder SWF öffnen\n        --startup-check    Branding, Konfiguration und Runtime-Status prüfen, ohne ein Fenster zu öffnen\n\nENVIRONMENT:\n    NOVA_FLASH_STUDIO_CONFIG_DIR   Konfigurationsverzeichnis überschreiben\n\nDie GUI startet ohne weitere Argumente. Eine SWF wird über „Open in Flash Player“ in der konfigurierten Adobe- oder Ruffle-Runtime geöffnet.",
-            branding::APP_NAME,
+            branding::app_name(),
             branding::VERSION
         );
         return true;
     }
     if args.iter().any(|arg| arg == "--startup-check") {
-        println!("{} {}", branding::APP_NAME, branding::VERSION);
+        println!("{} {}", branding::app_name(), branding::VERSION);
         match branding::window_icon() {
             Ok(icon) => println!("window-icon: {}x{}", icon.width, icon.height),
             Err(error) => println!("window-icon: FEHLER: {error}"),
@@ -181,7 +182,7 @@ impl eframe::App for StartupFailure {
         egui::CentralPanel::default().show(ui, |ui| {
             ui.add_space(48.0);
             ui.heading(
-                egui::RichText::new(branding::APP_NAME)
+                egui::RichText::new(branding::app_name())
                     .color(egui::Color32::from_rgb(92, 234, 255)),
             );
             ui.add_space(12.0);

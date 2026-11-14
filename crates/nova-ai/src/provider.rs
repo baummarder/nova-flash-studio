@@ -674,32 +674,12 @@ pub fn save_settings(config_dir: &Path, settings: &ProviderSettings) -> AiResult
 }
 
 pub fn default_config_dir() -> AiResult<PathBuf> {
-    if let Some(path) = std::env::var_os(CONFIG_OVERRIDE) {
-        return Ok(PathBuf::from(path));
-    }
-    #[cfg(target_os = "windows")]
-    {
-        let base = std::env::var_os("APPDATA")
-            .ok_or_else(|| AiError::Config("APPDATA ist nicht gesetzt.".into()))?;
-        Ok(PathBuf::from(base).join("NOVA Flash Studio"))
-    }
-    #[cfg(target_os = "macos")]
-    {
-        let home = std::env::var_os("HOME")
-            .ok_or_else(|| AiError::Config("HOME ist nicht gesetzt.".into()))?;
-        Ok(PathBuf::from(home)
-            .join("Library")
-            .join("Application Support")
-            .join("NOVA Flash Studio"))
-    }
-    #[cfg(all(unix, not(target_os = "macos")))]
-    {
-        let base = std::env::var_os("XDG_CONFIG_HOME")
-            .map(PathBuf::from)
-            .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".config")))
-            .ok_or_else(|| AiError::Config("Kein Konfigurationsverzeichnis gefunden.".into()))?;
-        Ok(base.join("nova-flash-studio"))
-    }
+    // Edition-aware (M19): shares nova_core::Edition::config_dir so the AI
+    // provider settings live in the same per-edition directory as the rest
+    // of the application configuration.
+    nova_core::Edition::current()
+        .config_dir()
+        .ok_or_else(|| AiError::Config("Kein Konfigurationsverzeichnis gefunden.".into()))
 }
 
 #[cfg(test)]

@@ -79,7 +79,30 @@ if (-not (Test-Path -LiteralPath $windowsDir -PathType Container)) {
 $artifacts = Get-ChildItem -LiteralPath $windowsDir -File |
     Where-Object { $null -ne (Get-ArtifactVersion $_.Name) }
 
-if ($artifacts.Count -eq 0) {
+# Edition payloads (M19): dist/windows/<edition>/ directories produced by
+# package-windows.ps1 -Edition. Their artifact names carry no version, so
+# the version is read from the sibling BUILD-INFO.json.
+$editionJobs = @()
+Get-ChildItem -LiteralPath $windowsDir -Directory -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -in @('user', 'edu', 'enterprise') } |
+    ForEach-Object {
+        $buildInfoPath = Join-Path $_.FullName 'BUILD-INFO.json'
+        if (-not (Test-Path -LiteralPath $buildInfoPath -PathType Leaf)) { return }
+        try {
+            $info = Get-Content -Raw -LiteralPath $buildInfoPath | ConvertFrom-Json
+            if ($info.version) {
+                $editionJobs += [pscustomobject]@{
+                    EditionId = $_.Name
+                    Version   = [string]$info.version
+                    Dir       = $_.FullName
+                }
+            }
+        } catch {
+            Write-Warning "archive-releases: cannot read $buildInfoPath; skipping edition archive."
+        }
+    }
+
+if ($artifacts.Count -eq 0 -and $editionJobs.Count -eq 0) {
     Write-Host 'archive-releases: no versioned release artifacts found; nothing to archive.'
     return
 }
@@ -198,6 +221,64 @@ foreach ($version in $versions) {
             Copy-Item -LiteralPath $srcDir -Destination $destDir -Recurse
             Write-Host "archive-releases: archived $dirName/"
         }
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Archive edition payloads (M19): dist/windows/<edition>/ -> archive/<v>/<edition>/
+# ---------------------------------------------------------------------------
+foreach ($job in $editionJobs) {
+    $dest = Join-Path (Join-Path $archiveRoot $job.Version) $job.EditionId
+    if ($WhatIfArchive) {
+        Write-Host "archive-releases: [WhatIf] would archive edition $($job.EditionId) $($job.Version) -> $dest"
+        continue
+    }
+    New-Item -ItemType Directory -Path $dest -Force | Out-Null
+
+    Get-ChildItem -LiteralPath $job.Dir -Force | Where-Object {
+        $_.Name -ne 'installer-publish' -and $_.Name -notlike '*.tmp'
+    } | ForEach-Object {
+        $target = Join-Path $dest $_.Name
+        if (Test-Path -LiteralPath $target) {
+            if ($_.PSIsContainer) {
+                Write-Host "archive-releases: $($job.EditionId)/$($_.Name) already present in archive; verifying."
+                # Verify the portable zip hash when SHA256SUMS lists it.
+                $sums = Join-Path $job.Dir 'SHA256SUMS.txt'
+                if (Test-Path -LiteralPath $sums) {
+                    foreach ($line in [System.IO.File]::ReadAllLines($sums)) {
+                        if ($line -match '^\s*([0-9A-Fa-f]{64})\s+(.+?)\s*$') {
+                            $name = $Matches[2].Trim()
+                            $srcFile = Join-Path $job.Dir $name
+                            if (-not (Test-Path -LiteralPath $srcFile -PathType Leaf)) { continue }
+                            $dstFile = Join-Path $target $name
+                            if (-not (Test-Path -LiteralPath $dstFile -PathType Leaf)) { continue }
+                            $h1 = (Get-FileHash -LiteralPath $srcFile -Algorithm SHA256).Hash
+                            $h2 = (Get-FileHash -LiteralPath $dstFile -Algorithm SHA256).Hash
+                            if ($h1 -ne $h2 -and -not $Force) {
+                                throw "archive-releases: archived $($job.EditionId)/$name differs; use -Force to overwrite."
+                            }
+                        }
+                    }
+                }
+                continue
+            }
+            $same = Test-Sha256File -Path $_.FullName -ExpectedHash `
+                ((Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash)
+            if ($same) {
+                Write-Host "archive-releases: already archived, identical: $($job.EditionId)/$($_.Name)"
+                continue
+            }
+            if (-not $Force) {
+                throw "archive-releases: $target already exists with DIFFERENT content. Refusing to overwrite; re-run with -Force if intentional."
+            }
+            Write-Warning "archive-releases: overwriting differing archive file $target (-Force)."
+        }
+        if ($_.PSIsContainer) {
+            Copy-Item -LiteralPath $_.FullName -Destination $target -Recurse
+        } else {
+            Copy-Item -LiteralPath $_.FullName -Destination $target
+        }
+        Write-Host "archive-releases: archived $($job.EditionId)/$($_.Name) -> $dest"
     }
 }
 

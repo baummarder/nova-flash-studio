@@ -7,6 +7,26 @@ use image::GenericImageView;
 
 pub const APP_NAME: &str = "NØVA Flash Studio";
 pub const BUNDLE_ID: &str = "studio.nova.flash";
+
+/// Edition-aware display name (M19): base name, Edu or Enterprise variant.
+pub fn app_name() -> &'static str {
+    crate::edition::profile().app_name
+}
+
+/// Edition-aware window-manager / viewport identifier.
+pub fn bundle_id() -> &'static str {
+    crate::edition::profile().bundle_id
+}
+
+/// Edition tagline shown on the splash screen.
+pub fn tagline() -> &'static str {
+    crate::edition::profile().tagline
+}
+
+/// Edition audience line shown on the splash screen.
+pub fn audience() -> &'static str {
+    crate::edition::profile().audience
+}
 pub const COMPANY: &str = "NØVA Flash Studio contributors";
 pub const COPYRIGHT: &str = "MIT OR Apache-2.0";
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

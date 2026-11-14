@@ -6,6 +6,7 @@
 //! vice versa.
 
 pub mod collision;
+pub mod edition;
 pub mod error;
 pub mod game;
 pub mod gamekit;
@@ -16,6 +17,7 @@ pub mod template;
 pub mod tilemap;
 pub mod time;
 
+pub use edition::{CONFIG_DIR_OVERRIDE, EDITION_ENV, Edition};
 pub use error::{ProjectError, ProjectResult};
 pub use model::*;
 pub use template::{ProjectTemplate, template_by_id};

@@ -27,9 +27,9 @@ internal static class MessageBoxCompat
     public static bool ConfirmUninstall()
     {
         var result = MessageBox.Show(
-            "Möchten Sie NØVA Flash Studio wirklich deinstallieren?\n\n" +
+            $"Möchten Sie {EditionInfo.ProductName} wirklich deinstallieren?\n\n" +
             "Ihre Projekte und Einstellungen unter %APPDATA% bleiben erhalten.",
-            "NØVA Flash Studio – Deinstallation",
+            $"{EditionInfo.ProductName} – Deinstallation",
             MessageBoxButtons.YesNo,
             MessageBoxIcon.Question,
             MessageBoxDefaultButton.Button2);
@@ -40,7 +40,7 @@ internal static class MessageBoxCompat
     {
         MessageBox.Show(
             message,
-            "NØVA Flash Studio – Setup",
+            $"{EditionInfo.ProductName} – Setup",
             MessageBoxButtons.OK,
             MessageBoxIcon.Error);
     }
@@ -49,7 +49,7 @@ internal static class MessageBoxCompat
     {
         MessageBox.Show(
             message,
-            "NØVA Flash Studio – Setup",
+            $"{EditionInfo.ProductName} – Setup",
             MessageBoxButtons.OK,
             MessageBoxIcon.Information);
     }

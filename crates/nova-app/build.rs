@@ -12,6 +12,7 @@ use std::process::Command;
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-env-changed=NOVA_EDITION");
     println!("cargo:rerun-if-changed=../../assets/icons/nova-flash-studio.ico");
     println!("cargo:rerun-if-changed=../../assets/branding/nova-logo.svg");
 
@@ -40,6 +41,21 @@ fn main() {
     let (major, minor, patch) = parse_version(&version);
     let icon_path = icon.to_string_lossy().replace('\\', "/");
 
+    // Edition-aware version resource (M19): NOVA_EDITION is set by the
+    // packaging scripts; anything else falls back to the User product name.
+    let edition = env::var("NOVA_EDITION").unwrap_or_else(|_| "user".to_string());
+    let product_name = match edition.trim().to_ascii_lowercase().as_str() {
+        "edu" => "N\u{00D8}VA Flash Studio Edu",
+        "enterprise" => "N\u{00D8}VA Flash Studio Enterprise",
+        _ => "N\u{00D8}VA Flash Studio",
+    };
+    let internal_name = match edition.trim().to_ascii_lowercase().as_str() {
+        "edu" => "nova-flash-studio-edu",
+        "enterprise" => "nova-flash-studio-enterprise",
+        _ => "nova-flash-studio",
+    };
+    let original_filename = format!("{product_name}.exe");
+
     let rc_text = format!(
         r#"#pragma code_page(65001)
 1 ICON "{icon_path}"
@@ -58,12 +74,12 @@ BEGIN
     BLOCK "040904B0"
     BEGIN
       VALUE "CompanyName", "NØVA Flash Studio contributors\0"
-      VALUE "FileDescription", "NØVA Flash Studio\0"
+      VALUE "FileDescription", "{product_name}\0"
       VALUE "FileVersion", "{version}\0"
-      VALUE "InternalName", "nova-flash-studio\0"
+      VALUE "InternalName", "{internal_name}\0"
       VALUE "LegalCopyright", "MIT OR Apache-2.0\0"
-      VALUE "OriginalFilename", "NØVA Flash Studio.exe\0"
-      VALUE "ProductName", "NØVA Flash Studio\0"
+      VALUE "OriginalFilename", "{original_filename}\0"
+      VALUE "ProductName", "{product_name}\0"
       VALUE "ProductVersion", "{version}\0"
     END
   END

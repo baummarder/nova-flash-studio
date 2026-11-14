@@ -38,7 +38,7 @@ internal abstract class WizardPage : UserControl
 internal sealed class WelcomePage : WizardPage
 {
     public override string Title => "Willkommen";
-    public override string Subtitle => "NØVA Flash Studio installieren";
+    public override string Subtitle => $"{EditionInfo.ProductName} installieren";
 
     public WelcomePage()
     {
@@ -57,10 +57,10 @@ internal sealed class WelcomePage : WizardPage
             Controls.Add(picture);
         }
 
-        AddControl(MakeLabel("NØVA Flash Studio", 16f, bold: true), 140);
+        AddControl(MakeLabel(EditionInfo.ProductName, 16f, bold: true), 140);
         AddControl(MakeLabel($"Version {AssemblyVersion()}", 10f), 172);
         AddControl(MakeLabel(
-            "Der Assistent installiert NØVA Flash Studio auf diesem Computer.\n" +
+            $"Der Assistent installiert {EditionInfo.ProductName} auf diesem Computer.\n" +
             "Standard ist die Installation nur für diesen Benutzer\n" +
             "(%LOCALAPPDATA%, keine Admin-Rechte). Optional ist eine\n" +
             "Installation für alle Benutzer (UAC-Abfrage) oder ein\n" +
@@ -278,7 +278,7 @@ internal sealed class ScopePage : WizardPage
     {
         using var dialog = new FolderBrowserDialog
         {
-            Description = "Installationsordner für NØVA Flash Studio wählen",
+            Description = $"Installationsordner für {EditionInfo.ProductName} wählen",
             SelectedPath = _dir.Text,
             ShowNewFolderButton = true,
         };
@@ -339,8 +339,8 @@ internal sealed class OptionsPage : WizardPage
 
     private readonly CheckBox _desktop = new() { AutoSize = true, Text = "Desktop-Verknüpfung erstellen" };
     private readonly CheckBox _startMenu = new() { AutoSize = true, Text = "Startmenü-Verknüpfung erstellen" };
-    private readonly CheckBox _nova = new() { AutoSize = true, Text = ".nova-Projektdateien mit NØVA Flash Studio öffnen" };
-    private readonly CheckBox _swf = new() { AutoSize = true, Text = ".swf-Dateien mit NØVA Flash Studio öffnen" };
+    private readonly CheckBox _nova = new() { AutoSize = true, Text = $".nova-Projektdateien mit {EditionInfo.ProductName} öffnen" };
+    private readonly CheckBox _swf = new() { AutoSize = true, Text = $".swf-Dateien mit {EditionInfo.ProductName} öffnen" };
 
     public bool DesktopShortcut => _desktop.Checked;
     public bool StartMenuShortcut => _startMenu.Checked;
@@ -364,7 +364,7 @@ internal sealed class OptionsPage : WizardPage
         var note = MakeLabel(
             "Hinweis zu Dateizuordnungen: Windows 10/11 entscheidet die tatsächliche " +
             "Standardanwendung in den Systemsettings. Dieser Assistent registriert " +
-            "nur den Öffnen-Befehl für NØVA Flash Studio und überschreibt keine " +
+            $"nur den Öffnen-Befehl für {EditionInfo.ProductName} und überschreibt keine " +
             "bestehenden Zuordnungen stillschweigend — beim Deinstallieren werden " +
             "nur Einträge entfernt, die noch auf diese Installation zeigen. " +
             "Ihre Projekte und Einstellungen unter %APPDATA% bleiben immer erhalten.", 9f);
@@ -406,7 +406,7 @@ internal sealed class FinishPage : WizardPage
     private readonly CheckBox _launch = new()
     {
         AutoSize = true,
-        Text = "NØVA Flash Studio jetzt starten",
+        Text = $"{EditionInfo.ProductName} jetzt starten",
         ForeColor = Color.Gainsboro,
         Top = 60,
         Left = 24,
@@ -418,7 +418,7 @@ internal sealed class FinishPage : WizardPage
 
     public FinishPage()
     {
-        AddControl(MakeLabel("NØVA Flash Studio wurde erfolgreich installiert.", 11f, bold: true), 24);
+        AddControl(MakeLabel($"{EditionInfo.ProductName} wurde erfolgreich installiert.", 11f, bold: true), 24);
         AddControl(MakeLabel(
             "Sie können das Programm über das Startmenü oder die Desktop-Verknüpfung starten.\n" +
             "Die Deinstallation finden Sie in den Windows-Einstellungen unter „Apps“.",
@@ -452,7 +452,7 @@ internal sealed class WizardForm : Form
 
     public WizardForm()
     {
-        Text = "NØVA Flash Studio – Setup";
+        Text = $"{EditionInfo.ProductName} - Setup";
         StartPosition = FormStartPosition.CenterScreen;
         ClientSize = new Size(720, 540);
         FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -668,7 +668,7 @@ internal sealed class WizardForm : Form
         {
             var result = MessageBox.Show(
                 "Die Installation läuft noch. Trotzdem abbrechen?",
-                "NØVA Flash Studio – Setup",
+                $"{EditionInfo.ProductName} - Setup",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Warning);
             if (result == DialogResult.No)

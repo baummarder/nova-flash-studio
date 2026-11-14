@@ -76,12 +76,14 @@ public sealed class InstallManifest
 /// <summary>Install/uninstall engine shared by the wizard and the CLI.</summary>
 public static class Installer
 {
-    public const string ProductName = "NØVA Flash Studio";
-    public const string AppExeName = "NØVA Flash Studio.exe";
-    public const string UninstallerFileName = "NØVA Flash Studio Uninstall.exe";
+    // Edition-aware identity (M19): values come from EditionInfo.cs, which
+    // package-installer.ps1 regenerates per edition before dotnet publish.
+    public static string ProductName => EditionInfo.ProductName;
+    public static string AppExeName => EditionInfo.AppExeName;
+    public static string UninstallerFileName => EditionInfo.UninstallerFileName;
     public const string ManifestFileName = "install-manifest.json";
-    private const string UninstallKeyName = "NOVAFlashStudio";
-    private const string UninstallRegPath =
+    private static string UninstallKeyName => EditionInfo.UninstallKey;
+    private static string UninstallRegPath =>
         @"Software\Microsoft\Windows\CurrentVersion\Uninstall\" + UninstallKeyName;
 
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
@@ -434,8 +436,8 @@ public static class Installer
 
             // --- File associations ---------------------------------------------------
             progress?.Invoke(96, "Dateizuordnungen werden registriert …");
-            if (options.AssociateNova) RegisterAssociation(".nova", "NOVAFlashStudio.Project", options.Scope, manifest);
-            if (options.AssociateSwf) RegisterAssociation(".swf", "NOVAFlashStudio.SWF", options.Scope, manifest);
+            if (options.AssociateNova) RegisterAssociation(".nova", EditionInfo.ProgIdNova, options.Scope, manifest);
+            if (options.AssociateSwf) RegisterAssociation(".swf", EditionInfo.ProgIdSwf, options.Scope, manifest);
             File.WriteAllText(manifestPath, JsonSerializer.Serialize(manifest, JsonOptions));
 
             // --- Uninstall registry entry ---------------------------------------------

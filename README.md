@@ -8,8 +8,23 @@ the project format is versioned JSON, and the SWF writer is implemented directly
 against the published SWF file-format specification. Tools and extensions run in
 an embedded QuickJS context; ActionScript is **not** executed by QuickJS.
 
-> **Status: Mega Milestone 18 release candidate `0.14.0-rc1`, not stable.**
-> M18 focused on Flash-world interoperability and workflow honesty:
+> **Status: Mega Milestone 19 release candidate `0.15.0-rc1`, not stable.**
+> M19 turns NØVA into **three independently distributable editions**
+> from one shared Rust codebase: **NØVA Flash Studio** (User),
+> **NØVA Flash Studio Edu** and **NØVA Flash Studio Enterprise** — each
+> with own branding, splash/tagline, window title, exe metadata,
+> installer identity (uninstall key, ProgIds, install dir), portable
+> ZIP and Setup EXE (`scripts/package-editions.ps1` builds all six
+> artifacts). Editions get **isolated configuration directories**
+> (`%APPDATA%\NOVA Flash Studio{, Edu, Enterprise}`), separate AI
+> provider settings and autosave recovery; `.nova` projects stay fully
+> interchangeable (no edition field, tested). A centralized
+> `EditionProfile`/module registry in `nova-app` plus
+> `nova_core::Edition` provide the extension points for M20 classroom
+> and M21 administration features. See `docs/EDITIONS.md` and
+> `docs/EDITION_ARCHITECTURE.md`.
+>
+> M18 baseline `0.14.0-rc1`: Flash compatibility & workflow —
 > **FLA format detection** — CS5+ `.fla` (ZIP/XFL) imports, uncompressed
 > XFL folders import, and pre-CS5 binary OLE2 `.fla` files are detected
 > and rejected with clear guidance instead of a cryptic ZIP error;

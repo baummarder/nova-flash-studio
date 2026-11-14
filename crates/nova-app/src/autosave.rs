@@ -44,7 +44,7 @@ pub fn now_unix() -> u64 {
 
 /// Directory used for untitled projects and recovery indexes.
 pub fn recovery_dir() -> PathBuf {
-    std::env::temp_dir().join("nova-flash-studio")
+    std::env::temp_dir().join(nova_core::Edition::current().recovery_dir_name())
 }
 
 /// The autosave file for a project. Named projects keep it next to the project

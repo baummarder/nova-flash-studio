@@ -43,22 +43,22 @@ internal static class Program
     {
         var info = Assembly.GetExecutingAssembly()
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
-        Cli.WriteLine($"NØVA Flash Studio Setup {info ?? "0.0.0"}");
+        Cli.WriteLine($"{EditionInfo.ProductName} Setup {info ?? "0.0.0"}");
         return 0;
     }
 
     private static int Help()
     {
         Cli.WriteLine(
-            """
-            NØVA Flash Studio Setup
+            $"""
+            {EditionInfo.ProductName} Setup
 
             USAGE:
-                NOVA-Flash-Studio-Setup.exe                 Interaktiver Assistent (Standard)
-                NOVA-Flash-Studio-Setup.exe --version      Versionsinformationen
-                NOVA-Flash-Studio-Setup.exe --smoke-test   Payload-Prüfsumme und Inhalt testen
-                NOVA-Flash-Studio-Setup.exe --install DIR  Headless-Installation
-                NOVA-Flash-Studio-Setup.exe --uninstall    Installation entfernen
+                {EditionInfo.SetupExeName}                 Interaktiver Assistent (Standard)
+                {EditionInfo.SetupExeName} --version      Versionsinformationen
+                {EditionInfo.SetupExeName} --smoke-test   Payload-Prüfsumme und Inhalt testen
+                {EditionInfo.SetupExeName} --install DIR  Headless-Installation
+                {EditionInfo.SetupExeName} --uninstall    Installation entfernen
 
             INSTALL-OPTIONEN:
                 --all-users          Systemweite Installation (HKLM, UAC/Admin)
@@ -156,7 +156,7 @@ internal static class Program
         if (parsed.Notify)
         {
             MessageBoxCompat.ShowInfo(
-                $"NØVA Flash Studio wurde installiert.\n\n{dir}");
+                $"{EditionInfo.ProductName} wurde installiert.\n\n{dir}");
         }
         return 0;
     }
@@ -176,7 +176,7 @@ internal static class Program
         Cli.WriteLine("Deinstallation abgeschlossen.");
         if (notify)
         {
-            MessageBoxCompat.ShowInfo("NØVA Flash Studio wurde deinstalliert.");
+            MessageBoxCompat.ShowInfo($"{EditionInfo.ProductName} wurde deinstalliert.");
         }
         return 0;
     }
