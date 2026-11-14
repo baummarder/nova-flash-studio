@@ -18,8 +18,10 @@ const HEADER_HEIGHT: f32 = 20.0;
 struct FrameCell {
     keyframe: bool,
     tween: bool,
+    shape_tween: bool,
     label: Option<String>,
     objects: usize,
+    sound: Option<String>,
 }
 
 struct LayerRow {
@@ -40,7 +42,7 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
     let mut actions = Vec::new();
 
     let (frame_count, fps) = project
-        .active_scene()
+        .edit_scene(state.edit_symbol)
         .map(|scene| (scene.frame_count().max(1), scene.fps))
         .unwrap_or((1, 24.0));
 
@@ -48,7 +50,7 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
     theme::hairline(ui);
 
     let rows: Vec<LayerRow> = project
-        .active_scene()
+        .edit_scene(state.edit_symbol)
         .map(|scene| {
             let collapsed: Vec<Uuid> = scene
                 .layers
@@ -82,8 +84,18 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
                         .map(|frame| FrameCell {
                             keyframe: frame.keyframe,
                             tween: frame.tween.is_some(),
+                            shape_tween: frame
+                                .tween
+                                .as_ref()
+                                .is_some_and(|tween| tween.kind == nova_core::TweenKind::Shape),
                             label: frame.label.clone(),
                             objects: frame.objects.len(),
+                            sound: frame.sound.map(|cue| {
+                                project
+                                    .asset(cue.asset)
+                                    .map(|asset| asset.name.clone())
+                                    .unwrap_or_else(|| "Audio".into())
+                            }),
                         })
                         .collect(),
                 })
@@ -155,7 +167,7 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
                             theme::TEXT_DIM,
                         );
                         if triangle_response.clicked() {
-                            if let Some(scene) = project.active_scene_mut() {
+                            if let Some(scene) = project.edit_scene_mut(state.edit_symbol) {
                                 if let Some(folder) =
                                     scene.layers.iter_mut().find(|layer| layer.id == row.id)
                                 {
@@ -487,10 +499,29 @@ fn paint_grid(
                             rect.left() + next as f32 * frame_width + frame_width * 0.5,
                             start.y,
                         );
-                        painter.line_segment([start, end], Stroke::new(2.0, theme::ACCENT_DIM));
-                        painter.circle_filled(end, 2.5, theme::ACCENT);
+                        let tween_color = if cell.shape_tween {
+                            theme::GREEN
+                        } else {
+                            theme::ACCENT_DIM
+                        };
+                        painter.line_segment([start, end], Stroke::new(2.0, tween_color));
+                        painter.circle_filled(end, 2.5, tween_color);
                     }
                 }
+            }
+
+            // Sound cue marker on sound layers.
+            if let Some(sound_name) = data.and_then(|cell| cell.sound.as_ref()) {
+                let marker = Pos2::new(cell_rect.right() - 5.0, cell_rect.top() + 4.0);
+                painter.circle_filled(marker, 2.6, theme::AMBER);
+                painter.text(
+                    marker,
+                    Align2::CENTER_CENTER,
+                    "S",
+                    FontId::proportional(7.0),
+                    theme::BG_DEEPEST,
+                );
+                let _ = sound_name;
             }
 
             // Keyframe marker.
@@ -537,14 +568,28 @@ fn paint_grid(
             // Interaction.
             let id = ui.make_persistent_id(("timeline_cell", row.id, frame));
             let mut response = ui.interact(cell_rect, id, Sense::click());
+            let mut hover = None;
             if let Some(label) = data.and_then(|cell| cell.label.as_ref()) {
-                response = response.on_hover_text(format!("Frame {} · Label '{label}'", frame + 1));
+                hover = Some(format!("Frame {} · Label '{label}'", frame + 1));
+            } else if let Some(sound) = data.and_then(|cell| cell.sound.as_ref()) {
+                hover = Some(format!("Frame {} · Sound '{sound}'", frame + 1));
             } else if data.is_some_and(|cell| cell.keyframe) {
-                response = response.on_hover_text(format!(
-                    "Frame {} · Schlüsselbild · {} Objekt(e)",
+                let tween_note = if data.is_some_and(|cell| cell.shape_tween) {
+                    " · Form-Tween"
+                } else if data.is_some_and(|cell| cell.tween) {
+                    " · Motion-Tween"
+                } else {
+                    ""
+                };
+                hover = Some(format!(
+                    "Frame {} · Schlüsselbild{} · {} Objekt(e)",
                     frame + 1,
+                    tween_note,
                     data.map(|cell| cell.objects).unwrap_or(0)
                 ));
+            }
+            if let Some(text) = hover {
+                response = response.on_hover_text(text);
             }
 
             if response.clicked() {

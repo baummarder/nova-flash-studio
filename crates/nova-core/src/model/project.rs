@@ -5,7 +5,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{Layer, ObjectInstance, ObjectKind, Rgba, Scene, ScriptId, Symbol, SymbolId, Tween};
+use super::{
+    Layer, ObjectInstance, ObjectKind, Rgba, Scene, ScriptId, Symbol, SymbolId, SymbolKind, Tween,
+};
 use crate::error::{ProjectError, ProjectResult};
 
 pub type ProjectId = Uuid;
@@ -13,7 +15,9 @@ pub type ProjectId = Uuid;
 /// On-disk project format tag. Changing the document layout requires bumping
 /// [`CURRENT_FORMAT_VERSION`] and adding a migration step.
 pub const FORMAT_TAG: &str = "nova-flash-studio";
-pub const CURRENT_FORMAT_VERSION: u32 = 1;
+/// Version 2 adds symbol timelines, bitmap placements/crops, embedded asset
+/// bytes and sound layers/cues. Version 1 documents migrate losslessly.
+pub const CURRENT_FORMAT_VERSION: u32 = 2;
 
 fn now_unix() -> u64 {
     SystemTime::now()
@@ -214,9 +218,96 @@ pub struct Asset {
     pub id: Uuid,
     pub name: String,
     pub kind: AssetKind,
-    /// Path relative to the `.nova` file. Assets are referenced, not yet
-    /// embedded; embedding is part of the sound/bitmap milestone.
+    /// Original path relative to the `.nova` file. Kept for provenance and for
+    /// loading version 1 projects whose assets were referenced, not embedded.
     pub file: String,
+    /// Embedded bytes. PNG/JPEG/GIF and audio assets are stored in the project
+    /// so the document is self-contained.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub data: Vec<u8>,
+    /// Source format/mime label (for example `image/png`, `audio/wav`).
+    #[serde(default)]
+    pub mime: String,
+    #[serde(default)]
+    pub width: u32,
+    #[serde(default)]
+    pub height: u32,
+    /// Duration for audio assets in seconds.
+    #[serde(default)]
+    pub duration: f32,
+    #[serde(default)]
+    pub sample_rate: u32,
+    #[serde(default)]
+    pub channels: u16,
+}
+
+impl Asset {
+    pub fn new(name: impl Into<String>, kind: AssetKind, file: impl Into<String>) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            name: name.into(),
+            kind,
+            file: file.into(),
+            data: Vec::new(),
+            mime: String::new(),
+            width: 0,
+            height: 0,
+            duration: 0.0,
+            sample_rate: 0,
+            channels: 0,
+        }
+    }
+
+    pub fn bitmap(
+        name: impl Into<String>,
+        file: impl Into<String>,
+        mime: impl Into<String>,
+        width: u32,
+        height: u32,
+        data: Vec<u8>,
+    ) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            name: name.into(),
+            kind: AssetKind::Bitmap,
+            file: file.into(),
+            data,
+            mime: mime.into(),
+            width,
+            height,
+            duration: 0.0,
+            sample_rate: 0,
+            channels: 0,
+        }
+    }
+
+    pub fn audio(
+        name: impl Into<String>,
+        file: impl Into<String>,
+        mime: impl Into<String>,
+        sample_rate: u32,
+        channels: u16,
+        duration: f32,
+        data: Vec<u8>,
+    ) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            name: name.into(),
+            kind: AssetKind::Audio,
+            file: file.into(),
+            data,
+            mime: mime.into(),
+            width: 0,
+            height: 0,
+            duration,
+            sample_rate,
+            channels,
+        }
+    }
+
+    pub fn is_embedded(&self) -> bool {
+        !self.data.is_empty()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -471,6 +562,104 @@ impl Project {
         self.symbols.iter().find(|s| s.id == id)
     }
 
+    pub fn symbol_mut(&mut self, id: SymbolId) -> Option<&mut Symbol> {
+        self.symbols.iter_mut().find(|s| s.id == id)
+    }
+
+    pub fn asset(&self, id: Uuid) -> Option<&Asset> {
+        self.assets.iter().find(|asset| asset.id == id)
+    }
+
+    pub fn asset_mut(&mut self, id: Uuid) -> Option<&mut Asset> {
+        self.assets.iter_mut().find(|asset| asset.id == id)
+    }
+
+    /// The scene/timeline currently being edited. `None` means the active scene;
+    /// `Some(id)` means a library symbol timeline.
+    pub fn edit_scene(&self, symbol: Option<SymbolId>) -> Option<&Scene> {
+        match symbol {
+            Some(id) => self.symbol(id).map(|symbol| &symbol.timeline),
+            None => self.active_scene(),
+        }
+    }
+
+    pub fn edit_scene_mut(&mut self, symbol: Option<SymbolId>) -> Option<&mut Scene> {
+        match symbol {
+            Some(id) => self.symbol_mut(id).map(|symbol| &mut symbol.timeline),
+            None => self.active_scene_mut(),
+        }
+    }
+
+    pub fn add_symbol(&mut self, name: impl Into<String>, kind: SymbolKind) -> SymbolId {
+        let name = name.into();
+        let (width, height) = self
+            .active_scene()
+            .map(|scene| (scene.width, scene.height))
+            .unwrap_or((550.0, 400.0));
+        let symbol = Symbol::empty(name, kind, width, height);
+        let id = symbol.id;
+        self.symbols.push(symbol);
+        self.touch();
+        id
+    }
+
+    /// Direct users of a symbol, by name.
+    pub fn symbol_users(&self, id: SymbolId) -> Vec<String> {
+        let mut users = Vec::new();
+        for symbol in &self.symbols {
+            if symbol.id != id && symbol.dependency_ids().contains(&id) {
+                users.push(symbol.name.clone());
+            }
+        }
+        for scene in &self.scenes {
+            if scene_uses_symbol(scene, id) {
+                users.push(scene.name.clone());
+            }
+        }
+        users.sort();
+        users.dedup();
+        users
+    }
+
+    pub fn symbol_is_used(&self, id: SymbolId) -> bool {
+        !self.symbol_users(id).is_empty()
+    }
+
+    /// Duplicates a symbol including its timeline. Nested references are kept;
+    /// the duplicate has a fresh stable id and a unique default name.
+    pub fn duplicate_symbol(&mut self, id: SymbolId) -> Option<SymbolId> {
+        let mut copy = self.symbol(id)?.clone();
+        let base = format!("{} Kopie", copy.name);
+        let mut name = base.clone();
+        let mut index = 2;
+        while self.symbols.iter().any(|symbol| symbol.name == name) {
+            name = format!("{base} {index}");
+            index += 1;
+        }
+        copy.id = Uuid::new_v4();
+        copy.name = name.clone();
+        copy.timeline.id = Uuid::new_v4();
+        copy.timeline.name = name;
+        for layer in &mut copy.timeline.layers {
+            layer.id = Uuid::new_v4();
+            for frame in &mut layer.frames {
+                for object in &mut frame.objects {
+                    object.id = Uuid::new_v4();
+                }
+            }
+        }
+        let new_id = copy.id;
+        self.symbols.push(copy);
+        self.touch();
+        Some(new_id)
+    }
+
+    /// Validates that a symbol can be deleted without leaving dangling
+    /// references. Returns the user names when it cannot.
+    pub fn symbol_delete_blockers(&self, id: SymbolId) -> Vec<String> {
+        self.symbol_users(id)
+    }
+
     pub fn script(&self, id: ScriptId) -> Option<&Script> {
         self.scripts.iter().find(|s| s.id == id)
     }
@@ -537,6 +726,40 @@ impl Project {
             ));
         }
         let mut seen = HashSet::new();
+        let mut asset_ids = HashSet::new();
+        for asset in &self.assets {
+            if !asset_ids.insert(asset.id) {
+                return Err(ProjectError::Validation(format!(
+                    "Doppelte Asset-ID: {}",
+                    asset.id
+                )));
+            }
+            if asset.name.trim().is_empty() {
+                return Err(ProjectError::Validation("Asset hat keinen Namen".into()));
+            }
+            if asset.data.len() > 512 * 1024 * 1024 {
+                return Err(ProjectError::Validation(format!(
+                    "Asset '{}' überschreitet die unterstützte Einbettungsgröße",
+                    asset.name
+                )));
+            }
+            if asset.kind == AssetKind::Bitmap {
+                if !asset.data.is_empty() && (asset.width == 0 || asset.height == 0) {
+                    return Err(ProjectError::Validation(format!(
+                        "Bitmap-Asset '{}' hat keine gültigen Maße",
+                        asset.name
+                    )));
+                }
+            }
+            if asset.kind == AssetKind::Audio
+                && (!asset.duration.is_finite() || asset.duration < 0.0)
+            {
+                return Err(ProjectError::Validation(format!(
+                    "Audio-Asset '{}' hat eine ungültige Dauer",
+                    asset.name
+                )));
+            }
+        }
         for scene in &self.scenes {
             if !seen.insert(scene.id) {
                 return Err(ProjectError::Validation(format!(
@@ -545,49 +768,7 @@ impl Project {
                 )));
             }
             scene.validate().map_err(ProjectError::Validation)?;
-            for layer in &scene.layers {
-                if !seen.insert(layer.id) {
-                    return Err(ProjectError::Validation(format!(
-                        "Doppelte Ebenen-ID: {}",
-                        layer.id
-                    )));
-                }
-                for frame in &layer.frames {
-                    let mut frame_ids = HashSet::new();
-                    for object in &frame.objects {
-                        if !frame_ids.insert(object.id) {
-                            return Err(ProjectError::Validation(format!(
-                                "Objekt '{}' ist im selben Frame doppelt vorhanden",
-                                object.name
-                            )));
-                        }
-                        if let ObjectKind::Symbol { symbol } = object.kind {
-                            if !self.symbols.iter().any(|s| s.id == symbol) {
-                                return Err(ProjectError::Validation(format!(
-                                    "Objekt '{}' verweist auf unbekanntes Symbol",
-                                    object.name
-                                )));
-                            }
-                        }
-                        if let ObjectKind::Text(text) = &object.kind {
-                            if text.size < 1.0 || text.size > 4096.0 || !text.size.is_finite() {
-                                return Err(ProjectError::Validation(format!(
-                                    "Textobjekt '{}' hat eine ungültige Schriftgröße",
-                                    object.name
-                                )));
-                            }
-                        }
-                        if let Some(script) = object.script {
-                            if !self.scripts.iter().any(|s| s.id == script) {
-                                return Err(ProjectError::Validation(format!(
-                                    "Objekt '{}' verweist auf unbekanntes Skript",
-                                    object.name
-                                )));
-                            }
-                        }
-                    }
-                }
-            }
+            self.validate_timeline_objects(scene, "Szene", &mut seen)?;
         }
         for symbol in &self.symbols {
             if !seen.insert(symbol.id) {
@@ -596,10 +777,46 @@ impl Project {
                     symbol.id
                 )));
             }
-            if symbol.width <= 0.0 || symbol.height <= 0.0 {
+            if symbol.name.trim().is_empty() {
+                return Err(ProjectError::Validation("Symbolname ist leer".into()));
+            }
+            if !symbol.width.is_finite()
+                || !symbol.height.is_finite()
+                || symbol.width <= 0.0
+                || symbol.height <= 0.0
+                || symbol.width > 8192.0
+                || symbol.height > 8192.0
+            {
                 return Err(ProjectError::Validation(format!(
                     "Symbol '{}' hat ungültige Maße",
                     symbol.name
+                )));
+            }
+            if !seen.insert(symbol.timeline.id) {
+                return Err(ProjectError::Validation(format!(
+                    "Doppelte Timeline-ID im Symbol '{}'",
+                    symbol.name
+                )));
+            }
+            symbol.timeline.validate().map_err(|error| {
+                ProjectError::Validation(format!("Symbol '{}': {error}", symbol.name))
+            })?;
+            self.validate_timeline_objects(&symbol.timeline, "Symbol", &mut seen)?;
+        }
+        // Nested symbols must not form cycles. A cycle cannot be exported as a
+        // finite DefineSprite graph and would hang both editor preview and
+        // runtime playback.
+        let mut visiting = HashSet::new();
+        let mut visited = HashSet::new();
+        for symbol in &self.symbols {
+            if let Some(cycle) = symbol_cycle(symbol.id, self, &mut visiting, &mut visited) {
+                let names: Vec<&str> = cycle
+                    .iter()
+                    .filter_map(|id| self.symbol(*id).map(|s| s.name.as_str()))
+                    .collect();
+                return Err(ProjectError::Validation(format!(
+                    "Symbol-Zyklus erkannt: {}",
+                    names.join(" → ")
                 )));
             }
         }
@@ -608,6 +825,86 @@ impl Project {
                 return Err(ProjectError::Validation(
                     "Aktive Szene existiert nicht".into(),
                 ));
+            }
+        }
+        Ok(())
+    }
+
+    fn validate_timeline_objects(
+        &self,
+        scene: &Scene,
+        label: &str,
+        seen_layers: &mut HashSet<Uuid>,
+    ) -> ProjectResult<()> {
+        for layer in &scene.layers {
+            if !seen_layers.insert(layer.id) {
+                return Err(ProjectError::Validation(format!(
+                    "Doppelte Ebenen-ID in {label}: {}",
+                    layer.id
+                )));
+            }
+            for frame in &layer.frames {
+                let mut frame_ids = HashSet::new();
+                for object in &frame.objects {
+                    if !frame_ids.insert(object.id) {
+                        return Err(ProjectError::Validation(format!(
+                            "Objekt '{}' ist im selben Frame doppelt vorhanden",
+                            object.name
+                        )));
+                    }
+                    if let ObjectKind::Symbol { symbol } = object.kind
+                        && !self.symbols.iter().any(|s| s.id == symbol)
+                    {
+                        return Err(ProjectError::Validation(format!(
+                            "Objekt '{}' verweist auf unbekanntes Symbol",
+                            object.name
+                        )));
+                    }
+                    if let ObjectKind::Bitmap { asset, .. } = object.kind {
+                        let Some(found) = self.asset(asset) else {
+                            return Err(ProjectError::Validation(format!(
+                                "Objekt '{}' verweist auf unbekanntes Bitmap-Asset",
+                                object.name
+                            )));
+                        };
+                        if found.kind != AssetKind::Bitmap {
+                            return Err(ProjectError::Validation(format!(
+                                "Objekt '{}' verweist auf ein Nicht-Bitmap-Asset",
+                                object.name
+                            )));
+                        }
+                    }
+                    if let ObjectKind::Text(text) = &object.kind
+                        && (text.size < 1.0 || text.size > 4096.0 || !text.size.is_finite())
+                    {
+                        return Err(ProjectError::Validation(format!(
+                            "Textobjekt '{}' hat eine ungültige Schriftgröße",
+                            object.name
+                        )));
+                    }
+                    if let Some(script) = object.script
+                        && !self.scripts.iter().any(|s| s.id == script)
+                    {
+                        return Err(ProjectError::Validation(format!(
+                            "Objekt '{}' verweist auf unbekanntes Skript",
+                            object.name
+                        )));
+                    }
+                }
+                if let Some(cue) = &frame.sound {
+                    let Some(asset) = self.asset(cue.asset) else {
+                        return Err(ProjectError::Validation(format!(
+                            "Sound-Cue in Ebene '{}' verweist auf unbekanntes Asset",
+                            layer.name
+                        )));
+                    };
+                    if asset.kind != AssetKind::Audio {
+                        return Err(ProjectError::Validation(format!(
+                            "Sound-Cue in Ebene '{}' verweist auf ein Nicht-Audio-Asset",
+                            layer.name
+                        )));
+                    }
+                }
             }
         }
         Ok(())
@@ -645,14 +942,78 @@ impl Project {
                 supported: CURRENT_FORMAT_VERSION,
             });
         }
+        let migrated_from_v1 = version == 1;
         if version < CURRENT_FORMAT_VERSION {
             migrate(&mut value, version)?;
         }
 
         let file: NovaFile = serde_json::from_value(value)?;
-        let project = file.project;
+        let mut project = file.project;
+        if migrated_from_v1 {
+            // Version 1 symbols were single filled shapes. Rebuild real symbol
+            // timelines from the preserved legacy fields instead of guessing
+            // from an empty default timeline.
+            for symbol in &mut project.symbols {
+                symbol.from_legacy_shape();
+            }
+        }
+        project.normalize();
         project.validate()?;
         Ok(project)
+    }
+
+    /// Normalises fields that are optional in serialized documents. This is
+    /// deliberately separate from validation so editor-created and migrated
+    /// symbols behave identically.
+    pub fn normalize(&mut self) {
+        for symbol in &mut self.symbols {
+            symbol.normalize();
+        }
+        for asset in &mut self.assets {
+            if asset.kind == AssetKind::Bitmap && asset.mime.is_empty() {
+                asset.mime = guess_mime(&asset.file, asset.kind).into();
+            }
+            if asset.kind == AssetKind::Audio && asset.mime.is_empty() {
+                asset.mime = guess_mime(&asset.file, asset.kind).into();
+            }
+        }
+    }
+
+    /// Reads referenced-but-unembedded version 1 assets relative to the project
+    /// file. Path traversal is rejected; missing files stay referenced and are
+    /// reported by the exporter instead of silently disappearing.
+    pub fn hydrate_assets(&mut self, base: &Path) {
+        for asset in &mut self.assets {
+            if asset.is_embedded() || asset.file.trim().is_empty() {
+                continue;
+            }
+            let relative = Path::new(&asset.file);
+            if relative.is_absolute()
+                || relative
+                    .components()
+                    .any(|component| matches!(component, std::path::Component::ParentDir))
+            {
+                continue;
+            }
+            let path = base.join(relative);
+            let Ok(data) = std::fs::read(&path) else {
+                continue;
+            };
+            if asset.kind == AssetKind::Bitmap {
+                if let Some((width, height)) = image_dimensions(&data) {
+                    asset.width = width;
+                    asset.height = height;
+                }
+                if asset.mime.is_empty() {
+                    asset.mime = guess_mime(&asset.file, asset.kind).into();
+                }
+            } else if asset.kind == AssetKind::Audio {
+                if asset.mime.is_empty() {
+                    asset.mime = guess_mime(&asset.file, asset.kind).into();
+                }
+            }
+            asset.data = data;
+        }
     }
 
     pub fn save(&self, path: &Path) -> ProjectResult<()> {
@@ -674,8 +1035,113 @@ impl Project {
 
     pub fn load(path: &Path) -> ProjectResult<Self> {
         let text = std::fs::read_to_string(path)?;
-        Self::from_json(&text)
+        let mut project = Self::from_json(&text)?;
+        if let Some(base) = path.parent() {
+            project.hydrate_assets(base);
+        }
+        Ok(project)
     }
+}
+
+fn symbol_cycle(
+    id: SymbolId,
+    project: &Project,
+    visiting: &mut HashSet<SymbolId>,
+    visited: &mut HashSet<SymbolId>,
+) -> Option<Vec<SymbolId>> {
+    if visited.contains(&id) {
+        return None;
+    }
+    if !visiting.insert(id) {
+        return Some(vec![id]);
+    }
+    let dependencies = project
+        .symbol(id)
+        .map(|symbol| symbol.dependency_ids())
+        .unwrap_or_default();
+    for dependency in dependencies {
+        if let Some(mut cycle) = symbol_cycle(dependency, project, visiting, visited) {
+            cycle.insert(0, id);
+            return Some(cycle);
+        }
+    }
+    visiting.remove(&id);
+    visited.insert(id);
+    None
+}
+
+fn scene_uses_symbol(scene: &Scene, id: SymbolId) -> bool {
+    scene.layers.iter().any(|layer| {
+        layer.frames.iter().any(|frame| {
+            frame
+                .objects
+                .iter()
+                .any(|object| matches!(object.kind, ObjectKind::Symbol { symbol } if symbol == id))
+        })
+    })
+}
+
+fn guess_mime(file: &str, kind: AssetKind) -> &'static str {
+    let lower = file.to_ascii_lowercase();
+    match kind {
+        AssetKind::Bitmap => {
+            if lower.ends_with(".png") {
+                "image/png"
+            } else if lower.ends_with(".jpg") || lower.ends_with(".jpeg") {
+                "image/jpeg"
+            } else if lower.ends_with(".gif") {
+                "image/gif"
+            } else {
+                "application/octet-stream"
+            }
+        }
+        AssetKind::Audio => {
+            if lower.ends_with(".wav") {
+                "audio/wav"
+            } else if lower.ends_with(".mp3") {
+                "audio/mpeg"
+            } else {
+                "application/octet-stream"
+            }
+        }
+        AssetKind::Font => "font/ttf",
+    }
+}
+
+/// Minimal header probe used by the core crate (which deliberately does not
+/// depend on an image decoder). Returns PNG/JPEG/GIF dimensions when available.
+fn image_dimensions(data: &[u8]) -> Option<(u32, u32)> {
+    if data.len() >= 24 && data.starts_with(b"\x89PNG\r\n\x1a\n") {
+        let width = u32::from_be_bytes([data[16], data[17], data[18], data[19]]);
+        let height = u32::from_be_bytes([data[20], data[21], data[22], data[23]]);
+        return Some((width, height));
+    }
+    if data.len() >= 10 && (data.starts_with(b"GIF87a") || data.starts_with(b"GIF89a")) {
+        let width = u16::from_le_bytes([data[6], data[7]]) as u32;
+        let height = u16::from_le_bytes([data[8], data[9]]) as u32;
+        return Some((width, height));
+    }
+    if data.len() >= 4 && data.starts_with(&[0xFF, 0xD8]) {
+        let mut offset = 2usize;
+        while offset + 9 <= data.len() {
+            if data[offset] != 0xFF {
+                offset += 1;
+                continue;
+            }
+            let marker = data[offset + 1];
+            if (0xC0..=0xCF).contains(&marker) && !matches!(marker, 0xC4 | 0xC8 | 0xCC) {
+                let height = u16::from_be_bytes([data[offset + 5], data[offset + 6]]) as u32;
+                let width = u16::from_be_bytes([data[offset + 7], data[offset + 8]]) as u32;
+                return Some((width, height));
+            }
+            let length = u16::from_be_bytes([data[offset + 2], data[offset + 3]]) as usize;
+            if length < 2 {
+                break;
+            }
+            offset += 2 + length;
+        }
+    }
+    None
 }
 
 /// Migration for older documents. Version 1 is the first public format, so
@@ -775,5 +1241,105 @@ mod tests {
         project.scenes = vec![scene];
         project.active_scene = project.scenes.first().map(|s| s.id);
         assert!(project.validate().is_err());
+    }
+
+    #[test]
+    fn version_1_symbol_migrates_to_a_real_timeline() {
+        let project = Project::demo();
+        let mut value = serde_json::to_value(NovaFile::wrap(project.clone())).unwrap();
+        value["formatVersion"] = serde_json::json!(1);
+        for symbol in value["project"]["symbols"]
+            .as_array_mut()
+            .expect("symbols array")
+        {
+            symbol
+                .as_object_mut()
+                .unwrap()
+                .remove("timeline")
+                .expect("timeline present");
+            symbol
+                .as_object_mut()
+                .unwrap()
+                .remove("kind")
+                .expect("kind present");
+        }
+        let loaded = Project::from_json(&serde_json::to_string(&value).unwrap()).unwrap();
+        assert_eq!(loaded.symbols.len(), project.symbols.len());
+        for symbol in &loaded.symbols {
+            assert_eq!(symbol.timeline.layers.len(), 1);
+            assert_eq!(symbol.frame_count(), 1);
+            assert_eq!(symbol.timeline.layers[0].frames[0].objects.len(), 1);
+            assert!(matches!(
+                symbol.timeline.layers[0].frames[0].objects[0].kind,
+                ObjectKind::Rect { .. }
+            ));
+        }
+        assert_eq!(loaded.symbols[0].timeline.width, loaded.symbols[0].width);
+    }
+
+    #[test]
+    fn symbol_cycles_are_rejected() {
+        let mut project = Project::demo();
+        project.symbols.clear();
+        project.scenes = vec![Scene::new("Leer", 100.0, 100.0)];
+        project.active_scene = project.scenes.first().map(|scene| scene.id);
+        let a = project.add_symbol("A", SymbolKind::MovieClip);
+        let b = project.add_symbol("B", SymbolKind::MovieClip);
+        project.symbol_mut(a).unwrap().timeline.layers[0].frames[0]
+            .objects
+            .push(ObjectInstance::symbol("B", 0.0, 0.0, b, Rgba::WHITE));
+        project.symbol_mut(b).unwrap().timeline.layers[0].frames[0]
+            .objects
+            .push(ObjectInstance::symbol("A", 0.0, 0.0, a, Rgba::WHITE));
+        let error = project.validate().unwrap_err().to_string();
+        assert!(error.contains("Symbol-Zyklus"));
+    }
+
+    #[test]
+    fn bitmap_and_audio_references_are_validated() {
+        let mut project = Project::demo();
+        let bitmap = Asset::bitmap(
+            "Punkt",
+            "point.png",
+            "image/png",
+            1,
+            1,
+            vec![0x89, b'P', b'N', b'G'],
+        );
+        let bitmap_id = bitmap.id;
+        let audio = Asset::audio("Ton", "tone.wav", "audio/wav", 44_100, 1, 0.5, vec![0; 8]);
+        let audio_id = audio.id;
+        project.assets.push(bitmap);
+        project.assets.push(audio);
+        let mut object = ObjectInstance::bitmap("Punkt", 0.0, 0.0, bitmap_id, 1.0, 1.0);
+        object.kind = ObjectKind::Bitmap {
+            asset: bitmap_id,
+            width: 1.0,
+            height: 1.0,
+            crop: Some(super::super::BitmapCrop {
+                x: 0.0,
+                y: 0.0,
+                width: 0.5,
+                height: 0.5,
+            }),
+        };
+        let scene = project.active_scene_mut().unwrap();
+        scene.layers[0].frames[0].objects.push(object);
+        let sound_layer = scene.layers.iter_mut().find(|layer| layer.name == "Stern");
+        if let Some(layer) = sound_layer {
+            layer.kind = super::super::LayerKind::Sound;
+            layer.frames[0].sound = Some(super::super::SoundCue::event(audio_id));
+        }
+        project.validate().expect("bitmap and audio valid");
+    }
+
+    #[test]
+    fn deleting_a_used_symbol_reports_its_users() {
+        let mut project = Project::demo();
+        let id = project.symbols[0].id;
+        assert!(project.symbol_is_used(id));
+        assert!(!project.symbol_delete_blockers(id).is_empty());
+        let free = project.add_symbol("Frei", SymbolKind::Graphic);
+        assert!(project.symbol_delete_blockers(free).is_empty());
     }
 }

@@ -29,6 +29,7 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
                     }
                 }
                 Selection::Symbol(_) => "Symbol",
+                Selection::Asset(_) => "Asset",
             };
             ui.label(RichText::new(kind).small().color(theme::TEXT_FAINT));
         });
@@ -51,6 +52,7 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
                     multi_object_properties(ui, project, state, ids, &mut actions)
                 }
                 Selection::Symbol(id) => symbol_properties(ui, project, state, *id, &mut actions),
+                Selection::Asset(id) => asset_properties(ui, project, state, *id, &mut actions),
             }
         });
 
@@ -79,7 +81,7 @@ fn project_info(ui: &mut Ui, project: &Project, state: &mut AppState) {
         .small()
         .color(theme::TEXT_DIM),
     );
-    if let Some(scene) = project.active_scene() {
+    if let Some(scene) = project.edit_scene(state.edit_symbol) {
         ui.label(
             RichText::new(format!(
                 "Aktiv: {} · {:.0}×{:.0} px · {:.0} fps · {} Frames",
@@ -317,7 +319,7 @@ fn layer_properties(
     let mut changed = false;
     let mut found = false;
     let folder_options: Vec<(Uuid, String)> = project
-        .active_scene()
+        .edit_scene(state.edit_symbol)
         .map(|scene| {
             scene
                 .layers
@@ -332,7 +334,7 @@ fn layer_properties(
         })
         .unwrap_or_default();
 
-    if let Some(scene) = project.active_scene_mut() {
+    if let Some(scene) = project.edit_scene_mut(state.edit_symbol) {
         if let Some(layer) = scene.layers.iter_mut().find(|layer| layer.id == id) {
             found = true;
             theme::section(ui, "Ebene");
@@ -362,6 +364,7 @@ fn layer_properties(
                                 LayerKind::Folder,
                                 LayerKind::Guide,
                                 LayerKind::Mask,
+                                LayerKind::Sound,
                             ] {
                                 if ui
                                     .selectable_label(kind == candidate, candidate.label())
@@ -448,8 +451,29 @@ fn layer_properties(
                 let duration = end.map(|end| end - start + 1).unwrap_or(1);
                 let has_tween = layer.frames[start].tween.is_some();
                 ui.add_space(4.0);
-                theme::section(ui, "Motion-Tween");
+                theme::section(ui, "Tween");
                 if has_tween {
+                    let tween_kind = layer.frames[start]
+                        .tween
+                        .as_ref()
+                        .map(|tween| tween.kind)
+                        .unwrap_or_default();
+                    let mut selected_kind = tween_kind;
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("Typ").small());
+                        for candidate in [nova_core::TweenKind::Motion, nova_core::TweenKind::Shape]
+                        {
+                            if ui
+                                .selectable_label(selected_kind == candidate, candidate.label())
+                                .clicked()
+                            {
+                                selected_kind = candidate;
+                            }
+                        }
+                    });
+                    if selected_kind != tween_kind {
+                        actions.push(UiAction::SetTweenKind(selected_kind));
+                    }
                     let easing = layer.frames[start]
                         .tween
                         .as_ref()
@@ -542,7 +566,7 @@ fn layer_properties(
     }
 
     if changed {
-        if let Some(scene) = project.active_scene_mut() {
+        if let Some(scene) = project.edit_scene_mut(state.edit_symbol) {
             scene.repair_folder_links();
         }
         project.touch();
@@ -588,7 +612,7 @@ fn object_properties(
                 .small()
                 .color(theme::TEXT_DIM),
         );
-        if let Some(scene) = project.active_scene() {
+        if let Some(scene) = project.edit_scene(state.edit_symbol) {
             let _ = scene;
         }
         return;
@@ -599,7 +623,7 @@ fn object_properties(
     let size = util::object_size(&instance, &project.symbols).unwrap_or((40.0, 40.0));
 
     let (keyframe, next_keyframe, on_keyframe) = project
-        .active_scene()
+        .edit_scene(state.edit_symbol)
         .and_then(|scene| {
             scene
                 .layers
@@ -661,6 +685,10 @@ fn object_properties(
     let mut text = match &instance.kind {
         ObjectKind::Text(text) => text.clone(),
         _ => nova_core::TextObject::default(),
+    };
+    let mut bitmap_crop = match &instance.kind {
+        ObjectKind::Bitmap { crop, .. } => *crop,
+        _ => None,
     };
     let mut changed = false;
 
@@ -931,6 +959,87 @@ fn object_properties(
                 .color(theme::TEXT_FAINT),
             );
         }
+        ObjectKind::Bitmap { asset, .. } => {
+            if let Some(definition) = project.asset(*asset) {
+                ui.label(
+                    RichText::new(format!(
+                        "Asset '{}' · {}×{} px · {}",
+                        definition.name,
+                        definition.width,
+                        definition.height,
+                        if definition.mime.is_empty() {
+                            "unbekannt"
+                        } else {
+                            &definition.mime
+                        }
+                    ))
+                    .small()
+                    .color(theme::TEXT_DIM),
+                );
+            }
+            egui::Grid::new("bitmap_grid")
+                .num_columns(2)
+                .spacing(egui::vec2(8.0, 6.0))
+                .show(ui, |ui| {
+                    ui.label("Breite");
+                    changed |= ui
+                        .add(
+                            egui::DragValue::new(&mut width)
+                                .range(1.0..=16384.0)
+                                .speed(1.0)
+                                .suffix(" px"),
+                        )
+                        .changed();
+                    ui.end_row();
+                    ui.label("Höhe");
+                    changed |= ui
+                        .add(
+                            egui::DragValue::new(&mut height)
+                                .range(1.0..=16384.0)
+                                .speed(1.0)
+                                .suffix(" px"),
+                        )
+                        .changed();
+                    ui.end_row();
+                });
+            let mut crop_enabled = bitmap_crop.is_some();
+            if ui.checkbox(&mut crop_enabled, "Ausschnitt").changed() {
+                bitmap_crop = crop_enabled.then_some(nova_core::BitmapCrop::FULL);
+                changed = true;
+            }
+            if let Some(crop) = &mut bitmap_crop {
+                egui::Grid::new("bitmap_crop_grid")
+                    .num_columns(2)
+                    .spacing(egui::vec2(8.0, 6.0))
+                    .show(ui, |ui| {
+                        for (label, value) in [
+                            ("X", &mut crop.x),
+                            ("Y", &mut crop.y),
+                            ("Breite", &mut crop.width),
+                            ("Höhe", &mut crop.height),
+                        ] {
+                            ui.label(label);
+                            changed |= ui
+                                .add(
+                                    egui::DragValue::new(value)
+                                        .range(0.0..=1.0)
+                                        .speed(0.01)
+                                        .max_decimals(3),
+                                )
+                                .changed();
+                            ui.end_row();
+                        }
+                    });
+                *crop = crop.normalized();
+            }
+            ui.label(
+                RichText::new(
+                    "Ausschnitt wird normalisiert gespeichert und beim SWF-Export auf die Pixeldaten angewendet.",
+                )
+                .small()
+                .color(theme::TEXT_FAINT),
+            );
+        }
         ObjectKind::Symbol { symbol } => {
             if let Some(definition) = project.symbol(*symbol) {
                 ui.label(
@@ -1004,9 +1113,15 @@ fn object_properties(
                 paths: paths.clone(),
             },
             ObjectKind::Symbol { symbol } => ObjectKind::Symbol { symbol: *symbol },
+            ObjectKind::Bitmap { asset, .. } => ObjectKind::Bitmap {
+                asset: *asset,
+                width,
+                height,
+                crop: bitmap_crop,
+            },
             ObjectKind::Text(_) => ObjectKind::Text(text),
         };
-        if let Some(scene) = project.active_scene_mut() {
+        if let Some(scene) = project.edit_scene_mut(state.edit_symbol) {
             if let Some(object) = util::governing_object_mut(scene, layer_id, state.frame, id) {
                 object.name = name;
                 object.transform.x = x;
@@ -1205,7 +1320,7 @@ fn multi_object_properties(
     let rotate = angle.abs() > f32::EPSILON;
     if translate || scale || rotate || color_changed || alpha_changed || script_choice.is_some() {
         let new_fill = util::from_color32(fill_color);
-        let Some(scene) = project.active_scene_mut() else {
+        let Some(scene) = project.edit_scene_mut(state.edit_symbol) else {
             return;
         };
         for (id, layer_id, start, _) in &targets {
@@ -1267,6 +1382,30 @@ fn symbol_properties(
                 changed |= ui.text_edit_singleline(&mut symbol.name).changed();
                 ui.end_row();
 
+                ui.label("Typ");
+                let mut kind = symbol.kind;
+                egui::ComboBox::from_id_salt("symbol_kind")
+                    .selected_text(kind.label())
+                    .show_ui(ui, |ui| {
+                        for candidate in [
+                            nova_core::SymbolKind::Graphic,
+                            nova_core::SymbolKind::MovieClip,
+                            nova_core::SymbolKind::Button,
+                        ] {
+                            if ui
+                                .selectable_label(kind == candidate, candidate.label())
+                                .clicked()
+                            {
+                                kind = candidate;
+                            }
+                        }
+                    });
+                if kind != symbol.kind {
+                    symbol.kind = kind;
+                    changed = true;
+                }
+                ui.end_row();
+
                 ui.label("Breite");
                 changed |= ui
                     .add(
@@ -1319,11 +1458,28 @@ fn symbol_properties(
     }
 
     if changed {
+        if let Some(symbol) = project.symbol_mut(id) {
+            symbol.timeline.width = symbol.width;
+            symbol.timeline.height = symbol.height;
+            symbol.timeline.name = symbol.name.clone();
+        }
         project.touch();
         state.dirty = true;
     }
 
     ui.add_space(6.0);
+    ui.horizontal(|ui| {
+        if ui
+            .button("Symbol bearbeiten")
+            .on_hover_text("Öffnet die eigene Timeline des Symbols")
+            .clicked()
+        {
+            actions.push(UiAction::EnterSymbol(id));
+        }
+        if ui.button("Duplizieren").clicked() {
+            actions.push(UiAction::DuplicateSymbol(id));
+        }
+    });
     if ui
         .button("Instanz auf Bühne platzieren")
         .on_hover_text("Fügt das Symbol an der Bühnenmitte ein")
@@ -1341,7 +1497,124 @@ fn symbol_properties(
     ui.add_space(4.0);
     ui.label(
         RichText::new(
-            "Symbole werden beim SWF-Export als ein-Frame-Sprites angelegt. Verschachtelte Symbol-Timelines folgen später.",
+            "Jedes Symbol besitzt eine eigene Timeline mit Ebenen, Keyframes und Tweens. MovieClips lassen sich verschachteln; Button-Zustände werden als MovieClip exportiert.",
+        )
+        .small()
+        .color(theme::TEXT_FAINT),
+    );
+}
+
+fn asset_properties(
+    ui: &mut Ui,
+    project: &mut Project,
+    state: &mut AppState,
+    id: Uuid,
+    actions: &mut Vec<UiAction>,
+) {
+    let Some(index) = project.assets.iter().position(|asset| asset.id == id) else {
+        ui.label(RichText::new("Asset nicht gefunden").color(theme::RED));
+        return;
+    };
+    let mut changed = false;
+    {
+        let asset = &mut project.assets[index];
+        theme::section(ui, "Bibliothek-Asset");
+        egui::Grid::new("asset_grid")
+            .num_columns(2)
+            .spacing(egui::vec2(8.0, 6.0))
+            .show(ui, |ui| {
+                ui.label("Name");
+                changed |= ui.text_edit_singleline(&mut asset.name).changed();
+                ui.end_row();
+                ui.label("Typ");
+                ui.label(
+                    RichText::new(match asset.kind {
+                        nova_core::AssetKind::Bitmap => "Bitmap",
+                        nova_core::AssetKind::Audio => "Audio",
+                        nova_core::AssetKind::Font => "Font",
+                    })
+                    .small(),
+                );
+                ui.end_row();
+                ui.label("Format");
+                ui.label(
+                    RichText::new(if asset.mime.is_empty() {
+                        "unbekannt".to_string()
+                    } else {
+                        asset.mime.clone()
+                    })
+                    .small()
+                    .monospace(),
+                );
+                ui.end_row();
+                match asset.kind {
+                    nova_core::AssetKind::Bitmap => {
+                        ui.label("Größe");
+                        ui.label(format!("{} × {} px", asset.width, asset.height));
+                        ui.end_row();
+                        ui.label("Daten");
+                        ui.label(format!("{} KB", asset.data.len() / 1024));
+                        ui.end_row();
+                    }
+                    nova_core::AssetKind::Audio => {
+                        ui.label("Dauer");
+                        ui.label(if asset.duration > 0.0 {
+                            format!("{:.1} s", asset.duration)
+                        } else {
+                            "unbekannt".to_string()
+                        });
+                        ui.end_row();
+                        if asset.sample_rate > 0 {
+                            ui.label("Abtastrate");
+                            ui.label(format!(
+                                "{} Hz · {} Kanal/kanäle",
+                                asset.sample_rate, asset.channels
+                            ));
+                            ui.end_row();
+                        }
+                    }
+                    nova_core::AssetKind::Font => {}
+                }
+                ui.label("Quelle");
+                ui.label(RichText::new(&asset.file).small().color(theme::TEXT_FAINT));
+                ui.end_row();
+            });
+    }
+    if changed {
+        project.touch();
+        state.dirty = true;
+    }
+
+    ui.add_space(6.0);
+    match project.assets[index].kind {
+        nova_core::AssetKind::Bitmap => {
+            if ui.button("Bitmap auf Bühne platzieren").clicked() {
+                actions.push(UiAction::AddBitmapAsset(id));
+            }
+        }
+        nova_core::AssetKind::Audio => {
+            ui.horizontal(|ui| {
+                if ui.button("Vorschau").clicked() {
+                    actions.push(UiAction::PreviewAsset(id));
+                }
+                if ui.button("Sound setzen").clicked() {
+                    actions.push(UiAction::AddSoundCue(id));
+                }
+            });
+        }
+        nova_core::AssetKind::Font => {}
+    }
+    if ui
+        .button(RichText::new("Asset löschen").color(theme::RED))
+        .on_hover_text("Nur möglich, wenn nichts das Asset verwendet")
+        .clicked()
+    {
+        actions.push(UiAction::DeleteSelection);
+    }
+    ui.add_space(4.0);
+    ui.label(
+        RichText::new(
+            "Bitmaps werden als DefineBits exportiert, Audio als DefineSound/StartSound.",
         )
         .small()
         .color(theme::TEXT_FAINT),

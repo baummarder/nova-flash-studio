@@ -293,6 +293,13 @@ impl Workspace {
         fs::read_to_string(path).map_err(AiError::io)
     }
 
+    /// Reads arbitrary asset bytes through the same workspace confinement as
+    /// source files. Used by asset import project operations.
+    pub fn read_bytes(&self, relative: &str) -> AiResult<Vec<u8>> {
+        let path = self.resolve(relative)?;
+        fs::read(path).map_err(AiError::io)
+    }
+
     pub fn exists(&self, relative: &str) -> bool {
         self.resolve(relative)
             .map(|path| path.exists())

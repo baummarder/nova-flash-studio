@@ -14,6 +14,9 @@ pub enum BuildError {
     #[error("ActionScript-Compilerfehler:\n{0}")]
     ActionScript(String),
 
+    #[error("Asset-Fehler: {0}")]
+    Asset(String),
+
     #[error("{0}")]
     Limit(String),
 }

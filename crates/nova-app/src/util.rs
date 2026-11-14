@@ -25,7 +25,8 @@ pub fn object_size(instance: &ObjectInstance, symbols: &[Symbol]) -> Option<(f32
     match &instance.kind {
         ObjectKind::Rect { width, height, .. }
         | ObjectKind::Ellipse { width, height }
-        | ObjectKind::Path { width, height, .. } => Some((*width, *height)),
+        | ObjectKind::Path { width, height, .. }
+        | ObjectKind::Bitmap { width, height, .. } => Some((*width, *height)),
         ObjectKind::Text(text) => Some(text.metrics()),
         ObjectKind::Symbol { symbol } => symbols
             .iter()

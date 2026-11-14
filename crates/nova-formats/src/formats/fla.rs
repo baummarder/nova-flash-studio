@@ -9,8 +9,9 @@ use std::collections::{BTreeMap, HashMap};
 use std::io::{Cursor, Read, Write};
 
 use nova_core::{
-    Frame, Layer, LayerKind, ObjectInstance, ObjectKind, PathCommand, PathShape, Project, Rgba,
-    Scene, Script, SourceFormat, SourceInfo, Symbol, Transform,
+    Asset, AssetKind, Frame, Layer, LayerKind, ObjectInstance, ObjectKind, PathCommand, PathShape,
+    Project, Rgba, Scene, Script, SoundCue, SourceFormat, SourceInfo, Symbol, SymbolKind,
+    Transform,
 };
 use roxmltree::{Document, Node};
 use uuid::Uuid;
@@ -95,101 +96,152 @@ pub fn import(bytes: &[u8]) -> FormatResult<ImportedData> {
     let timeline_node = root
         .descendants()
         .find(|node| node.has_tag_name("DOMTimeline"));
-    let layers_node = timeline_node.and_then(|timeline| {
-        timeline
-            .descendants()
-            .find(|node| node.has_tag_name("layers"))
-    });
+
+    let mut assets: Vec<Asset> = Vec::new();
+    let mut asset_ids: HashMap<String, Uuid> = HashMap::new();
+    collect_xfl_assets(root, &files, &mut assets, &mut asset_ids, &mut report);
 
     let mut symbols: Vec<Symbol> = Vec::new();
     let mut symbol_ids: HashMap<String, Uuid> = HashMap::new();
-    let mut layers: Vec<Layer> = Vec::new();
     let mut shape_count = 0usize;
     let mut unsupported_count = 0usize;
 
-    if let Some(layers_node) = layers_node {
-        for layer_node in layers_node
-            .children()
-            .filter(|node| node.has_tag_name("DOMLayer"))
+    // Pre-create every library symbol before parsing any timeline. Nested
+    // instances can then reference symbols that are defined in a later ZIP
+    // entry and still resolve to stable ids.
+    for (file_name, data) in &files {
+        let lower = file_name.to_ascii_lowercase();
+        if !lower.starts_with("library/")
+            || !lower.ends_with(".xml")
+            || lower.ends_with("domdocument.xml")
         {
-            let name = attr_string(layer_node, "name").unwrap_or_else(|| "Ebene".into());
-            let visible = attr_string(layer_node, "visible")
-                .map(|value| value != "false")
-                .unwrap_or(true);
-            let locked = attr_string(layer_node, "locked")
-                .map(|value| value == "true")
-                .unwrap_or(false);
-            let kind = match attr_string(layer_node, "layerType")
-                .unwrap_or_default()
-                .to_ascii_lowercase()
-                .as_str()
-            {
-                "folder" => LayerKind::Folder,
-                "guide" => LayerKind::Guide,
-                "mask" | "masked" => LayerKind::Mask,
-                _ => LayerKind::Normal,
-            };
-            let mut frames: Vec<Frame> = Vec::new();
-            if let Some(frames_node) = layer_node
-                .children()
-                .find(|node| node.has_tag_name("frames"))
-            {
-                for frame_node in frames_node
-                    .children()
-                    .filter(|node| node.has_tag_name("DOMFrame"))
-                {
-                    let index = attr_usize(frame_node, "index").unwrap_or(frames.len());
-                    let key_mode = attr_usize(frame_node, "keyMode").unwrap_or(9728);
-                    let label = attr_string(frame_node, "label");
-                    let mut objects = Vec::new();
-                    if let Some(elements) = frame_node
-                        .children()
-                        .find(|node| node.has_tag_name("elements"))
-                    {
-                        for element in elements.children().filter(Node::is_element) {
-                            shape_count += parse_element(
-                                element,
-                                &mut objects,
-                                &mut symbols,
-                                &mut symbol_ids,
-                                &mut report,
-                            );
-                        }
-                    }
-                    while frames.len() <= index {
-                        frames.push(Frame::default());
-                    }
-                    frames[index] = Frame {
-                        keyframe: key_mode != 0,
-                        objects,
-                        tween: None,
-                        label,
-                    };
-                }
+            continue;
+        }
+        let Ok(text) = std::str::from_utf8(data) else {
+            continue;
+        };
+        let Ok(document) = Document::parse(text) else {
+            continue;
+        };
+        let Some(item) = document
+            .descendants()
+            .find(|node| node.has_tag_name("DOMSymbolItem"))
+        else {
+            continue;
+        };
+        let raw_name = attr_string(item, "name")
+            .or_else(|| {
+                file_name
+                    .rsplit('/')
+                    .next()
+                    .map(|name| name.trim_end_matches(".xml").to_string())
+            })
+            .unwrap_or_else(|| "Symbol".into());
+        let name = raw_name.rsplit('/').next().unwrap_or(&raw_name).to_string();
+        let kind = match attr_string(item, "symbolType")
+            .unwrap_or_default()
+            .to_ascii_lowercase()
+            .as_str()
+        {
+            "movieclip" => SymbolKind::MovieClip,
+            "button" => SymbolKind::Button,
+            _ => SymbolKind::Graphic,
+        };
+        let width = attr_f32(item, "width").unwrap_or(100.0).max(1.0);
+        let height = attr_f32(item, "height").unwrap_or(100.0).max(1.0);
+        let mut symbol = Symbol::empty(name.clone(), kind, width, height);
+        symbol.timeline.layers.clear();
+        let id = symbol.id;
+        symbols.push(symbol);
+        symbol_ids.insert(raw_name.clone(), id);
+        symbol_ids.insert(name.clone(), id);
+    }
+
+    // Now fill each placeholder with its real timeline.
+    for (file_name, data) in &files {
+        let lower = file_name.to_ascii_lowercase();
+        if !lower.starts_with("library/")
+            || !lower.ends_with(".xml")
+            || lower.ends_with("domdocument.xml")
+        {
+            continue;
+        }
+        let Ok(text) = std::str::from_utf8(data) else {
+            continue;
+        };
+        let Ok(document) = Document::parse(text) else {
+            continue;
+        };
+        let Some(item) = document
+            .descendants()
+            .find(|node| node.has_tag_name("DOMSymbolItem"))
+        else {
+            continue;
+        };
+        let raw_name = attr_string(item, "name")
+            .or_else(|| {
+                file_name
+                    .rsplit('/')
+                    .next()
+                    .map(|name| name.trim_end_matches(".xml").to_string())
+            })
+            .unwrap_or_else(|| "Symbol".into());
+        let key = raw_name.rsplit('/').next().unwrap_or(&raw_name).to_string();
+        let Some(id) = symbol_ids
+            .get(&raw_name)
+            .or_else(|| symbol_ids.get(&key))
+            .copied()
+        else {
+            continue;
+        };
+        let Some(index) = symbols.iter().position(|symbol| symbol.id == id) else {
+            continue;
+        };
+        if let Some(timeline) = item
+            .descendants()
+            .find(|node| node.has_tag_name("DOMTimeline"))
+        {
+            let layers = parse_timeline_layers(
+                timeline,
+                &mut symbols,
+                &mut symbol_ids,
+                &assets,
+                &asset_ids,
+                &mut report,
+                &mut shape_count,
+            );
+            if !layers.is_empty() {
+                symbols[index].timeline.layers = layers;
             }
-            if frames.is_empty() {
-                frames.push(Frame {
-                    keyframe: true,
-                    ..Default::default()
-                });
-            }
-            let mut layer = Layer::new(name, frames.len());
-            layer.visible = visible;
-            layer.locked = locked;
-            layer.kind = kind;
-            layer.frames = frames;
-            layers.push(layer);
+            symbols[index].timeline.width = symbols[index].width;
+            symbols[index].timeline.height = symbols[index].height;
+            symbols[index].timeline.background = Rgba::rgba(0, 0, 0, 0);
+            symbols[index].timeline.name = symbols[index].name.clone();
+            symbols[index].normalize();
         }
     }
-    if layers.is_empty() {
+
+    scene.layers = timeline_node
+        .map(|timeline| {
+            parse_timeline_layers(
+                timeline,
+                &mut symbols,
+                &mut symbol_ids,
+                &assets,
+                &asset_ids,
+                &mut report,
+                &mut shape_count,
+            )
+        })
+        .unwrap_or_default();
+    if scene.layers.is_empty() {
         report.warning(
             IssueCategory::Timeline,
             "Keine DOMLayer gefunden; lege eine leere Ebene an.",
         );
-        layers.push(Layer::new("Ebene 1", 1));
-        layers[0].frames[0].keyframe = true;
+        scene.layers.push(Layer::new("Ebene 1", 1));
+        scene.layers[0].frames[0].keyframe = true;
     }
-    scene.layers = layers;
 
     let mut project = Project::new_empty("FLA-Import");
     project.metadata.name = "FLA-Import".into();
@@ -199,6 +251,7 @@ pub fn import(bytes: &[u8]) -> FormatResult<ImportedData> {
     project.scenes = vec![scene];
     project.active_scene = project.scenes.first().map(|scene| scene.id);
     project.symbols = symbols;
+    project.assets = assets;
     project.scripts.clear();
     project.source = Some(SourceInfo {
         format: SourceFormat::Fla,
@@ -245,11 +298,430 @@ pub fn import(bytes: &[u8]) -> FormatResult<ImportedData> {
     })
 }
 
+fn find_zip_entry<'a>(files: &'a BTreeMap<String, Vec<u8>>, href: &str) -> Option<&'a Vec<u8>> {
+    let normalized = href.trim_start_matches('/').replace('\\', "/");
+    files.get(&normalized).or_else(|| {
+        files
+            .iter()
+            .find(|(name, _)| name.replace('\\', "/").ends_with(&normalized))
+            .map(|(_, data)| data)
+    })
+}
+
+fn asset_mime(file: &str, kind: AssetKind) -> &'static str {
+    let lower = file.to_ascii_lowercase();
+    match kind {
+        AssetKind::Bitmap => {
+            if lower.ends_with(".png") {
+                "image/png"
+            } else if lower.ends_with(".jpg") || lower.ends_with(".jpeg") {
+                "image/jpeg"
+            } else if lower.ends_with(".gif") {
+                "image/gif"
+            } else {
+                "application/octet-stream"
+            }
+        }
+        AssetKind::Audio => {
+            if lower.ends_with(".wav") {
+                "audio/wav"
+            } else if lower.ends_with(".mp3") {
+                "audio/mpeg"
+            } else {
+                "application/octet-stream"
+            }
+        }
+        AssetKind::Font => "font/ttf",
+    }
+}
+
+fn probe_image_dimensions(data: &[u8]) -> Option<(u32, u32)> {
+    if data.len() >= 24 && data.starts_with(b"\x89PNG\r\n\x1a\n") {
+        return Some((
+            u32::from_be_bytes([data[16], data[17], data[18], data[19]]),
+            u32::from_be_bytes([data[20], data[21], data[22], data[23]]),
+        ));
+    }
+    if data.len() >= 10 && (data.starts_with(b"GIF87a") || data.starts_with(b"GIF89a")) {
+        return Some((
+            u16::from_le_bytes([data[6], data[7]]) as u32,
+            u16::from_le_bytes([data[8], data[9]]) as u32,
+        ));
+    }
+    if data.len() >= 4 && data.starts_with(&[0xFF, 0xD8]) {
+        let mut offset = 2usize;
+        while offset + 9 <= data.len() {
+            if data[offset] != 0xFF {
+                offset += 1;
+                continue;
+            }
+            let marker = data[offset + 1];
+            if (0xC0..=0xCF).contains(&marker) && !matches!(marker, 0xC4 | 0xC8 | 0xCC) {
+                return Some((
+                    u16::from_be_bytes([data[offset + 7], data[offset + 8]]) as u32,
+                    u16::from_be_bytes([data[offset + 5], data[offset + 6]]) as u32,
+                ));
+            }
+            let length = u16::from_be_bytes([data[offset + 2], data[offset + 3]]) as usize;
+            if length < 2 {
+                break;
+            }
+            offset += 2 + length;
+        }
+    }
+    None
+}
+
+fn probe_audio(data: &[u8], file: &str) -> (u32, u16, f32) {
+    if data.len() >= 12 && &data[0..4] == b"RIFF" && &data[8..12] == b"WAVE" {
+        let mut offset = 12usize;
+        let mut channels = 1u16;
+        let mut sample_rate = 44_100u32;
+        let mut bits = 16u16;
+        let mut data_len = 0usize;
+        while offset + 8 <= data.len() {
+            let id = &data[offset..offset + 4];
+            let size = u32::from_le_bytes([
+                data[offset + 4],
+                data[offset + 5],
+                data[offset + 6],
+                data[offset + 7],
+            ]) as usize;
+            let body = offset + 8;
+            if body + size > data.len() {
+                break;
+            }
+            if id == b"fmt " && size >= 16 {
+                channels = u16::from_le_bytes([data[body + 2], data[body + 3]]).max(1);
+                sample_rate = u32::from_le_bytes([
+                    data[body + 4],
+                    data[body + 5],
+                    data[body + 6],
+                    data[body + 7],
+                ])
+                .max(1);
+                bits = u16::from_le_bytes([data[body + 14], data[body + 15]]).max(8);
+            } else if id == b"data" {
+                data_len = size;
+            }
+            offset = body + size + (size & 1);
+        }
+        let duration =
+            data_len as f32 / (sample_rate as f32 * channels as f32 * (bits as f32 / 8.0));
+        return (sample_rate, channels, duration);
+    }
+    if data.len() >= 4 {
+        let start = data
+            .windows(2)
+            .position(|window| window[0] == 0xFF && (window[1] & 0xE0) == 0xE0)
+            .unwrap_or(0);
+        let mp3 = &data[start..];
+        if mp3.len() >= 4 {
+            let header = u32::from_be_bytes([mp3[0], mp3[1], mp3[2], mp3[3]]);
+            let sample_rate = match (header >> 10) & 0x03 {
+                0 => 44_100,
+                1 => 48_000,
+                2 => 32_000,
+                _ => 22_050,
+            };
+            let channels = if ((header >> 6) & 0x03) == 3 { 1 } else { 2 };
+            let duration = if file.to_ascii_lowercase().ends_with(".mp3") {
+                let bitrate_index = ((header >> 12) & 0x0F) as usize;
+                const MP3_BITRATES: [u32; 16] = [
+                    0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 0,
+                ];
+                let bitrate = MP3_BITRATES.get(bitrate_index).copied().unwrap_or(128) * 1000;
+                if bitrate > 0 {
+                    (mp3.len() as f64 * 8.0 / bitrate as f64) as f32
+                } else {
+                    0.0
+                }
+            } else {
+                0.0
+            };
+            return (sample_rate, channels, duration);
+        }
+    }
+    (0, 0, 0.0)
+}
+
+fn parse_timeline_layers(
+    timeline: Node<'_, '_>,
+    symbols: &mut Vec<Symbol>,
+    symbol_ids: &mut HashMap<String, Uuid>,
+    assets: &[Asset],
+    asset_ids: &HashMap<String, Uuid>,
+    report: &mut CompatibilityReport,
+    shape_count: &mut usize,
+) -> Vec<Layer> {
+    let layers_node = timeline
+        .children()
+        .find(|node| node.has_tag_name("layers"))
+        .or_else(|| {
+            timeline
+                .descendants()
+                .find(|node| node.has_tag_name("layers"))
+        });
+    let Some(layers_node) = layers_node else {
+        return Vec::new();
+    };
+    let mut layers = Vec::new();
+    for layer_node in layers_node
+        .children()
+        .filter(|node| node.has_tag_name("DOMLayer"))
+    {
+        let name = attr_string(layer_node, "name").unwrap_or_else(|| "Ebene".into());
+        let visible = attr_string(layer_node, "visible")
+            .map(|value| value != "false")
+            .unwrap_or(true);
+        let locked = attr_string(layer_node, "locked")
+            .map(|value| value == "true")
+            .unwrap_or(false);
+        let kind = match attr_string(layer_node, "layerType")
+            .unwrap_or_default()
+            .to_ascii_lowercase()
+            .as_str()
+        {
+            "folder" => LayerKind::Folder,
+            "guide" => LayerKind::Guide,
+            "mask" => LayerKind::Mask,
+            "sound" => LayerKind::Sound,
+            _ => LayerKind::Normal,
+        };
+        let mut frames: Vec<Frame> = Vec::new();
+        if let Some(frames_node) = layer_node
+            .children()
+            .find(|node| node.has_tag_name("frames"))
+        {
+            for frame_node in frames_node
+                .children()
+                .filter(|node| node.has_tag_name("DOMFrame"))
+            {
+                let index = attr_usize(frame_node, "index").unwrap_or(frames.len());
+                let key_mode = attr_usize(frame_node, "keyMode").unwrap_or(9728);
+                let label = attr_string(frame_node, "label");
+                let mut objects = Vec::new();
+                if let Some(elements) = frame_node
+                    .children()
+                    .find(|node| node.has_tag_name("elements"))
+                {
+                    for element in elements.children().filter(Node::is_element) {
+                        *shape_count += parse_element(
+                            element,
+                            &mut objects,
+                            symbols,
+                            symbol_ids,
+                            assets,
+                            asset_ids,
+                            report,
+                        );
+                    }
+                }
+                let sound = frame_node
+                    .descendants()
+                    .find(|node| {
+                        node.has_tag_name("SoundItem") || node.has_tag_name("DOMSoundItem")
+                    })
+                    .or_else(|| {
+                        (attr_string(frame_node, "soundName").is_some()).then_some(frame_node)
+                    })
+                    .and_then(|node| {
+                        let sound_name = attr_string(node, "name")
+                            .or_else(|| attr_string(node, "libraryItemName"))
+                            .or_else(|| attr_string(frame_node, "soundName"))?;
+                        let asset = asset_ids.get(&sound_name).or_else(|| {
+                            assets
+                                .iter()
+                                .find(|asset| asset.name == sound_name)
+                                .map(|asset| &asset.id)
+                        });
+                        let Some(asset) = asset.copied() else {
+                            report.warning(
+                                IssueCategory::Sound,
+                                format!("Sound '{sound_name}' ist im XFL-Paket nicht vorhanden."),
+                            );
+                            return None;
+                        };
+                        let event = attr_string(node, "event")
+                            .map(|value| value == "true")
+                            .unwrap_or(false);
+                        Some(SoundCue {
+                            asset,
+                            offset: attr_f32(node, "offset").unwrap_or(0.0),
+                            duration: attr_f32(node, "duration").unwrap_or(0.0),
+                            event,
+                            loop_count: attr_usize(node, "loopCount")
+                                .unwrap_or(1)
+                                .clamp(1, u16::MAX as usize)
+                                as u16,
+                        })
+                    });
+                let tween = attr_string(frame_node, "tweenType").map(|value| {
+                    let kind = if value.eq_ignore_ascii_case("shape") {
+                        nova_core::TweenKind::Shape
+                    } else {
+                        nova_core::TweenKind::Motion
+                    };
+                    nova_core::Tween {
+                        kind,
+                        ..Default::default()
+                    }
+                });
+                while frames.len() <= index {
+                    frames.push(Frame::default());
+                }
+                frames[index] = Frame {
+                    keyframe: key_mode != 0,
+                    objects,
+                    tween,
+                    label,
+                    sound,
+                };
+            }
+        }
+        if frames.is_empty() {
+            frames.push(Frame {
+                keyframe: true,
+                ..Default::default()
+            });
+        }
+        let mut layer = Layer::new(name, frames.len());
+        layer.visible = visible;
+        layer.locked = locked;
+        layer.kind = kind;
+        layer.frames = frames;
+        layers.push(layer);
+    }
+    layers
+}
+
+fn collect_xfl_assets(
+    root: Node<'_, '_>,
+    files: &BTreeMap<String, Vec<u8>>,
+    assets: &mut Vec<Asset>,
+    asset_ids: &mut HashMap<String, Uuid>,
+    report: &mut CompatibilityReport,
+) {
+    let mut seen: HashMap<String, Uuid> = HashMap::new();
+    let mut add = |name: String,
+                   file: String,
+                   kind: AssetKind,
+                   data: Vec<u8>,
+                   width: u32,
+                   height: u32,
+                   assets: &mut Vec<Asset>| {
+        if seen.contains_key(&name) || seen.contains_key(&file) {
+            return;
+        }
+        let asset = match kind {
+            AssetKind::Bitmap => {
+                let mime = asset_mime(&file, kind);
+                let (width, height) = if width > 0 && height > 0 {
+                    (width, height)
+                } else {
+                    probe_image_dimensions(&data).unwrap_or((0, 0))
+                };
+                Asset::bitmap(name.clone(), file.clone(), mime, width, height, data)
+            }
+            AssetKind::Audio => {
+                let (sample_rate, channels, duration) = probe_audio(&data, &file);
+                Asset::audio(
+                    name.clone(),
+                    file.clone(),
+                    asset_mime(&file, kind),
+                    sample_rate,
+                    channels,
+                    duration,
+                    data,
+                )
+            }
+            AssetKind::Font => Asset::new(name.clone(), kind, file.clone()),
+        };
+        let id = asset.id;
+        assets.push(asset);
+        asset_ids.insert(name.clone(), id);
+        asset_ids.insert(file.clone(), id);
+        if let Some(base) = file.rsplit('/').next() {
+            asset_ids.insert(base.to_string(), id);
+        }
+        seen.insert(name, id);
+        seen.insert(file, id);
+    };
+
+    for node in root
+        .descendants()
+        .filter(|node| node.has_tag_name("DOMBitmapItem") || node.has_tag_name("DOMSoundItem"))
+    {
+        let kind = if node.has_tag_name("DOMSoundItem") {
+            AssetKind::Audio
+        } else {
+            AssetKind::Bitmap
+        };
+        let name = attr_string(node, "name")
+            .or_else(|| attr_string(node, "href"))
+            .unwrap_or_else(|| {
+                if kind == AssetKind::Audio {
+                    "Sound".into()
+                } else {
+                    "Bitmap".into()
+                }
+            });
+        let href = attr_string(node, "href")
+            .or_else(|| attr_string(node, "source"))
+            .unwrap_or_else(|| name.clone());
+        let data = find_zip_entry(files, &href).cloned().unwrap_or_default();
+        if data.is_empty() {
+            report.warning(
+                IssueCategory::Assets,
+                format!("Asset '{name}' ist im XFL-Paket nicht auffindbar ({href})."),
+            );
+        }
+        add(
+            name,
+            href,
+            kind,
+            data,
+            attr_usize(node, "width").unwrap_or(0) as u32,
+            attr_usize(node, "height").unwrap_or(0) as u32,
+            assets,
+        );
+    }
+
+    for (file, data) in files {
+        let lower = file.to_ascii_lowercase();
+        let kind = if lower.ends_with(".png")
+            || lower.ends_with(".jpg")
+            || lower.ends_with(".jpeg")
+            || lower.ends_with(".gif")
+        {
+            AssetKind::Bitmap
+        } else if lower.ends_with(".wav") || lower.ends_with(".mp3") {
+            AssetKind::Audio
+        } else {
+            continue;
+        };
+        if lower.contains("domdocument") {
+            continue;
+        }
+        let name = file
+            .rsplit('/')
+            .next()
+            .unwrap_or(file)
+            .rsplit_once('.')
+            .map(|(stem, _)| stem.to_string())
+            .unwrap_or_else(|| file.clone());
+        add(name, file.clone(), kind, data.clone(), 0, 0, assets);
+    }
+    report.set_stat("Assets", assets.len().to_string());
+}
+
 fn parse_element(
     element: Node<'_, '_>,
     objects: &mut Vec<ObjectInstance>,
     symbols: &mut Vec<Symbol>,
     symbol_ids: &mut HashMap<String, Uuid>,
+    assets: &[Asset],
+    asset_ids: &HashMap<String, Uuid>,
     report: &mut CompatibilityReport,
 ) -> usize {
     let tag = element.tag_name().name();
@@ -263,12 +735,26 @@ fn parse_element(
             let fill = attr_string(element, "tintColor")
                 .and_then(|value| parse_color(&value))
                 .unwrap_or(Rgba::rgb(120, 180, 240));
-            let symbol_id = *symbol_ids.entry(library_name.clone()).or_insert_with(|| {
-                let symbol = Symbol::new(library_name.clone(), width, height, fill);
+            let symbol_id = if let Some(id) = symbol_ids.get(&library_name).copied().or_else(|| {
+                library_name
+                    .rsplit('/')
+                    .next()
+                    .and_then(|name| symbol_ids.get(name))
+                    .copied()
+            }) {
+                id
+            } else {
+                let base = library_name
+                    .rsplit('/')
+                    .next()
+                    .unwrap_or(&library_name)
+                    .to_string();
+                let symbol = Symbol::new(base, width, height, fill);
                 let id = symbol.id;
                 symbols.push(symbol);
+                symbol_ids.insert(library_name.clone(), id);
                 id
-            });
+            };
             let mut object = ObjectInstance::symbol(
                 attr_string(element, "name").unwrap_or_else(|| library_name.clone()),
                 attr_f32(element, "x").unwrap_or(0.0),
@@ -336,27 +822,73 @@ fn parse_element(
         "DOMGroup" => {
             let mut count = 0;
             for child in element.children().filter(Node::is_element) {
-                count += parse_element(child, objects, symbols, symbol_ids, report);
+                count += parse_element(
+                    child, objects, symbols, symbol_ids, assets, asset_ids, report,
+                );
             }
             count
         }
         "DOMBitmapInstance" => {
-            report.warning(
-                IssueCategory::Bitmap,
-                "DOMBitmapInstance wird als grauer Platzhalter importiert; das Bitmap bleibt in der Originaldatei.",
-            );
-            let width = attr_f32(element, "width").unwrap_or(100.0).max(1.0);
-            let height = attr_f32(element, "height").unwrap_or(100.0).max(1.0);
-            let mut object = ObjectInstance::rect(
-                attr_string(element, "name").unwrap_or_else(|| "Bitmap".into()),
-                attr_f32(element, "x").unwrap_or(0.0),
-                attr_f32(element, "y").unwrap_or(0.0),
-                width,
-                height,
-                Rgba::rgb(128, 128, 128),
-            );
-            apply_xfl_transform(element, &mut object.transform);
-            objects.push(object);
+            let library_name = attr_string(element, "libraryItemName")
+                .or_else(|| attr_string(element, "name"))
+                .or_else(|| attr_string(element, "href"))
+                .unwrap_or_else(|| "Bitmap".into());
+            let asset_id = asset_ids
+                .get(&library_name)
+                .or_else(|| {
+                    library_name
+                        .rsplit('/')
+                        .next()
+                        .and_then(|name| asset_ids.get(name))
+                })
+                .copied()
+                .or_else(|| {
+                    assets
+                        .iter()
+                        .find(|asset| asset.kind == AssetKind::Bitmap && asset.name == library_name)
+                        .map(|asset| asset.id)
+                });
+            if let Some(asset_id) = asset_id {
+                let asset = assets
+                    .iter()
+                    .find(|asset| asset.id == asset_id)
+                    .expect("asset id resolved");
+                let width = attr_f32(element, "width")
+                    .unwrap_or(asset.width.max(1) as f32)
+                    .max(1.0);
+                let height = attr_f32(element, "height")
+                    .unwrap_or(asset.height.max(1) as f32)
+                    .max(1.0);
+                let mut object = ObjectInstance::bitmap(
+                    attr_string(element, "name").unwrap_or_else(|| asset.name.clone()),
+                    attr_f32(element, "x").unwrap_or(0.0),
+                    attr_f32(element, "y").unwrap_or(0.0),
+                    asset_id,
+                    width,
+                    height,
+                );
+                apply_xfl_transform(element, &mut object.transform);
+                objects.push(object);
+            } else {
+                report.warning(
+                    IssueCategory::Bitmap,
+                    format!(
+                        "DOMBitmapInstance '{library_name}' hat kein passendes Asset; als Platzhalter importiert."
+                    ),
+                );
+                let width = attr_f32(element, "width").unwrap_or(100.0).max(1.0);
+                let height = attr_f32(element, "height").unwrap_or(100.0).max(1.0);
+                let mut object = ObjectInstance::rect(
+                    attr_string(element, "name").unwrap_or_else(|| "Bitmap".into()),
+                    attr_f32(element, "x").unwrap_or(0.0),
+                    attr_f32(element, "y").unwrap_or(0.0),
+                    width,
+                    height,
+                    Rgba::rgb(128, 128, 128),
+                );
+                apply_xfl_transform(element, &mut object.transform);
+                objects.push(object);
+            }
             1
         }
         "DOMTextInstance" => {
@@ -564,23 +1096,45 @@ pub fn export_xfl(project: &Project) -> FormatResult<ExportData> {
         xml_escape(&scene.name)
     ));
     for (layer_index, layer) in scene.layers.iter().enumerate() {
+        let layer_type = match layer.kind {
+            LayerKind::Folder => " layerType=\"folder\"",
+            LayerKind::Guide => " layerType=\"guide\"",
+            LayerKind::Mask => " layerType=\"mask\"",
+            LayerKind::Sound => " layerType=\"sound\"",
+            LayerKind::Normal => "",
+        };
         document.push_str(&format!(
-            "        <DOMLayer name=\"{}\" color=\"#4FFF4F\" current=\"{}\" isSelected=\"{}\" visible=\"{}\">\n          <frames>\n",
+            "        <DOMLayer name=\"{}\" color=\"#4FFF4F\" current=\"{}\" isSelected=\"{}\" visible=\"{}\"{}>\n          <frames>\n",
             xml_escape(&layer.name),
             if layer_index == 0 { "true" } else { "false" },
             if layer_index == 0 { "true" } else { "false" },
-            if layer.visible { "true" } else { "false" }
+            if layer.visible { "true" } else { "false" },
+            layer_type
         ));
         for (frame_index, frame) in layer.frames.iter().enumerate() {
+            let tween = frame
+                .tween
+                .as_ref()
+                .map(|tween| {
+                    format!(
+                        " tweenType=\"{}\"",
+                        match tween.kind {
+                            nova_core::TweenKind::Shape => "shape",
+                            nova_core::TweenKind::Motion => "motion",
+                        }
+                    )
+                })
+                .unwrap_or_default();
             document.push_str(&format!(
-                "            <DOMFrame index=\"{}\" keyMode=\"{}\"{}>\n",
+                "            <DOMFrame index=\"{}\" keyMode=\"{}\"{}{}>\n",
                 frame_index,
                 if frame.keyframe { 9728 } else { 0 },
                 frame
                     .label
                     .as_ref()
                     .map(|label| format!(" label=\"{}\"", xml_escape(label)))
-                    .unwrap_or_default()
+                    .unwrap_or_default(),
+                tween
             ));
             if !frame.objects.is_empty() {
                 document.push_str("              <elements>\n");
@@ -589,11 +1143,40 @@ pub fn export_xfl(project: &Project) -> FormatResult<ExportData> {
                 }
                 document.push_str("              </elements>\n");
             }
+            write_xfl_sound(&mut document, frame.sound, project, &mut report);
             document.push_str("            </DOMFrame>\n");
         }
         document.push_str("          </frames>\n        </DOMLayer>\n");
     }
     document.push_str("      </layers>\n    </DOMTimeline>\n  </timelines>\n");
+
+    if !project.symbols.is_empty() || !project.assets.is_empty() {
+        document.push_str("  <library>\n");
+        for asset in &project.assets {
+            let href = library_asset_path(asset);
+            match asset.kind {
+                AssetKind::Bitmap => {
+                    document.push_str(&format!(
+                        "    <DOMBitmapItem name=\"{}\" href=\"{}\" width=\"{}\" height=\"{}\"/>\n",
+                        xml_escape(&asset.name),
+                        xml_escape(&href),
+                        asset.width,
+                        asset.height
+                    ));
+                }
+                AssetKind::Audio => {
+                    document.push_str(&format!(
+                        "    <DOMSoundItem name=\"{}\" href=\"{}\" duration=\"{}\"/>\n",
+                        xml_escape(&asset.name),
+                        xml_escape(&href),
+                        asset.duration
+                    ));
+                }
+                AssetKind::Font => {}
+            }
+        }
+        document.push_str("  </library>\n");
+    }
 
     let exportable_scripts: Vec<_> = project
         .scripts
@@ -627,6 +1210,30 @@ pub fn export_xfl(project: &Project) -> FormatResult<ExportData> {
                 .map_err(|error| FormatError::Zip(error.to_string()))?;
             writer.write_all(script.source.as_bytes())?;
         }
+        for symbol in &project.symbols {
+            let file_name = format!("LIBRARY/{}.xml", sanitize_file_component(&symbol.name));
+            let xml = write_symbol_document(symbol, project, &mut report);
+            writer
+                .start_file(file_name, options)
+                .map_err(|error| FormatError::Zip(error.to_string()))?;
+            writer.write_all(xml.as_bytes())?;
+        }
+        for asset in &project.assets {
+            if asset.data.is_empty() {
+                report.warning(
+                    IssueCategory::Assets,
+                    format!(
+                        "Asset '{}' ist nicht eingebettet und fehlt daher im XFL-Paket.",
+                        asset.name
+                    ),
+                );
+                continue;
+            }
+            writer
+                .start_file(library_asset_path(asset), options)
+                .map_err(|error| FormatError::Zip(error.to_string()))?;
+            writer.write_all(&asset.data)?;
+        }
         writer
             .start_file("README.txt", options)
             .map_err(|error| FormatError::Zip(error.to_string()))?;
@@ -634,9 +1241,11 @@ pub fn export_xfl(project: &Project) -> FormatResult<ExportData> {
             "NOVA Flash Studio XFL compatibility package\n\
              ==========================================\n\
              This ZIP is NOT a native Adobe .fla file and has not been tested in\n\
-             Adobe Animate or Flash. It contains a minimal DOMDocument.xml and\n\
-             ActionScript sources. Shapes are approximated from the NØVA model.\n\
-             Keep the original project and test the package before relying on it.\n"
+             Adobe Animate or Flash. It contains DOMDocument.xml, symbol\n\
+             timelines under LIBRARY/, embedded bitmap/audio files and\n\
+             ActionScript sources. Shapes are approximated from the NØVA model\n\
+             and the sound/mask encoding is experimental. Keep the original\n\
+             project and test the package before relying on it.\n"
                 .as_bytes(),
         )?;
         writer
@@ -647,10 +1256,169 @@ pub fn export_xfl(project: &Project) -> FormatResult<ExportData> {
     report.set_stat("Ebenen", scene.layers.len().to_string());
     report.set_stat("Frames", scene.frame_count().to_string());
     report.set_stat("Skripte", exportable_scripts.len().to_string());
+    report.set_stat("Symbole", project.symbols.len().to_string());
+    report.set_stat("Assets", project.assets.len().to_string());
     Ok(ExportData {
         bytes: cursor.into_inner(),
         report,
     })
+}
+
+fn write_symbol_document(
+    symbol: &Symbol,
+    project: &Project,
+    report: &mut CompatibilityReport,
+) -> String {
+    let mut document = String::new();
+    document.push_str("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n");
+    document.push_str(&format!(
+        "<DOMSymbolItem xmlns=\"http://ns.adobe.com/xfl/2008/\" name=\"{}\" symbolType=\"{}\" width=\"{}\" height=\"{}\">\n",
+        xml_escape(&symbol.name),
+        match symbol.kind {
+            SymbolKind::Graphic => "graphic",
+            SymbolKind::MovieClip => "movieclip",
+            SymbolKind::Button => "button",
+        },
+        symbol.width,
+        symbol.height
+    ));
+    document.push_str("  <timeline>\n");
+    document.push_str(&format!(
+        "    <DOMTimeline name=\"{}\">\n      <layers>\n",
+        xml_escape(&symbol.timeline.name)
+    ));
+    for layer in &symbol.timeline.layers {
+        let layer_type = match layer.kind {
+            LayerKind::Folder => " layerType=\"folder\"",
+            LayerKind::Guide => " layerType=\"guide\"",
+            LayerKind::Mask => " layerType=\"mask\"",
+            LayerKind::Sound => " layerType=\"sound\"",
+            LayerKind::Normal => "",
+        };
+        document.push_str(&format!(
+            "        <DOMLayer name=\"{}\" visible=\"{}\"{}>\n          <frames>\n",
+            xml_escape(&layer.name),
+            if layer.visible { "true" } else { "false" },
+            layer_type
+        ));
+        for (frame_index, frame) in layer.frames.iter().enumerate() {
+            let tween = frame
+                .tween
+                .as_ref()
+                .map(|tween| {
+                    format!(
+                        " tweenType=\"{}\"",
+                        match tween.kind {
+                            nova_core::TweenKind::Shape => "shape",
+                            nova_core::TweenKind::Motion => "motion",
+                        }
+                    )
+                })
+                .unwrap_or_default();
+            document.push_str(&format!(
+                "            <DOMFrame index=\"{}\" keyMode=\"{}\"{}{}>\n",
+                frame_index,
+                if frame.keyframe { 9728 } else { 0 },
+                frame
+                    .label
+                    .as_ref()
+                    .map(|label| format!(" label=\"{}\"", xml_escape(label)))
+                    .unwrap_or_default(),
+                tween
+            ));
+            if !frame.objects.is_empty() {
+                document.push_str("              <elements>\n");
+                for object in &frame.objects {
+                    write_xfl_object(&mut document, object, project, report);
+                }
+                document.push_str("              </elements>\n");
+            }
+            write_xfl_sound(&mut document, frame.sound, project, report);
+            document.push_str("            </DOMFrame>\n");
+        }
+        document.push_str("          </frames>\n        </DOMLayer>\n");
+    }
+    document.push_str("      </layers>\n    </DOMTimeline>\n  </timeline>\n");
+    document.push_str("</DOMSymbolItem>\n");
+    report.set_stat("Symbole", project.symbols.len().to_string());
+    document
+}
+
+fn write_xfl_sound(
+    document: &mut String,
+    cue: Option<SoundCue>,
+    project: &Project,
+    report: &mut CompatibilityReport,
+) {
+    let Some(cue) = cue else {
+        return;
+    };
+    let Some(asset) = project.asset(cue.asset) else {
+        report.warning(
+            IssueCategory::Sound,
+            "Ein Sound-Cue verweist auf ein unbekanntes Asset und wurde ausgelassen.",
+        );
+        return;
+    };
+    if !cue.event {
+        report.warning(
+            IssueCategory::Sound,
+            format!(
+                "Timeline-Sound '{}' wird als experimenteller XFL-Sound-Cue exportiert; Stream-Synchronität ist nicht garantiert.",
+                asset.name
+            ),
+        );
+    }
+    document.push_str(&format!(
+        "              <sound event=\"{}\" offset=\"{}\" duration=\"{}\" loopCount=\"{}\">\n                <SoundItem name=\"{}\" libraryItemName=\"{}\"/>\n              </sound>\n",
+        cue.event,
+        cue.offset,
+        cue.duration,
+        cue.loop_count,
+        xml_escape(&asset.name),
+        xml_escape(&asset.name)
+    ));
+}
+
+fn sanitize_file_component(value: &str) -> String {
+    let mut out: String = value
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.') {
+                character
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    if out.is_empty() {
+        out.push_str("asset");
+    }
+    out
+}
+
+fn library_asset_path(asset: &Asset) -> String {
+    let extension = asset
+        .file
+        .rsplit_once('.')
+        .map(|(_, extension)| extension.to_ascii_lowercase())
+        .or_else(|| {
+            Some(match asset.mime.as_str() {
+                "image/png" => "png".to_string(),
+                "image/jpeg" => "jpg".to_string(),
+                "image/gif" => "gif".to_string(),
+                "audio/wav" => "wav".to_string(),
+                "audio/mpeg" => "mp3".to_string(),
+                _ => "bin".to_string(),
+            })
+        })
+        .unwrap_or_else(|| "bin".to_string());
+    format!(
+        "LIBRARY/{}-{}.{}",
+        sanitize_file_component(&asset.name),
+        &asset.id.to_string()[..8],
+        sanitize_file_component(&extension)
+    )
 }
 
 fn write_xfl_object(
@@ -733,6 +1501,33 @@ fn write_xfl_object(
             }
             document.push_str("                  </edges>\n                </DOMShape>\n");
         }
+        ObjectKind::Bitmap {
+            asset,
+            width,
+            height,
+            ..
+        } => {
+            let asset = project.asset(*asset);
+            let name = asset
+                .map(|asset| asset.name.clone())
+                .unwrap_or_else(|| "Bitmap".into());
+            document.push_str(&format!(
+                "                <DOMBitmapInstance libraryItemName=\"{}\" name=\"{}\" x=\"{}\" y=\"{}\" scaleX=\"{}\" scaleY=\"{}\" rotation=\"{}\" width=\"{}\" height=\"{}\"/>\n",
+                xml_escape(&name),
+                xml_escape(&object.name),
+                object.transform.x,
+                object.transform.y,
+                object.transform.scale_x,
+                object.transform.scale_y,
+                object.transform.rotation,
+                width,
+                height
+            ));
+            report.info(
+                IssueCategory::Export,
+                format!("Bitmap '{}' wurde als DOMBitmapInstance exportiert.", name),
+            );
+        }
         ObjectKind::Symbol { symbol } => {
             let symbol_name = project
                 .symbol(*symbol)
@@ -747,10 +1542,10 @@ fn write_xfl_object(
                 object.transform.scale_y,
                 object.transform.rotation
             ));
-            report.warning(
+            report.info(
                 IssueCategory::Export,
                 format!(
-                    "Symbol '{}' wird als Instanz geschrieben; die Bibliotheksdefinition ist minimal.",
+                    "Symbol '{}' wurde mit Name, Transform und Bibliotheksverweis exportiert.",
                     symbol_name
                 ),
             );
@@ -1052,5 +1847,173 @@ mod tests {
             .read_to_string(&mut readme)
             .unwrap();
         assert!(readme.contains("NOT a native Adobe .fla"));
+    }
+
+    /// XFL -> NØVA -> XFL -> NØVA structural roundtrip for the M9 model:
+    /// movieclip symbols with nested instances, bitmap/audio assets, mask and
+    /// guide layers must survive two export/import cycles.
+    #[test]
+    fn m9_structural_roundtrip_preserves_symbols_assets_and_layers() {
+        use nova_core::{
+            Asset, Layer, LayerKind, ObjectInstance, Scene, SoundCue, Symbol, SymbolKind,
+        };
+
+        let mut project = Project::demo();
+        // Add a movieclip symbol whose timeline instances a graphic symbol.
+        let graphic = Symbol::with_kind("Radial", SymbolKind::Graphic, 40.0, 40.0, Rgba::WHITE);
+        let mut clip = Symbol::with_kind(
+            "Clip",
+            SymbolKind::MovieClip,
+            80.0,
+            80.0,
+            Rgba::rgba(0, 0, 0, 0),
+        );
+        clip.timeline.ensure_frame_count(3);
+        let graphic_id = graphic.id;
+        let clip_id = clip.id;
+        let nested = ObjectInstance::symbol("Verschachtelt", 0.0, 0.0, graphic_id, Rgba::WHITE);
+        clip.timeline.layers[0].frames[0].objects.push(nested);
+        clip.timeline.layers[0].frames[2].keyframe = true;
+        project.symbols.push(graphic);
+        project.symbols.push(clip);
+
+        // Embedded assets.
+        let png = tiny_png_for_xfl();
+        let bitmap = Asset::bitmap("Raster", "assets/raster.png", "image/png", 1, 1, png);
+        let bitmap_id = bitmap.id;
+        project.assets.push(bitmap);
+        let wav = tiny_wav_for_xfl();
+        let audio = Asset::audio("Ton", "assets/tone.wav", "audio/wav", 8000, 1, 0.1, wav);
+        let audio_id = audio.id;
+        project.assets.push(audio);
+
+        // Bitmap object, symbol instance, sound layer and mask/guide layers
+        // on the active scene.
+        let scene = project.active_scene_mut().unwrap();
+        scene.layers.push(Layer::new("Guide", scene.frame_count()));
+        let guide_index = scene.layers.len() - 1;
+        scene.layers[guide_index].kind = LayerKind::Guide;
+        scene.layers.push(Layer::new("Inhalt", scene.frame_count()));
+        let content_index = scene.layers.len() - 1;
+        scene.layers.push(Layer::new("Maske", scene.frame_count()));
+        let mask_index = scene.layers.len() - 1;
+        scene.layers[mask_index].kind = LayerKind::Mask;
+        scene.layers.push(Layer::new("Ton", scene.frame_count()));
+        let sound_index = scene.layers.len() - 1;
+        scene.layers[sound_index].kind = LayerKind::Sound;
+        scene.ensure_frame_count(3);
+        for layer in scene.layers.iter_mut() {
+            layer.ensure_frames(3);
+        }
+        scene.layers[content_index].frames[0].keyframe = true;
+        scene.layers[content_index].frames[0]
+            .objects
+            .push(ObjectInstance::bitmap(
+                "Bild", 100.0, 100.0, bitmap_id, 8.0, 8.0,
+            ));
+        scene.layers[content_index].frames[0]
+            .objects
+            .push(ObjectInstance::symbol(
+                "ClipInstanz",
+                200.0,
+                200.0,
+                clip_id,
+                Rgba::WHITE,
+            ));
+        scene.layers[sound_index].frames[0].keyframe = true;
+        scene.layers[sound_index].frames[0].sound = Some(SoundCue::event(audio_id));
+        scene.layers[mask_index].frames[0].keyframe = true;
+        scene.layers[mask_index].frames[0]
+            .objects
+            .push(ObjectInstance::ellipse(
+                "Loch",
+                320.0,
+                180.0,
+                200.0,
+                120.0,
+                Rgba::WHITE,
+            ));
+
+        project.validate().unwrap();
+
+        let first = export_xfl(&project).unwrap();
+        let mut once = import(&first.bytes).unwrap();
+        let mut twice = export_xfl(&once.project).unwrap();
+        let twice_imported = import(&twice.bytes).unwrap();
+
+        for roundtrip in [&once.project, &twice_imported.project] {
+            assert_eq!(roundtrip.symbols.len(), project.symbols.len());
+            assert!(
+                roundtrip
+                    .symbols
+                    .iter()
+                    .any(|symbol| symbol.kind == SymbolKind::MovieClip)
+            );
+            assert!(
+                roundtrip
+                    .symbols
+                    .iter()
+                    .any(|symbol| symbol.kind == SymbolKind::Graphic)
+            );
+            assert_eq!(roundtrip.assets.len(), project.assets.len());
+            assert!(roundtrip.assets.iter().any(|asset| {
+                asset.kind == nova_core::AssetKind::Bitmap && asset.is_embedded()
+            }));
+            assert!(
+                roundtrip.assets.iter().any(|asset| {
+                    asset.kind == nova_core::AssetKind::Audio && asset.is_embedded()
+                })
+            );
+            let scene = roundtrip.active_scene().unwrap();
+            assert!(
+                scene
+                    .layers
+                    .iter()
+                    .any(|layer| layer.kind == LayerKind::Guide)
+            );
+            assert!(
+                scene
+                    .layers
+                    .iter()
+                    .any(|layer| layer.kind == LayerKind::Mask)
+            );
+            assert!(
+                scene
+                    .layers
+                    .iter()
+                    .any(|layer| layer.kind == LayerKind::Sound && layer.frames[0].sound.is_some())
+            );
+        }
+        // The second export must also parse cleanly.
+        twice.bytes.shrink_to_fit();
+    }
+
+    fn tiny_png_for_xfl() -> Vec<u8> {
+        vec![
+            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48,
+            0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00,
+            0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41, 0x54, 0x78,
+            0x9C, 0x63, 0x00, 0x01, 0x00, 0x00, 0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00,
+            0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+        ]
+    }
+
+    fn tiny_wav_for_xfl() -> Vec<u8> {
+        let mut wav = Vec::new();
+        wav.extend_from_slice(b"RIFF");
+        wav.extend_from_slice(&44u32.to_le_bytes());
+        wav.extend_from_slice(b"WAVE");
+        wav.extend_from_slice(b"fmt ");
+        wav.extend_from_slice(&16u32.to_le_bytes());
+        wav.extend_from_slice(&1u16.to_le_bytes());
+        wav.extend_from_slice(&1u16.to_le_bytes());
+        wav.extend_from_slice(&8000u32.to_le_bytes());
+        wav.extend_from_slice(&16000u32.to_le_bytes());
+        wav.extend_from_slice(&2u16.to_le_bytes());
+        wav.extend_from_slice(&16u16.to_le_bytes());
+        wav.extend_from_slice(b"data");
+        wav.extend_from_slice(&8u32.to_le_bytes());
+        wav.extend_from_slice(&[0u8; 8]);
+        wav
     }
 }

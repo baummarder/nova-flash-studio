@@ -681,3 +681,60 @@ folder export, template builds, AS3 ABC structure and AI operation transactions.
 Ruffle 0.7.1 remains the only visually verified external runtime. Multi-frame
 `SymbolClass` execution, XFL tween fidelity, Adobe playback, bitmap/audio,
 nested symbol timelines and the full Flash API remain partial or unverified.
+
+## 13. Mega Milestone 9 additions (0.5.0-rc1)
+
+M9 keeps the same crate boundaries: `nova-core` owns the document model,
+`nova-build`/`nova-swf` own SWF emission, `nova-formats` owns XFL/FLA and `.nova`
+IO, `nova-ai` owns provider/privacy/operations and `nova-app` is the egui shell.
+
+### Document model (format version 2)
+
+- `Symbol` gained `kind` (`Graphic`/`MovieClip`/`Button`) and `timeline: Scene`.
+  The legacy shape fields (`width`, `height`, `fill`, `corner_radius`) remain for
+  v1 compatibility; `Symbol::from_legacy_shape` rebuilds the timeline on load.
+- `ObjectKind::Bitmap` references an `Asset` UUID and carries an optional
+  normalised `BitmapCrop`. `ObjectKind::Path` stores imported vector geometry.
+- `Asset` embeds bytes plus mime/dimension/duration metadata; `AssetKind` covers
+  Bitmap, Audio and Font. Assets are self-contained in the `.nova` document.
+- `LayerKind` gained `Guide`, `Mask` and `Sound`; `Frame` gained `sound:
+  Option<SoundCue>` (offset, duration, event flag, loop count) and
+  `Tween.kind` (`Motion` default, `Shape` opt-in).
+- `Project::edit_scene(Option<Uuid>)` / `edit_scene_mut` select either the
+  active scene or a symbol timeline, so every timeline-aware subsystem
+  (editor, validation, export, AI ops) works on symbol timelines unchanged.
+- Validation rejects duplicate IDs, dangling asset/symbol references, symbol
+  dependency cycles, folder cycles, invalid sound cues and incompatible
+  shape-tween pairs.
+
+### Export
+
+- SWF: symbol timelines become recursive `DefineSprite`s; masks use
+  `PlaceObject2.clipDepth` against the layer below; bitmaps emit JPEG2/
+  Lossless2; sounds emit `DefineSound`/`StartSound` (event-like, no streaming);
+  shape tweens are baked to interpolated shapes. Buttons export as
+  MovieClip-like sprites with a warning.
+- XFL: the experimental `.xfl` ZIP importer/exporter round-trips symbols,
+  nested instances, layers, keyframes, tweens, assets and sound references;
+  a structural XFL?NØVA?XFL?NØVA test guards the M9 fields. It is not validated
+  in Adobe Animate and native `.fla` remains unsupported.
+
+### Application
+
+- The library panel manages symbols (kind, duplicate, rename, guarded delete,
+  enter/exit editing mode). Editing a symbol edits the shared timeline; every
+  instance updates.
+- Stage tools: select (with scale/rotate handles), line, pencil, brush,
+  eraser, fill and path-node editing. Pencil/brush bake freehand strokes to
+  filled shapes because SWF shapes carry no stroke width.
+- The timeline shows sound cues, shape-vs-motion tween colouring and
+  mask/guide/sound badges; the properties panel edits layer kind and tween kind.
+
+### AI operations
+
+`nova-ai::operations` gained symbol-kind, symbol-timeline, asset-import,
+bitmap-placement, sound-cue and layer-kind operations. Timeline-targeting ops
+accept a `symbol` name selector. Asset imports never touch the filesystem
+directly: `preview_operations_with`/`apply_operations_with` take a
+workspace-confined `read_asset` callback (`Workspace::read_bytes`), so path
+traversal is rejected before any read and the batch stays transactional.

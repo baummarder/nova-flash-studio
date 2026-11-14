@@ -389,11 +389,17 @@ Unterstützte Projektoperationen (nur diese, jeweils mit "op"):
 - {"op":"update_object","name":"Boden","scene":"optional","layer":"optional","x":10,"y":320,"rotation":0,"scale_x":1,"scale_y":1,"fill":"#445566","text":"optional nur bei Text","font_size":24}
 - {"op":"add_keyframe","layer":"Hintergrund","frame":10,"scene":"optional","label":"optional","duplicate_previous":true}
 - {"op":"set_frame_label","layer":"Hintergrund","frame":1,"label":"start","scene":"optional"}
-- {"op":"add_tween","layer":"Hintergrund","frame":1,"scene":"optional","easing":"linear|ease_in|ease_out|ease_in_out"}
-- {"op":"add_symbol","name":"Kreis","width":40,"height":40,"fill":"#00c8ff","corner_radius":20}
-- {"op":"place_symbol","symbol":"Kreis","name":"Kreis 1","x":100,"y":80,"scene":"optional","layer":"optional","fill":"optional"}
+- {"op":"add_tween","layer":"Hintergrund","frame":1,"scene":"optional","symbol":"optional","easing":"linear|ease_in|ease_out|ease_in_out","kind":"motion|shape"}
+- {"op":"add_symbol","name":"Kreis","width":40,"height":40,"fill":"#00c8ff","corner_radius":20,"kind":"graphic|movie_clip|button"}
+- {"op":"set_symbol_kind","symbol":"Kreis","kind":"movie_clip"}
+- {"op":"place_symbol","symbol":"Kreis","name":"Kreis 1","x":100,"y":80,"scene":"optional","symbol_target":"optional","layer":"optional","fill":"optional"}
+- {"op":"set_layer_kind","layer":"Tonspur","kind":"sound|mask|guide|normal","scene":"optional","symbol":"optional"}
+- {"op":"import_bitmap_asset","name":"Hintergrund","path":"assets/hintergrund.png"}
+- {"op":"import_audio_asset","name":"Musik","path":"assets/musik.wav"}
+- {"op":"place_bitmap","asset":"Hintergrund","name":"BG","x":275,"y":200,"scene":"optional","symbol":"optional","layer":"optional"}
+- {"op":"place_sound_cue","asset":"Musik","frame":1,"scene":"optional","symbol":"optional","layer":"optional","event":true}
 - {"op":"add_script","path":"scripts/Neu.as","source":"vollständiger ActionScript-3-Quelltext"}
-Szenen und Ebenen werden über Namen ausgewählt; ohne Szene gilt die aktive Szene. Neue Skripte müssen unter scripts/ liegen und auf .as enden. Keine Lösch-, Umbenennungs- oder Überschreiboperationen für bestehende Inhalte erfinden. Die Operationen werden erst nach ausdrücklicher Bestätigung transaktional angewendet."##;
+Szene und Symbol-Timeline werden über Namen ausgewählt; "symbol" zielt auf eine Bibliotheks-Timeline, "scene" auf eine Szene, ohne Auswahl gilt die aktive Szene. Asset-Pfade sind relativ zum Projektordner (png/jpg/jpeg/gif, wav/mp3). Neue Skripte müssen unter scripts/ liegen und auf .as enden. Neue Skripte müssen unter scripts/ liegen und auf .as enden. Keine Lösch-, Umbenennungs- oder Überschreiboperationen für bestehende Inhalte erfinden. Die Operationen werden erst nach ausdrücklicher Bestätigung transaktional angewendet."##;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct AgentReply {

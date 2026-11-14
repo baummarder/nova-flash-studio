@@ -1,0 +1,782 @@
+{
+  "format": "nova-flash-studio",
+  "formatVersion": 2,
+  "project": {
+    "id": "03ff9127-9bde-4d70-8929-e556eb3bf286",
+    "metadata": {
+      "name": "M9 Nested Symbols",
+      "author": "",
+      "description": "MovieClip-Rad mit verschachtelter Grafik-Speiche, zweimal instanziiert.",
+      "createdUnix": 1794655555,
+      "modifiedUnix": 1794655555
+    },
+    "scenes": [
+      {
+        "id": "87721775-cc2e-4b86-a9cf-6cb2526d2bc5",
+        "name": "Szene 1",
+        "width": 640.0,
+        "height": 360.0,
+        "background": {
+          "r": 18,
+          "g": 20,
+          "b": 26,
+          "a": 255
+        },
+        "fps": 24.0,
+        "layers": [
+          {
+            "id": "68a859a5-7386-47f0-876b-d96e128d8885",
+            "name": "Ebene 1",
+            "visible": true,
+            "locked": false,
+            "kind": "normal",
+            "frames": [
+              {
+                "keyframe": true
+              }
+            ]
+          },
+          {
+            "id": "a98bb748-a52a-4869-9fa7-71db5fd1111f",
+            "name": "Hintergrund",
+            "visible": true,
+            "locked": false,
+            "kind": "normal",
+            "frames": [
+              {
+                "keyframe": true,
+                "objects": [
+                  {
+                    "id": "9e3995a6-c1cf-4109-8741-5bcc684f7129",
+                    "name": "Grosses Rad",
+                    "kind": {
+                      "kind": "symbol",
+                      "symbol": "d793c525-cbeb-40f7-ae0c-04386a5f4d84"
+                    },
+                    "transform": {
+                      "x": 180.0,
+                      "y": 180.0,
+                      "scale_x": 1.6,
+                      "scale_y": 1.6,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 255,
+                      "g": 255,
+                      "b": 255,
+                      "a": 255
+                    }
+                  }
+                ]
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              }
+            ]
+          },
+          {
+            "id": "fce4a5d7-72f2-4967-b63a-176b20ce3d9e",
+            "name": "Raeder",
+            "visible": true,
+            "locked": false,
+            "kind": "normal",
+            "frames": [
+              {
+                "keyframe": true,
+                "objects": [
+                  {
+                    "id": "b7909e50-90d7-465e-bc7b-5e2cd63b85a2",
+                    "name": "Kleines Rad",
+                    "kind": {
+                      "kind": "symbol",
+                      "symbol": "d793c525-cbeb-40f7-ae0c-04386a5f4d84"
+                    },
+                    "transform": {
+                      "x": 460.0,
+                      "y": 140.0,
+                      "scale_x": 0.7,
+                      "scale_y": 0.7,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 255,
+                      "g": 255,
+                      "b": 255,
+                      "a": 255
+                    }
+                  },
+                  {
+                    "id": "16e6fce9-9afb-4be1-8002-0a3d19737203",
+                    "name": "Boden",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 640.0,
+                      "height": 20.0,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 320.0,
+                      "y": 320.0,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 40,
+                      "g": 48,
+                      "b": 66,
+                      "a": 255
+                    }
+                  }
+                ]
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "symbols": [
+      {
+        "id": "3a8dc961-dc26-47ed-ad0e-fe4c9919359d",
+        "name": "Speiche",
+        "kind": "graphic",
+        "width": 16.0,
+        "height": 90.0,
+        "fill": {
+          "r": 120,
+          "g": 200,
+          "b": 255,
+          "a": 255
+        },
+        "corner_radius": 0.0,
+        "timeline": {
+          "id": "f99d68cb-ca42-4543-88cd-07ed54c171e0",
+          "name": "Speiche",
+          "width": 16.0,
+          "height": 90.0,
+          "background": {
+            "r": 0,
+            "g": 0,
+            "b": 0,
+            "a": 0
+          },
+          "fps": 24.0,
+          "layers": [
+            {
+              "id": "5f44af7b-7125-451b-92e6-110704ad161a",
+              "name": "Inhalt",
+              "visible": true,
+              "locked": false,
+              "kind": "normal",
+              "frames": [
+                {
+                  "keyframe": true,
+                  "objects": [
+                    {
+                      "id": "e9decbac-a04b-4cef-a91c-c2a57cb02d7b",
+                      "name": "Speiche",
+                      "kind": {
+                        "kind": "rect",
+                        "width": 16.0,
+                        "height": 90.0,
+                        "corner_radius": 0.0
+                      },
+                      "transform": {
+                        "x": 0.0,
+                        "y": 0.0,
+                        "scale_x": 1.0,
+                        "scale_y": 1.0,
+                        "rotation": 0.0
+                      },
+                      "fill": {
+                        "r": 120,
+                        "g": 200,
+                        "b": 255,
+                        "a": 255
+                      }
+                    },
+                    {
+                      "id": "2cc47e61-1a6b-49d9-8bd8-d0cdbaaf3052",
+                      "name": "Stab",
+                      "kind": {
+                        "kind": "rect",
+                        "width": 8.0,
+                        "height": 90.0,
+                        "corner_radius": 0.0
+                      },
+                      "transform": {
+                        "x": 0.0,
+                        "y": -45.0,
+                        "scale_x": 1.0,
+                        "scale_y": 1.0,
+                        "rotation": 0.0
+                      },
+                      "fill": {
+                        "r": 230,
+                        "g": 240,
+                        "b": 255,
+                        "a": 255
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": "d793c525-cbeb-40f7-ae0c-04386a5f4d84",
+        "name": "Rad",
+        "kind": "movie_clip",
+        "width": 120.0,
+        "height": 120.0,
+        "fill": {
+          "r": 0,
+          "g": 0,
+          "b": 0,
+          "a": 0
+        },
+        "corner_radius": 0.0,
+        "timeline": {
+          "id": "a3012db9-33ea-4aee-bb79-6abf892161f6",
+          "name": "Rad",
+          "width": 120.0,
+          "height": 120.0,
+          "background": {
+            "r": 0,
+            "g": 0,
+            "b": 0,
+            "a": 0
+          },
+          "fps": 24.0,
+          "layers": [
+            {
+              "id": "79e688f1-b437-4401-8df0-aa369a35caf7",
+              "name": "Inhalt",
+              "visible": true,
+              "locked": false,
+              "kind": "normal",
+              "frames": [
+                {
+                  "keyframe": true
+                }
+              ]
+            },
+            {
+              "id": "576d3106-34d6-4eb8-bdce-741b79cdb429",
+              "name": "Felge",
+              "visible": true,
+              "locked": false,
+              "kind": "normal",
+              "frames": [
+                {
+                  "keyframe": true,
+                  "objects": [
+                    {
+                      "id": "7e4bc42b-1874-4095-9a53-1003bb464b5c",
+                      "name": "Reifen",
+                      "kind": {
+                        "kind": "ellipse",
+                        "width": 120.0,
+                        "height": 120.0
+                      },
+                      "transform": {
+                        "x": 0.0,
+                        "y": 0.0,
+                        "scale_x": 1.0,
+                        "scale_y": 1.0,
+                        "rotation": 0.0
+                      },
+                      "fill": {
+                        "r": 60,
+                        "g": 70,
+                        "b": 90,
+                        "a": 255
+                      }
+                    },
+                    {
+                      "id": "555f4aa7-b5ca-4ae9-9400-a065c670e94a",
+                      "name": "Nabe",
+                      "kind": {
+                        "kind": "ellipse",
+                        "width": 30.0,
+                        "height": 30.0
+                      },
+                      "transform": {
+                        "x": 0.0,
+                        "y": 0.0,
+                        "scale_x": 1.0,
+                        "scale_y": 1.0,
+                        "rotation": 0.0
+                      },
+                      "fill": {
+                        "r": 200,
+                        "g": 210,
+                        "b": 230,
+                        "a": 255
+                      }
+                    },
+                    {
+                      "id": "501b5c2a-46c8-4e0e-88ce-c6bf9f8d91e2",
+                      "name": "Speiche",
+                      "kind": {
+                        "kind": "symbol",
+                        "symbol": "3a8dc961-dc26-47ed-ad0e-fe4c9919359d"
+                      },
+                      "transform": {
+                        "x": 0.0,
+                        "y": 0.0,
+                        "scale_x": 1.0,
+                        "scale_y": 1.0,
+                        "rotation": 0.0
+                      },
+                      "fill": {
+                        "r": 255,
+                        "g": 255,
+                        "b": 255,
+                        "a": 255
+                      }
+                    },
+                    {
+                      "id": "a3686f64-bcdb-4209-9126-fd547276b91f",
+                      "name": "Speiche",
+                      "kind": {
+                        "kind": "symbol",
+                        "symbol": "3a8dc961-dc26-47ed-ad0e-fe4c9919359d"
+                      },
+                      "transform": {
+                        "x": 0.0,
+                        "y": 0.0,
+                        "scale_x": 1.0,
+                        "scale_y": 1.0,
+                        "rotation": 90.0
+                      },
+                      "fill": {
+                        "r": 255,
+                        "g": 255,
+                        "b": 255,
+                        "a": 255
+                      }
+                    },
+                    {
+                      "id": "070c40c4-3208-4c91-8dff-dc9f50f58757",
+                      "name": "Speiche",
+                      "kind": {
+                        "kind": "symbol",
+                        "symbol": "3a8dc961-dc26-47ed-ad0e-fe4c9919359d"
+                      },
+                      "transform": {
+                        "x": 0.0,
+                        "y": 0.0,
+                        "scale_x": 1.0,
+                        "scale_y": 1.0,
+                        "rotation": 180.0
+                      },
+                      "fill": {
+                        "r": 255,
+                        "g": 255,
+                        "b": 255,
+                        "a": 255
+                      }
+                    },
+                    {
+                      "id": "de75360c-b85f-4a42-97c0-2f40ea8802bb",
+                      "name": "Speiche",
+                      "kind": {
+                        "kind": "symbol",
+                        "symbol": "3a8dc961-dc26-47ed-ad0e-fe4c9919359d"
+                      },
+                      "transform": {
+                        "x": 0.0,
+                        "y": 0.0,
+                        "scale_x": 1.0,
+                        "scale_y": 1.0,
+                        "rotation": 270.0
+                      },
+                      "fill": {
+                        "r": 255,
+                        "g": 255,
+                        "b": 255,
+                        "a": 255
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "assets": [],
+    "scripts": [
+      {
+        "id": "6494f761-e594-438f-ad78-bebbbf7987fa",
+        "name": "Main.as",
+        "path": "scripts/Main.as",
+        "source": "package {\n    public class Main {\n        public function Main() {\n        }\n    }\n}\n",
+        "provenance": "original_source"
+      }
+    ],
+    "export": {
+      "target": "avm2",
+      "swfVersion": 10,
+      "compression": "zlib",
+      "includeScripts": true,
+      "exportAllScenes": false
+    },
+    "activeScene": "87721775-cc2e-4b86-a9cf-6cb2526d2bc5"
+  }
+}

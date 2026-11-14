@@ -1,6 +1,6 @@
 # SWF Runtime Compatibility Report
 
-Status of generated SWF files as of `v0.4.0-rc1`. The visual runtime evidence is
+Status of generated SWF files as of `v0.5.0-rc1`. The visual runtime evidence is
 from Milestone 7.3; M8 export additions are tested structurally and are labelled
 as such below. This report distinguishes four different claims that are easy to
 confuse:

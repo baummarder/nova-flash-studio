@@ -8,24 +8,26 @@ the project format is versioned JSON, and the SWF writer is implemented directly
 against the published SWF file-format specification. Tools and extensions run in
 an embedded QuickJS context; ActionScript is **not** executed by QuickJS.
 
-> **Status: Mega Milestone 8 release candidate `0.4.0-rc1`, not stable.**
-> The validated `0.3.0-rc2` artifacts remain archived under
-> `dist/archive/0.3.0-rc2`. M8 adds real text objects with a built-in vector
-> font (exported as shapes), layer folders, opt-in multi-scene export, four
-> project templates, object copy/paste/duplicate, align/distribute, grid
-> snapping, code find/replace and project search, AS3 array/object literals and
-> index access, and preview-confirmed structured AI project operations.
-> Existing M7.3 validation still applies: Ruffle 0.7.1 visually played the
-> document-class/SymbolClass/tween fixture; **Adobe visual playback remains NOT
-> VERIFIED**. Multi-frame SymbolClass execution and XFL tween fidelity remain
-> **PARTIAL**. Bitmaps, audio, system/OpenType fonts, editable runtime text,
-> nested symbol timelines, masks, shape tweens, the full Flash API and most
-> advanced AS3 syntax remain unimplemented or unverified, and are labelled as
-> such below. The Windows `0.4.0-rc1` ZIP and Setup.exe are produced from this
-> source and smoke-tested by the packaging scripts. macOS and Linux packages
-> are scripted and structurally checked but were not built on their native hosts
-> here. See [Limitations](#limitations),
-> [docs/MILESTONE_8_REPORT.md](docs/MILESTONE_8_REPORT.md),
+> **Status: Mega Milestone 9 release candidate `0.5.0-rc1`, not stable.**
+> The validated `0.4.0-rc1` artifacts remain archived under
+> `dist/archive/0.4.0-rc1` and `0.3.0-rc2` under `dist/archive/0.3.0-rc2`. M9 adds
+> real symbol timelines with Graphic/MovieClip/Button kinds, nested symbol
+> instances with cycle guards, symbol editing mode, embedded bitmap and audio
+> assets with placement/cropping/sound cues, mask/guide/sound layers, shape
+> tweens, drawing tools (line/pencil/brush/eraser/fill/path nodes), stage
+> transform handles, an extended AI operation set, and six demo projects.
+> The `.nova` format is now version 2 with a lossless v1 migration. M8
+> capabilities (text objects, folders, scenes, templates, AS3 arrays/objects,
+> structured AI operations) are unchanged. **Ruffle playback of M9 features is
+> NOT VERIFIED** (no local Ruffle binary); Adobe debug-projector launch was
+> PARTIAL only. Button states, audio streaming, native `.fla` and unverified
+> XFL-in-Animate behaviour remain unimplemented or unverified and are labelled
+> as such below. The Windows `0.5.0-rc1` ZIP and Setup.exe are produced from
+> this source and smoke-tested by the packaging scripts. macOS and Linux
+> packages are scripted and structurally checked but were not built on their
+> native hosts here. See [Limitations](#limitations),
+> [docs/MEGA_MILESTONE_9_REPORT.md](docs/MEGA_MILESTONE_9_REPORT.md),
+> [docs/MEGA_MILESTONE_9_PLAN.md](docs/MEGA_MILESTONE_9_PLAN.md),
 > [docs/AI_AGENT_EDITOR.md](docs/AI_AGENT_EDITOR.md),
 > [docs/AI_PROVIDER_GUIDE.md](docs/AI_PROVIDER_GUIDE.md),
 > [docs/FORMAT_COMPATIBILITY.md](docs/FORMAT_COMPATIBILITY.md),
@@ -78,7 +80,7 @@ Rust.
 
 | Platform | Package | Status in this repository |
 | --- | --- | --- |
-| Windows 10/11 x64 | `NOVA-Flash-Studio-<version>-windows-x64-Setup.exe` installer, or the portable `NØVA Flash Studio.exe` in the ZIP under `dist/windows/` | Rebuilt and smoke-tested for `0.4.0-rc1`; headless install/uninstall previously verified in M5/M6 |
+| Windows 10/11 x64 | `NOVA-Flash-Studio-<version>-windows-x64-Setup.exe` installer, or the portable `NØVA Flash Studio.exe` in the ZIP under `dist/windows/` | Rebuilt and smoke-tested for `0.5.0-rc1`; headless install/uninstall verified |
 | macOS 10.15+ | `NØVA Flash Studio.app` ZIP | Bundle script and metadata prepared; not built here |
 | Linux x86_64 | `NØVA-Flash-Studio.AppImage` | AppImage recipe prepared; not built here |
 
@@ -118,13 +120,13 @@ bash scripts/package-macos.sh
 bash scripts/package-linux.sh
 ```
 
-The current Windows artifacts are produced from workspace version `0.4.0-rc1`:
+The current Windows artifacts are produced from workspace version `0.5.0-rc1`:
 the portable ZIP, the staged `NØVA Flash Studio.exe`, and the self-contained
-`NOVA-Flash-Studio-0.4.0-rc1-windows-x64-Setup.exe`. Sizes and SHA-256 values are
+`NOVA-Flash-Studio-0.5.0-rc1-windows-x64-Setup.exe`. Sizes and SHA-256 values are
 listed in `dist/windows/SHA256SUMS.txt`, which is authoritative even if a
 documentation-only rebuild changes a ZIP or Setup hash. The validated
-`0.3.0-rc2` artifacts are preserved under `dist/archive/0.3.0-rc2`. The
-artifacts are unsigned.
+`0.4.0-rc1` artifacts are preserved under `dist/archive/0.4.0-rc1` and
+`0.3.0-rc2` under `dist/archive/0.3.0-rc2`. The artifacts are unsigned.
 
 See [docs/PACKAGING.md](docs/PACKAGING.md) for prerequisites, signing,
 notarization, AppImage dependencies, CI and the exact artifact layout.
@@ -596,6 +598,9 @@ docs/
 - [Mega Milestone 8 report](docs/MILESTONE_8_REPORT.md) — text, folders, scenes,
   templates, AS3 collection support, structured AI operations, `0.4.0-rc1`
   artifacts and the explicit PASS/PARTIAL/NOT VERIFIED boundary.
+- [Mega Milestone 9 report](docs/MEGA_MILESTONE_9_REPORT.md) — symbol timelines,
+  nested MovieClips, bitmap/audio assets, masks, shape tweens, drawing tools,
+  `0.5.0-rc1` artifacts and the explicit PASS/PARTIAL/NOT VERIFIED boundary.
 - [Licensing](docs/LICENSING.md) — license texts, third-party notices, EULA
   draft status and the no-activation/no-telemetry policy.
 - [Roadmap](docs/ROADMAP.md) — what comes next and what "done" means.

@@ -1,6 +1,6 @@
 # ActionScript 3 Compatibility Matrix
 
-Status of the `nova-as` compiler as of `v0.4.0-rc1` (Mega Milestone 8). This
+Status of the `nova-as` compiler as of `v0.5.0-rc1` (Mega Milestone 9; the AS3 subset is unchanged since M8). This
 document describes
 the **implemented subset**, not full AS3. Every unsupported construct produces
 a source-located diagnostic and aborts compilation — nothing is silently

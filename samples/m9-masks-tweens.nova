@@ -1,0 +1,896 @@
+{
+  "format": "nova-flash-studio",
+  "formatVersion": 2,
+  "project": {
+    "id": "6c42a7a0-c834-41a4-a627-f8856e5206be",
+    "metadata": {
+      "name": "M9 Masks & Tweens",
+      "author": "",
+      "description": "Hilfsebene, Maskenebene und Form-Tween zwischen zwei Keyframes.",
+      "createdUnix": 1794655555,
+      "modifiedUnix": 1794655555
+    },
+    "scenes": [
+      {
+        "id": "ca2fd24d-137a-45e2-88c7-e069628a6386",
+        "name": "Szene 1",
+        "width": 640.0,
+        "height": 360.0,
+        "background": {
+          "r": 18,
+          "g": 20,
+          "b": 26,
+          "a": 255
+        },
+        "fps": 24.0,
+        "layers": [
+          {
+            "id": "c26fc627-138d-436d-a014-5f8d84861eb1",
+            "name": "Ebene 1",
+            "visible": true,
+            "locked": false,
+            "kind": "normal",
+            "frames": [
+              {
+                "keyframe": true
+              }
+            ]
+          },
+          {
+            "id": "28f6a477-e48d-47d1-a004-dbfc763066bd",
+            "name": "Hilfslinien",
+            "visible": true,
+            "locked": false,
+            "kind": "guide",
+            "frames": [
+              {
+                "keyframe": true,
+                "objects": [
+                  {
+                    "id": "50a394ee-d3d7-4214-bdd4-3ba51f58f4d9",
+                    "name": "Zentrierung",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 2.0,
+                      "height": 360.0,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 320.0,
+                      "y": 0.0,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 255,
+                      "g": 255,
+                      "b": 255,
+                      "a": 255
+                    }
+                  }
+                ]
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              }
+            ]
+          },
+          {
+            "id": "2e011bfd-07a3-45e7-8e08-cf4fccb0fe71",
+            "name": "Inhalt",
+            "visible": true,
+            "locked": false,
+            "kind": "normal",
+            "frames": [
+              {
+                "keyframe": true,
+                "objects": [
+                  {
+                    "id": "796c4363-d823-4dbd-ad82-97876183b382",
+                    "name": "Panel",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 500.0,
+                      "height": 300.0,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 320.0,
+                      "y": 180.0,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 80,
+                      "g": 140,
+                      "b": 220,
+                      "a": 255
+                    }
+                  },
+                  {
+                    "id": "2aa65454-c529-477b-9211-7a57b5522d57",
+                    "name": "Akzent",
+                    "kind": {
+                      "kind": "ellipse",
+                      "width": 160.0,
+                      "height": 160.0
+                    },
+                    "transform": {
+                      "x": 320.0,
+                      "y": 180.0,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 245,
+                      "g": 166,
+                      "b": 35,
+                      "a": 255
+                    }
+                  }
+                ]
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              }
+            ]
+          },
+          {
+            "id": "0235dfae-a59d-48eb-a134-90ffeb896956",
+            "name": "Maske",
+            "visible": true,
+            "locked": false,
+            "kind": "mask",
+            "frames": [
+              {
+                "keyframe": true,
+                "objects": [
+                  {
+                    "id": "cae38e86-3773-4e43-8d69-0370aaf15e4f",
+                    "name": "Loch",
+                    "kind": {
+                      "kind": "ellipse",
+                      "width": 220.0,
+                      "height": 140.0
+                    },
+                    "transform": {
+                      "x": 320.0,
+                      "y": 180.0,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 255,
+                      "g": 255,
+                      "b": 255,
+                      "a": 255
+                    }
+                  }
+                ]
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              }
+            ]
+          },
+          {
+            "id": "a94f51f9-dded-4f8d-ad34-dec2a2899ed8",
+            "name": "Form-Tween",
+            "visible": true,
+            "locked": false,
+            "kind": "normal",
+            "frames": [
+              {
+                "keyframe": true,
+                "objects": [
+                  {
+                    "id": "cd64e588-87d1-41b6-bed0-e8788656dcba",
+                    "name": "Morph",
+                    "kind": {
+                      "kind": "path",
+                      "width": 80.0,
+                      "height": 80.0,
+                      "paths": [
+                        {
+                          "fill": {
+                            "r": 120,
+                            "g": 220,
+                            "b": 140,
+                            "a": 255
+                          },
+                          "commands": [
+                            {
+                              "kind": "move_to",
+                              "x": -40.0,
+                              "y": -40.0
+                            },
+                            {
+                              "kind": "line_to",
+                              "x": 40.0,
+                              "y": -40.0
+                            },
+                            {
+                              "kind": "line_to",
+                              "x": 40.0,
+                              "y": 40.0
+                            },
+                            {
+                              "kind": "line_to",
+                              "x": -40.0,
+                              "y": 40.0
+                            },
+                            {
+                              "kind": "line_to",
+                              "x": -40.0,
+                              "y": -40.0
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    "transform": {
+                      "x": 120.0,
+                      "y": 260.0,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 120,
+                      "g": 220,
+                      "b": 140,
+                      "a": 255
+                    }
+                  }
+                ],
+                "tween": {
+                  "easing": "linear",
+                  "kind": "shape"
+                }
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": true,
+                "objects": [
+                  {
+                    "id": "cd64e588-87d1-41b6-bed0-e8788656dcba",
+                    "name": "Morph",
+                    "kind": {
+                      "kind": "path",
+                      "width": 80.0,
+                      "height": 80.0,
+                      "paths": [
+                        {
+                          "fill": {
+                            "r": 120,
+                            "g": 220,
+                            "b": 140,
+                            "a": 255
+                          },
+                          "commands": [
+                            {
+                              "kind": "move_to",
+                              "x": -40.0,
+                              "y": -40.0
+                            },
+                            {
+                              "kind": "line_to",
+                              "x": 40.0,
+                              "y": -40.0
+                            },
+                            {
+                              "kind": "line_to",
+                              "x": 40.0,
+                              "y": 40.0
+                            },
+                            {
+                              "kind": "line_to",
+                              "x": -40.0,
+                              "y": 40.0
+                            },
+                            {
+                              "kind": "line_to",
+                              "x": -40.0,
+                              "y": -40.0
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    "transform": {
+                      "x": 500.0,
+                      "y": 260.0,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 45.0
+                    },
+                    "fill": {
+                      "r": 120,
+                      "g": 220,
+                      "b": 140,
+                      "a": 255
+                    }
+                  }
+                ]
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "symbols": [],
+    "assets": [],
+    "scripts": [
+      {
+        "id": "610ba754-5095-42bd-bbf7-c69260e949a9",
+        "name": "Main.as",
+        "path": "scripts/Main.as",
+        "source": "package {\n    public class Main {\n        public function Main() {\n        }\n    }\n}\n",
+        "provenance": "original_source"
+      }
+    ],
+    "export": {
+      "target": "avm2",
+      "swfVersion": 10,
+      "compression": "zlib",
+      "includeScripts": true,
+      "exportAllScenes": false
+    },
+    "activeScene": "ca2fd24d-137a-45e2-88c7-e069628a6386"
+  }
+}

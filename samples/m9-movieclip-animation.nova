@@ -1,0 +1,793 @@
+{
+  "format": "nova-flash-studio",
+  "formatVersion": 2,
+  "project": {
+    "id": "b219c41b-ccd5-4f9a-84f6-0928cd5d2a99",
+    "metadata": {
+      "name": "M9 MovieClip Animation",
+      "author": "",
+      "description": "MovieClip mit eigener 24-Frame-Timeline plus Motion-Tween auf der Bühne.",
+      "createdUnix": 1794655555,
+      "modifiedUnix": 1794655555
+    },
+    "scenes": [
+      {
+        "id": "6dae6479-79fa-444c-852a-5cbf2248685e",
+        "name": "Szene 1",
+        "width": 640.0,
+        "height": 360.0,
+        "background": {
+          "r": 18,
+          "g": 20,
+          "b": 26,
+          "a": 255
+        },
+        "fps": 24.0,
+        "layers": [
+          {
+            "id": "fbb0e3a8-8508-41c5-9963-1e02f18e2c64",
+            "name": "Ebene 1",
+            "visible": true,
+            "locked": false,
+            "kind": "normal",
+            "frames": [
+              {
+                "keyframe": true
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              }
+            ]
+          },
+          {
+            "id": "23580273-a6ad-4467-9a9d-418e25f468f7",
+            "name": "Buehne",
+            "visible": true,
+            "locked": false,
+            "kind": "normal",
+            "frames": [
+              {
+                "keyframe": true,
+                "objects": [
+                  {
+                    "id": "5d7c956a-ffe2-4ab0-8628-54c6b8f7e870",
+                    "name": "BouncingBall",
+                    "kind": {
+                      "kind": "symbol",
+                      "symbol": "00e74a69-55ee-49d8-bab6-fa43e9a2d45e"
+                    },
+                    "transform": {
+                      "x": 320.0,
+                      "y": 180.0,
+                      "scale_x": 1.4,
+                      "scale_y": 1.4,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 255,
+                      "g": 255,
+                      "b": 255,
+                      "a": 255
+                    }
+                  }
+                ],
+                "tween": {
+                  "easing": "ease_in_out",
+                  "kind": "motion"
+                }
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": true,
+                "objects": [
+                  {
+                    "id": "5d7c956a-ffe2-4ab0-8628-54c6b8f7e870",
+                    "name": "BouncingBall",
+                    "kind": {
+                      "kind": "symbol",
+                      "symbol": "00e74a69-55ee-49d8-bab6-fa43e9a2d45e"
+                    },
+                    "transform": {
+                      "x": 500.0,
+                      "y": 120.0,
+                      "scale_x": 1.4,
+                      "scale_y": 1.4,
+                      "rotation": 180.0
+                    },
+                    "fill": {
+                      "r": 255,
+                      "g": 255,
+                      "b": 255,
+                      "a": 255
+                    }
+                  }
+                ]
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": true,
+                "objects": [
+                  {
+                    "id": "5d7c956a-ffe2-4ab0-8628-54c6b8f7e870",
+                    "name": "BouncingBall",
+                    "kind": {
+                      "kind": "symbol",
+                      "symbol": "00e74a69-55ee-49d8-bab6-fa43e9a2d45e"
+                    },
+                    "transform": {
+                      "x": 180.0,
+                      "y": 260.0,
+                      "scale_x": 1.4,
+                      "scale_y": 1.4,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 255,
+                      "g": 255,
+                      "b": 255,
+                      "a": 255
+                    }
+                  }
+                ]
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              }
+            ]
+          },
+          {
+            "id": "ebd81498-768e-48b7-a215-1067ce5f1f13",
+            "name": "Schatten",
+            "visible": true,
+            "locked": false,
+            "kind": "normal",
+            "frames": [
+              {
+                "keyframe": true,
+                "objects": [
+                  {
+                    "id": "9a00b9d9-ca76-48cb-9e1c-eaf202a4453b",
+                    "name": "Schatten",
+                    "kind": {
+                      "kind": "ellipse",
+                      "width": 90.0,
+                      "height": 14.0
+                    },
+                    "transform": {
+                      "x": 320.0,
+                      "y": 320.0,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 0,
+                      "g": 0,
+                      "b": 0,
+                      "a": 90
+                    }
+                  }
+                ]
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "symbols": [
+      {
+        "id": "00e74a69-55ee-49d8-bab6-fa43e9a2d45e",
+        "name": "Ball",
+        "kind": "movie_clip",
+        "width": 60.0,
+        "height": 60.0,
+        "fill": {
+          "r": 0,
+          "g": 0,
+          "b": 0,
+          "a": 0
+        },
+        "corner_radius": 0.0,
+        "timeline": {
+          "id": "4ea9b21c-305c-4dce-b87e-d55b16b74217",
+          "name": "Ball",
+          "width": 60.0,
+          "height": 60.0,
+          "background": {
+            "r": 0,
+            "g": 0,
+            "b": 0,
+            "a": 0
+          },
+          "fps": 24.0,
+          "layers": [
+            {
+              "id": "c643eb84-e9e7-4c4f-8956-dc917aa0d8b6",
+              "name": "Sprung",
+              "visible": true,
+              "locked": false,
+              "kind": "normal",
+              "frames": [
+                {
+                  "keyframe": true,
+                  "objects": [
+                    {
+                      "id": "c9b31156-55d9-40cb-ba4d-3a93f08ed520",
+                      "name": "Kugel",
+                      "kind": {
+                        "kind": "ellipse",
+                        "width": 50.0,
+                        "height": 50.0
+                      },
+                      "transform": {
+                        "x": 0.0,
+                        "y": -120.0,
+                        "scale_x": 1.0,
+                        "scale_y": 1.0,
+                        "rotation": 0.0
+                      },
+                      "fill": {
+                        "r": 245,
+                        "g": 166,
+                        "b": 35,
+                        "a": 255
+                      }
+                    }
+                  ],
+                  "tween": {
+                    "easing": "linear",
+                    "kind": "motion"
+                  }
+                },
+                {
+                  "keyframe": false
+                },
+                {
+                  "keyframe": false
+                },
+                {
+                  "keyframe": false
+                },
+                {
+                  "keyframe": false
+                },
+                {
+                  "keyframe": false
+                },
+                {
+                  "keyframe": false
+                },
+                {
+                  "keyframe": false
+                },
+                {
+                  "keyframe": false
+                },
+                {
+                  "keyframe": false
+                },
+                {
+                  "keyframe": false
+                },
+                {
+                  "keyframe": true,
+                  "objects": [
+                    {
+                      "id": "c9b31156-55d9-40cb-ba4d-3a93f08ed520",
+                      "name": "Kugel",
+                      "kind": {
+                        "kind": "ellipse",
+                        "width": 50.0,
+                        "height": 50.0
+                      },
+                      "transform": {
+                        "x": 0.0,
+                        "y": 120.0,
+                        "scale_x": 1.0,
+                        "scale_y": 1.0,
+                        "rotation": 0.0
+                      },
+                      "fill": {
+                        "r": 245,
+                        "g": 166,
+                        "b": 35,
+                        "a": 255
+                      }
+                    }
+                  ]
+                },
+                {
+                  "keyframe": false
+                },
+                {
+                  "keyframe": false
+                },
+                {
+                  "keyframe": false
+                },
+                {
+                  "keyframe": false
+                },
+                {
+                  "keyframe": false
+                },
+                {
+                  "keyframe": false
+                },
+                {
+                  "keyframe": false
+                },
+                {
+                  "keyframe": false
+                },
+                {
+                  "keyframe": false
+                },
+                {
+                  "keyframe": false
+                },
+                {
+                  "keyframe": false
+                },
+                {
+                  "keyframe": true,
+                  "objects": [
+                    {
+                      "id": "c9b31156-55d9-40cb-ba4d-3a93f08ed520",
+                      "name": "Kugel",
+                      "kind": {
+                        "kind": "ellipse",
+                        "width": 50.0,
+                        "height": 50.0
+                      },
+                      "transform": {
+                        "x": 0.0,
+                        "y": -120.0,
+                        "scale_x": 1.0,
+                        "scale_y": 1.0,
+                        "rotation": 0.0
+                      },
+                      "fill": {
+                        "r": 245,
+                        "g": 166,
+                        "b": 35,
+                        "a": 255
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "assets": [],
+    "scripts": [
+      {
+        "id": "9bd86e56-6b4f-4582-a2c0-c605f67a83a1",
+        "name": "Main.as",
+        "path": "scripts/Main.as",
+        "source": "package {\n    public class Main {\n        public function Main() {\n        }\n    }\n}\n",
+        "provenance": "original_source"
+      }
+    ],
+    "export": {
+      "target": "avm2",
+      "swfVersion": 10,
+      "compression": "zlib",
+      "includeScripts": true,
+      "exportAllScenes": false
+    },
+    "activeScene": "6dae6479-79fa-444c-852a-5cbf2248685e"
+  }
+}

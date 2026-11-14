@@ -5,7 +5,7 @@ the compiled executable or bundle plus the branding assets and documentation;
 target machines do **not** need a Rust toolchain.
 
 The source version is the single release version. It lives in
-`[workspace.package] version` in `Cargo.toml` (currently `0.4.0-rc1`). The Windows
+`[workspace.package] version` in `Cargo.toml` (currently `0.5.0-rc1`). The Windows
 resource, splash screen, macOS `Info.plist` and package scripts read that value.
 
 ## Artifact layout

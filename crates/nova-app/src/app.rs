@@ -6,7 +6,8 @@ use std::time::Instant;
 use eframe::egui::{self, Context, Key, RichText, Ui};
 use nova_build::build_swf;
 use nova_core::{
-    Frame, Layer, LayerKind, ObjectInstance, ObjectKind, Project, ProjectTemplate, Rgba, Symbol,
+    Asset, AssetKind, Frame, Layer, LayerKind, ObjectInstance, ObjectKind, Project,
+    ProjectTemplate, Rgba, SoundCue, Symbol, SymbolKind, TweenKind,
 };
 use nova_script::ScriptEngine;
 use uuid::Uuid;
@@ -16,7 +17,7 @@ use crate::history::History;
 use crate::splash::Splash;
 use crate::state::{
     AlignMode, AppState, BottomTab, Dialog, KeyframeRef, LogLevel, Mode, PendingAction, Selection,
-    UiAction,
+    Tool, UiAction,
 };
 use crate::{
     autosave, branding, code_view, console, flash, properties, stage_view, theme, timeline_view,
@@ -583,7 +584,7 @@ impl NovaApp {
             }
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if let Some(scene) = self.project.active_scene() {
+                if let Some(scene) = self.project.edit_scene(self.state.edit_symbol) {
                     ui.label(
                         RichText::new(format!(
                             "{} Frames · {:.0} fps",
@@ -619,7 +620,7 @@ impl NovaApp {
                     .color(theme::TEXT_DIM),
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if let Some(scene) = self.project.active_scene() {
+                if let Some(scene) = self.project.edit_scene(self.state.edit_symbol) {
                     ui.label(
                         RichText::new(format!(
                             "{} · Frame {}/{} · {:.0}%",
@@ -803,7 +804,7 @@ impl NovaApp {
                 UiAction::LastFrame => {
                     let last = self
                         .project
-                        .active_scene()
+                        .edit_scene(self.state.edit_symbol)
                         .map(|scene| scene.frame_count().saturating_sub(1))
                         .unwrap_or(0);
                     self.jump_to_frame(last);
@@ -812,10 +813,23 @@ impl NovaApp {
                 UiAction::AddFolder => self.add_folder(),
                 UiAction::AddScript => self.add_script(),
                 UiAction::AddSymbol => self.add_symbol(),
+                UiAction::AddMovieClipSymbol => self.add_symbol_kind(SymbolKind::MovieClip),
                 UiAction::AddRect => self.add_shape(false),
                 UiAction::AddEllipse => self.add_shape(true),
                 UiAction::AddText => self.add_text(),
                 UiAction::AddSymbolInstance(id) => self.add_symbol_instance(id),
+                UiAction::AddBitmapAsset(id) => self.add_bitmap_instance(id),
+                UiAction::AddSoundCue(id) => self.add_sound_cue(id),
+                UiAction::PreviewAsset(id) => self.preview_asset(id),
+                UiAction::ImportBitmap => self.import_bitmap(),
+                UiAction::ImportAudio => self.import_audio(),
+                UiAction::EnterSymbol(id) => self.enter_symbol(id),
+                UiAction::ExitSymbol => self.exit_symbol(),
+                UiAction::DuplicateSymbol(id) => self.duplicate_symbol(id),
+                UiAction::RenameSymbol(id, name) => self.rename_symbol(id, name),
+                UiAction::SetTool(tool) => self.set_tool(tool),
+                UiAction::SetLayerKind(kind) => self.set_layer_kind(kind),
+                UiAction::SetTweenKind(kind) => self.set_tween_kind(kind),
                 UiAction::AddScene => self.add_scene(),
                 UiAction::DeleteScene => self.delete_scene(),
                 UiAction::InsertKeyframe => self.insert_keyframe(false),
@@ -974,6 +988,33 @@ impl NovaApp {
         }
     }
 
+    /// Decodes embedded bitmap assets once per session and caches the GPU
+    /// textures used by the stage and the asset preview.
+    fn refresh_asset_textures(&mut self, ctx: &Context) {
+        for index in 0..self.project.assets.len() {
+            let asset = &self.project.assets[index];
+            if asset.kind != AssetKind::Bitmap
+                || asset.data.is_empty()
+                || self.state.asset_textures.contains_key(&asset.id)
+            {
+                continue;
+            }
+            let Ok(image) = image::load_from_memory(&asset.data) else {
+                continue;
+            };
+            let rgba = image.to_rgba8();
+            let (width, height) = (rgba.width(), rgba.height());
+            let color_image =
+                egui::ColorImage::from_rgba_unmultiplied([width as usize, height as usize], &rgba);
+            let texture = ctx.load_texture(
+                format!("asset-{}", asset.id),
+                color_image,
+                egui::TextureOptions::LINEAR,
+            );
+            self.state.asset_textures.insert(asset.id, texture);
+        }
+    }
+
     fn maybe_autosave(&mut self, ctx: &Context) {
         if !self.state.autosave_enabled {
             return;
@@ -1008,7 +1049,7 @@ impl NovaApp {
         let Some(layer) = self.target_layer() else {
             return Vec::new();
         };
-        let Some(scene) = self.project.active_scene() else {
+        let Some(scene) = self.project.edit_scene(self.state.edit_symbol) else {
             return Vec::new();
         };
         let Some(layer) = scene.layers.iter().find(|candidate| candidate.id == layer) else {
@@ -1026,7 +1067,7 @@ impl NovaApp {
     }
 
     fn ensure_frame_count(&mut self, count: usize) {
-        if let Some(scene) = self.project.active_scene_mut() {
+        if let Some(scene) = self.project.edit_scene_mut(self.state.edit_symbol) {
             scene.ensure_frame_count(count);
         }
     }
@@ -1049,7 +1090,7 @@ impl NovaApp {
         }
         refs.sort_by_key(|reference| (reference.frame, reference.layer));
         let base = refs[0].frame;
-        let Some(scene) = self.project.active_scene() else {
+        let Some(scene) = self.project.edit_scene(self.state.edit_symbol) else {
             return;
         };
         let mut copied = Vec::new();
@@ -1097,7 +1138,7 @@ impl NovaApp {
         }
         self.ensure_frame_count(max_frame + 1);
         let mut pasted = Vec::new();
-        let Some(scene) = self.project.active_scene_mut() else {
+        let Some(scene) = self.project.edit_scene_mut(self.state.edit_symbol) else {
             return;
         };
         let Some(layer) = scene.layers.iter_mut().find(|layer| layer.id == target) else {
@@ -1140,7 +1181,7 @@ impl NovaApp {
         let shift = last + 1 - first;
         let mut copies = Vec::new();
         for reference in &refs {
-            let Some(scene) = self.project.active_scene() else {
+            let Some(scene) = self.project.edit_scene(self.state.edit_symbol) else {
                 return;
             };
             let Some(layer) = scene
@@ -1161,7 +1202,7 @@ impl NovaApp {
         let max_frame = copies.iter().map(|(_, frame, _)| *frame).max().unwrap_or(0);
         self.ensure_frame_count(max_frame + 1);
         let mut duplicated = Vec::new();
-        let Some(scene) = self.project.active_scene_mut() else {
+        let Some(scene) = self.project.edit_scene_mut(self.state.edit_symbol) else {
             return;
         };
         for (layer_id, frame_index, frame) in copies {
@@ -1211,7 +1252,7 @@ impl NovaApp {
             return unique;
         }
         self.project
-            .active_scene()
+            .edit_scene(self.state.edit_symbol)
             .map(|scene| scene.layers.iter().map(|layer| layer.id).collect())
             .unwrap_or_default()
     }
@@ -1221,7 +1262,7 @@ impl NovaApp {
         let count = end.saturating_sub(start) + 1;
         let layers = self.frame_operation_layers();
         let position = end + 1;
-        let Some(scene) = self.project.active_scene_mut() else {
+        let Some(scene) = self.project.edit_scene_mut(self.state.edit_symbol) else {
             return;
         };
         for layer in scene
@@ -1251,7 +1292,7 @@ impl NovaApp {
         }
         let count = end - start + 1;
         let layers = self.frame_operation_layers();
-        let Some(scene) = self.project.active_scene_mut() else {
+        let Some(scene) = self.project.edit_scene_mut(self.state.edit_symbol) else {
             return;
         };
         for layer in scene
@@ -1287,7 +1328,7 @@ impl NovaApp {
         if refs.is_empty() || direction == 0 {
             return;
         }
-        let Some(scene) = self.project.active_scene_mut() else {
+        let Some(scene) = self.project.edit_scene_mut(self.state.edit_symbol) else {
             return;
         };
         let mut moved = Vec::new();
@@ -1342,7 +1383,7 @@ impl NovaApp {
         let Some(target) = self.target_layer() else {
             return;
         };
-        let Some(scene) = self.project.active_scene_mut() else {
+        let Some(scene) = self.project.edit_scene_mut(self.state.edit_symbol) else {
             return;
         };
         let Some(layer) = scene.layers.iter_mut().find(|layer| layer.id == target) else {
@@ -1387,7 +1428,7 @@ impl NovaApp {
         let Some(target) = self.target_layer() else {
             return;
         };
-        let Some(scene) = self.project.active_scene_mut() else {
+        let Some(scene) = self.project.edit_scene_mut(self.state.edit_symbol) else {
             return;
         };
         let Some(layer) = scene.layers.iter_mut().find(|layer| layer.id == target) else {
@@ -1409,7 +1450,7 @@ impl NovaApp {
         let Some(target) = self.target_layer() else {
             return;
         };
-        let Some(scene) = self.project.active_scene_mut() else {
+        let Some(scene) = self.project.edit_scene_mut(self.state.edit_symbol) else {
             return;
         };
         let Some(layer) = scene.layers.iter_mut().find(|layer| layer.id == target) else {
@@ -1878,7 +1919,7 @@ impl NovaApp {
     fn add_layer(&mut self) {
         let (count, name) = self
             .project
-            .active_scene()
+            .edit_scene(self.state.edit_symbol)
             .map(|scene| {
                 (
                     scene.frame_count(),
@@ -1898,7 +1939,7 @@ impl NovaApp {
     fn add_folder(&mut self) {
         let (count, name) = self
             .project
-            .active_scene()
+            .edit_scene(self.state.edit_symbol)
             .map(|scene| {
                 let folders = scene
                     .layers
@@ -1914,7 +1955,7 @@ impl NovaApp {
         let mut layer = Layer::new(name.clone(), count);
         layer.kind = LayerKind::Folder;
         let id = layer.id;
-        if let Some(scene) = self.project.active_scene_mut() {
+        if let Some(scene) = self.project.edit_scene_mut(self.state.edit_symbol) {
             scene.layers.push(layer);
         } else {
             return;
@@ -1971,23 +2012,6 @@ impl NovaApp {
         }
     }
 
-    fn add_symbol(&mut self) {
-        let index = self.project.symbols.len() + 1;
-        let symbol = Symbol::new(
-            format!("Symbol {index}"),
-            64.0,
-            64.0,
-            self.state.new_object_color,
-        );
-        let id = symbol.id;
-        self.project.symbols.push(symbol);
-        self.project.touch();
-        self.state.dirty = true;
-        self.state.selection = Selection::Symbol(id);
-        self.state.selected_symbol = Some(id);
-        self.state.log(LogLevel::Info, "Symbol angelegt.");
-    }
-
     fn add_shape(&mut self, ellipse: bool) {
         let frame = self.state.frame;
         let Some(target) = self.target_layer() else {
@@ -1996,7 +2020,7 @@ impl NovaApp {
             return;
         };
         let color = self.state.new_object_color;
-        let Some(scene) = self.project.active_scene_mut() else {
+        let Some(scene) = self.project.edit_scene_mut(self.state.edit_symbol) else {
             return;
         };
         let (stage_width, stage_height) = (scene.width, scene.height);
@@ -2056,7 +2080,7 @@ impl NovaApp {
             return;
         };
         let color = self.state.new_object_color;
-        let Some(scene) = self.project.active_scene_mut() else {
+        let Some(scene) = self.project.edit_scene_mut(self.state.edit_symbol) else {
             return;
         };
         let (stage_width, stage_height) = (scene.width, scene.height);
@@ -2106,7 +2130,7 @@ impl NovaApp {
         else {
             return;
         };
-        let Some(scene) = self.project.active_scene_mut() else {
+        let Some(scene) = self.project.edit_scene_mut(self.state.edit_symbol) else {
             return;
         };
         let (stage_width, stage_height) = (scene.width, scene.height);
@@ -2146,6 +2170,431 @@ impl NovaApp {
             .set_status(format!("Symbol '{name}' auf die Bühne gelegt"));
     }
 
+    fn add_symbol(&mut self) {
+        self.add_symbol_kind(SymbolKind::Graphic);
+    }
+
+    fn add_symbol_kind(&mut self, kind: SymbolKind) {
+        let index = self.project.symbols.len() + 1;
+        let name = format!("{} {index}", kind.label());
+        let (width, height) = self
+            .project
+            .edit_scene(self.state.edit_symbol)
+            .map(|scene| (scene.width, scene.height))
+            .unwrap_or((550.0, 400.0));
+        let mut symbol = Symbol::empty(name.clone(), kind, width, height);
+        symbol.fill = self.state.new_object_color;
+        if kind == SymbolKind::Graphic
+            && let Some(layer) = symbol.timeline.layers.first_mut()
+            && let Some(object) = layer.frames[0].objects.first_mut()
+            && let ObjectKind::Rect { .. } = object.kind
+        {
+            object.fill = self.state.new_object_color;
+        }
+        let id = symbol.id;
+        self.project.symbols.push(symbol);
+        self.project.touch();
+        self.state.dirty = true;
+        self.state.selection = Selection::Symbol(id);
+        self.state.selected_symbol = Some(id);
+        self.last_history_label = "Symbol anlegen";
+        self.state
+            .set_status(format!("{name} ({}) angelegt", kind.label()));
+    }
+
+    fn enter_symbol(&mut self, id: Uuid) {
+        if self.project.symbol(id).is_none() {
+            return;
+        }
+        let name = self
+            .project
+            .symbol(id)
+            .map(|symbol| symbol.name.clone())
+            .unwrap_or_default();
+        self.state.enter_symbol(&self.project, id);
+        self.project.touch();
+        self.state.set_status(format!("Symbolbearbeitung: {name}"));
+    }
+
+    fn exit_symbol(&mut self) {
+        if self.state.edit_symbol.is_none() {
+            return;
+        }
+        self.state.exit_symbol(&self.project);
+        self.project.touch();
+        self.state.set_status("Zurück zur Hauptszene");
+    }
+
+    fn duplicate_symbol(&mut self, id: Uuid) {
+        match self.project.duplicate_symbol(id) {
+            Some(new_id) => {
+                self.project.touch();
+                self.state.dirty = true;
+                self.state.selection = Selection::Symbol(new_id);
+                self.state.selected_symbol = Some(new_id);
+                self.last_history_label = "Symbol duplizieren";
+                self.state.set_status("Symbol dupliziert");
+            }
+            None => self
+                .state
+                .log(LogLevel::Warn, "Symbol konnte nicht dupliziert werden."),
+        }
+    }
+
+    fn rename_symbol(&mut self, id: Uuid, name: String) {
+        let name = name.trim().to_string();
+        if name.is_empty() {
+            return;
+        }
+        let Some(symbol) = self.project.symbol_mut(id) else {
+            return;
+        };
+        if symbol.name == name {
+            return;
+        }
+        symbol.name = name.clone();
+        symbol.timeline.name = name.clone();
+        self.project.touch();
+        self.state.dirty = true;
+        self.last_history_label = "Symbol umbenennen";
+        self.state
+            .set_status(format!("Symbol in '{name}' umbenannt"));
+    }
+
+    fn set_tool(&mut self, tool: Tool) {
+        self.state.tool = tool;
+        self.state.draft = None;
+        self.state.set_status(format!("Werkzeug: {}", tool.label()));
+    }
+
+    fn set_layer_kind(&mut self, kind: LayerKind) {
+        let Some(target) = self.target_layer() else {
+            self.state.log(LogLevel::Warn, "Keine Ebene ausgewählt.");
+            return;
+        };
+        let Some(layer_index) = self
+            .project
+            .edit_scene(self.state.edit_symbol)
+            .and_then(|scene| scene.layers.iter().position(|layer| layer.id == target))
+        else {
+            return;
+        };
+        if kind == LayerKind::Mask
+            && self
+                .project
+                .edit_scene(self.state.edit_symbol)
+                .is_some_and(|scene| scene.mask_target_index(layer_index).is_none())
+        {
+            self.state.log(
+                LogLevel::Warn,
+                "Maske braucht eine sichtbare Ebene darunter.",
+            );
+            return;
+        }
+        let Some(scene) = self.project.edit_scene_mut(self.state.edit_symbol) else {
+            return;
+        };
+        let Some(layer) = scene.layers.iter_mut().find(|layer| layer.id == target) else {
+            return;
+        };
+        if layer.kind == kind {
+            return;
+        }
+        layer.kind = kind;
+        self.project.touch();
+        self.state.dirty = true;
+        self.last_history_label = "Ebenentyp ändern";
+        self.state
+            .set_status(format!("Ebene ist jetzt {}", kind.label()));
+    }
+
+    fn set_tween_kind(&mut self, kind: TweenKind) {
+        let frame = self.state.frame;
+        let Some(target) = self.target_layer() else {
+            return;
+        };
+        let Some(scene) = self.project.edit_scene_mut(self.state.edit_symbol) else {
+            return;
+        };
+        let Some(layer) = scene.layers.iter_mut().find(|layer| layer.id == target) else {
+            return;
+        };
+        let Some(start) = layer.last_keyframe_at_or_before(frame) else {
+            self.state
+                .log(LogLevel::Warn, "Kein Schlüsselbild für den Tween-Typ.");
+            return;
+        };
+        let tween = layer.frames[start]
+            .tween
+            .get_or_insert_with(nova_core::Tween::default);
+        tween.kind = kind;
+        self.project.touch();
+        self.state.dirty = true;
+        self.last_history_label = "Tween-Typ ändern";
+        self.state
+            .set_status(format!("Tween-Typ: {}", kind.label()));
+    }
+
+    fn import_bitmap(&mut self) {
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("Bitmap", &["png", "jpg", "jpeg", "gif"])
+            .pick_file()
+        else {
+            return;
+        };
+        let Ok(bytes) = std::fs::read(&path) else {
+            self.state.log(
+                LogLevel::Error,
+                format!("Datei konnte nicht gelesen werden: {}", path.display()),
+            );
+            return;
+        };
+        let image = match image::load_from_memory(&bytes) {
+            Ok(image) => image,
+            Err(error) => {
+                self.state.log(
+                    LogLevel::Error,
+                    format!("Bild konnte nicht dekodiert werden: {error}"),
+                );
+                return;
+            }
+        };
+        let (width, height) = (image.width(), image.height());
+        let mime = match path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .unwrap_or_default()
+            .to_ascii_lowercase()
+            .as_str()
+        {
+            "png" => "image/png",
+            "gif" => "image/gif",
+            _ => "image/jpeg",
+        };
+        let name = path
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .unwrap_or("Bitmap")
+            .to_string();
+        let file = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("asset")
+            .to_string();
+        let asset = Asset::bitmap(name.clone(), file, mime, width, height, bytes);
+        let id = asset.id;
+        self.project.assets.push(asset);
+        self.project.touch();
+        self.state.dirty = true;
+        self.state.selection = Selection::Asset(id);
+        self.state.selected_asset = Some(id);
+        self.state.asset_textures.remove(&id);
+        self.last_history_label = "Bitmap importieren";
+        self.state
+            .set_status(format!("{name} importiert ({width}×{height})"));
+    }
+
+    fn import_audio(&mut self) {
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("Audio", &["wav", "mp3"])
+            .pick_file()
+        else {
+            return;
+        };
+        let Ok(bytes) = std::fs::read(&path) else {
+            self.state.log(
+                LogLevel::Error,
+                format!("Datei konnte nicht gelesen werden: {}", path.display()),
+            );
+            return;
+        };
+        let extension = path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+        let (mime, sample_rate, channels, duration) = if extension == "wav" {
+            match wav_info(&bytes) {
+                Some(info) => ("audio/wav", info.0, info.1, info.2),
+                None => {
+                    self.state
+                        .log(LogLevel::Error, "Keine gültige WAV-Datei (PCM erwartet).");
+                    return;
+                }
+            }
+        } else {
+            ("audio/mpeg", 0, 0, 0.0)
+        };
+        let name = path
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .unwrap_or("Audio")
+            .to_string();
+        let file = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("asset")
+            .to_string();
+        let asset = Asset::audio(
+            name.clone(),
+            file,
+            mime,
+            sample_rate,
+            channels,
+            duration,
+            bytes,
+        );
+        let id = asset.id;
+        self.project.assets.push(asset);
+        self.project.touch();
+        self.state.dirty = true;
+        self.state.selection = Selection::Asset(id);
+        self.state.selected_asset = Some(id);
+        self.last_history_label = "Audio importieren";
+        self.state.set_status(format!(
+            "{name} importiert{}",
+            if duration > 0.0 {
+                format!(" ({duration:.1} s)")
+            } else {
+                String::new()
+            }
+        ));
+    }
+
+    /// Places an embedded bitmap asset as an `ObjectKind::Bitmap` instance at
+    /// the centre of the stage (or symbol timeline) currently being edited.
+    fn add_bitmap_instance(&mut self, asset_id: Uuid) {
+        let Some(asset) = self.project.asset(asset_id).cloned() else {
+            return;
+        };
+        if asset.kind != AssetKind::Bitmap || !asset.is_embedded() {
+            self.state
+                .log(LogLevel::Warn, "Asset ist kein eingebettetes Bitmap.");
+            return;
+        }
+        let (width, height) = (asset.width.max(1) as f32, asset.height.max(1) as f32);
+        let (cx, cy) = self
+            .project
+            .edit_scene(self.state.edit_symbol)
+            .map(|scene| (scene.width / 2.0, scene.height / 2.0))
+            .unwrap_or((275.0, 200.0));
+        let object = ObjectInstance::bitmap(asset.name.clone(), cx, cy, asset_id, width, height);
+        self.insert_objects(vec![object], "Bitmap einfügen");
+    }
+
+    /// Attaches a sound cue to the current frame of a sound layer. A dedicated
+    /// `Sound` layer is created when none exists yet.
+    fn add_sound_cue(&mut self, asset_id: Uuid) {
+        let Some(asset) = self.project.asset(asset_id).cloned() else {
+            return;
+        };
+        if asset.kind != AssetKind::Audio || !asset.is_embedded() {
+            self.state
+                .log(LogLevel::Warn, "Asset ist kein eingebettetes Audio.");
+            return;
+        }
+        let frame_index = self.state.frame;
+        let Some(scene) = self.project.edit_scene_mut(self.state.edit_symbol) else {
+            return;
+        };
+        let frame_count = scene.frame_count();
+        scene.ensure_frame_count(frame_index + 1);
+        let sound_layer = scene
+            .layers
+            .iter_mut()
+            .find(|layer| layer.kind == LayerKind::Sound)
+            .map(|layer| layer.id);
+        let layer_id = match sound_layer {
+            Some(id) => Some(id),
+            None => {
+                let mut layer = Layer::new("Sound", frame_count.max(1));
+                layer.kind = LayerKind::Sound;
+                layer.ensure_frames(frame_count.max(frame_index + 1));
+                scene.layers.push(layer);
+                scene.layers.last().map(|layer| layer.id)
+            }
+        };
+        let Some(layer_id) = layer_id else {
+            return;
+        };
+        let Some(layer) = scene.layers.iter_mut().find(|layer| layer.id == layer_id) else {
+            return;
+        };
+        layer.ensure_frames(frame_index + 1);
+        layer.frames[frame_index].keyframe = true;
+        layer.frames[frame_index].sound = Some(SoundCue::event(asset_id));
+        self.project.touch();
+        self.state.dirty = true;
+        self.last_history_label = "Sound setzen";
+        self.state.set_status(format!(
+            "Sound '{}' auf Frame {}",
+            asset.name,
+            frame_index + 1
+        ));
+    }
+
+    fn asset_is_used(&self, id: Uuid) -> bool {
+        for scene in self
+            .project
+            .scenes
+            .iter()
+            .chain(self.project.symbols.iter().map(|symbol| &symbol.timeline))
+        {
+            for layer in &scene.layers {
+                for frame in &layer.frames {
+                    if frame.sound.is_some_and(|cue| cue.asset == id) {
+                        return true;
+                    }
+                    for object in &frame.objects {
+                        if matches!(object.kind, ObjectKind::Bitmap { asset, .. } if asset == id) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        false
+    }
+
+    /// Plays an embedded audio asset through the Windows `PlaySound` API.
+    /// Non-Windows builds and undecodable data report honestly instead of
+    /// pretending to play.
+    fn preview_asset(&mut self, id: Uuid) {
+        let Some(asset) = self.project.asset(id).cloned() else {
+            return;
+        };
+        if asset.kind != AssetKind::Audio {
+            self.state.log(
+                LogLevel::Warn,
+                "Vorschau ist nur für Audio-Assets verfügbar.",
+            );
+            return;
+        }
+        #[cfg(windows)]
+        {
+            match play_sound_bytes(&asset.data, &asset.mime) {
+                Ok(()) => {
+                    self.state
+                        .set_status(format!("Audio-Vorschau: {}", asset.name));
+                    return;
+                }
+                Err(error) => {
+                    self.state.log(
+                        LogLevel::Warn,
+                        format!("Audiovorschau nicht möglich: {error}"),
+                    );
+                    return;
+                }
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = asset;
+            self.state
+                .log(LogLevel::Warn, "Audiovorschau ist unter Windows verfügbar.");
+        }
+    }
+
     fn target_layer(&self) -> Option<Uuid> {
         match &self.state.selection {
             Selection::Layer(id) => Some(*id),
@@ -2154,7 +2603,7 @@ impl NovaApp {
                 .and_then(|id| self.state.layer_of_object(&self.project, *id)),
             _ => self
                 .project
-                .active_scene()
+                .edit_scene(self.state.edit_symbol)
                 .and_then(|scene| scene.layers.last().map(|layer| layer.id)),
         }
     }
@@ -2164,7 +2613,7 @@ impl NovaApp {
         let Some(target) = self.target_layer() else {
             return;
         };
-        let Some(scene) = self.project.active_scene_mut() else {
+        let Some(scene) = self.project.edit_scene_mut(self.state.edit_symbol) else {
             return;
         };
         scene.ensure_frame_count(frame + 1);
@@ -2206,7 +2655,7 @@ impl NovaApp {
         let Some(target) = self.target_layer() else {
             return;
         };
-        let Some(scene) = self.project.active_scene_mut() else {
+        let Some(scene) = self.project.edit_scene_mut(self.state.edit_symbol) else {
             return;
         };
         let Some(layer) = scene.layers.iter_mut().find(|layer| layer.id == target) else {
@@ -2240,7 +2689,7 @@ impl NovaApp {
             );
             return;
         }
-        let Some(scene) = self.project.active_scene() else {
+        let Some(scene) = self.project.edit_scene(self.state.edit_symbol) else {
             return;
         };
         let objects: Vec<ObjectInstance> = nova_core::resolve_scene(scene, self.state.frame)
@@ -2271,7 +2720,7 @@ impl NovaApp {
                 .log(LogLevel::Error, "Keine Ebene zum Einfügen vorhanden.");
             return;
         };
-        let Some(scene) = self.project.active_scene_mut() else {
+        let Some(scene) = self.project.edit_scene_mut(self.state.edit_symbol) else {
             return;
         };
         scene.ensure_frame_count(frame + 1);
@@ -2334,7 +2783,7 @@ impl NovaApp {
         if ids.is_empty() {
             return;
         }
-        let Some(scene) = self.project.active_scene() else {
+        let Some(scene) = self.project.edit_scene(self.state.edit_symbol) else {
             return;
         };
         let mut objects: Vec<ObjectInstance> = nova_core::resolve_scene(scene, self.state.frame)
@@ -2460,7 +2909,7 @@ impl NovaApp {
         }
 
         let frame = self.state.frame;
-        let Some(scene) = self.project.active_scene_mut() else {
+        let Some(scene) = self.project.edit_scene_mut(self.state.edit_symbol) else {
             return;
         };
         for (id, layer_id, x, y) in positions {
@@ -2483,7 +2932,7 @@ impl NovaApp {
                 }
                 let selected: std::collections::HashSet<Uuid> = ids.iter().copied().collect();
                 let mut removed = 0usize;
-                for scene in &mut self.project.scenes {
+                if let Some(scene) = self.project.edit_scene_mut(self.state.edit_symbol) {
                     for layer in &mut scene.layers {
                         for frame in &mut layer.frames {
                             let before = frame.objects.len();
@@ -2509,7 +2958,7 @@ impl NovaApp {
                 }
             }
             Selection::Layer(id) => {
-                let Some(scene) = self.project.active_scene_mut() else {
+                let Some(scene) = self.project.edit_scene_mut(self.state.edit_symbol) else {
                     return;
                 };
                 if !scene.remove_layer(id) {
@@ -2525,19 +2974,11 @@ impl NovaApp {
                 self.state.log(LogLevel::Info, "Ebene gelöscht.");
             }
             Selection::Symbol(id) => {
-                let used = self.project.scenes.iter().any(|scene| {
-                    scene.layers.iter().any(|layer| {
-                        layer.frames.iter().any(|frame| {
-                            frame.objects.iter().any(|object| {
-                                matches!(object.kind, ObjectKind::Symbol { symbol } if symbol == id)
-                            })
-                        })
-                    })
-                });
+                let used = self.project.symbol_is_used(id);
                 if used {
                     self.state.log(
                         LogLevel::Error,
-                        "Symbol wird noch von einer Instanz verwendet und kann nicht gelöscht werden.",
+                        "Symbol wird noch verwendet und kann nicht gelöscht werden.",
                     );
                     self.state.set_status("Symbol ist noch in Benutzung");
                     return;
@@ -2550,7 +2991,27 @@ impl NovaApp {
                     self.state.selected_symbol =
                         self.project.symbols.first().map(|symbol| symbol.id);
                 }
+                self.last_history_label = "Symbol löschen";
                 self.state.log(LogLevel::Info, "Symbol gelöscht.");
+            }
+            Selection::Asset(id) => {
+                let used = self.asset_is_used(id);
+                if used {
+                    self.state.log(
+                        LogLevel::Error,
+                        "Asset wird noch verwendet und kann nicht gelöscht werden.",
+                    );
+                    self.state.set_status("Asset ist noch in Benutzung");
+                    return;
+                }
+                self.project.assets.retain(|asset| asset.id != id);
+                self.state.asset_textures.remove(&id);
+                self.project.touch();
+                self.state.dirty = true;
+                self.state.selection = Selection::None;
+                self.state.selected_asset = self.project.assets.first().map(|asset| asset.id);
+                self.last_history_label = "Asset löschen";
+                self.state.log(LogLevel::Info, "Asset gelöscht.");
             }
             Selection::Scene | Selection::None => {
                 self.state
@@ -2596,7 +3057,7 @@ impl NovaApp {
         }
         let count = self
             .project
-            .active_scene()
+            .edit_scene(self.state.edit_symbol)
             .map(|scene| scene.frame_count())
             .unwrap_or(1)
             .max(1);
@@ -2612,7 +3073,7 @@ impl NovaApp {
     fn step(&mut self, delta: i64) {
         let count = self
             .project
-            .active_scene()
+            .edit_scene(self.state.edit_symbol)
             .map(|scene| scene.frame_count())
             .unwrap_or(1)
             .max(1) as i64;
@@ -2626,7 +3087,7 @@ impl NovaApp {
     fn jump_to_frame(&mut self, frame: usize) {
         let last = self
             .project
-            .active_scene()
+            .edit_scene(self.state.edit_symbol)
             .map(|scene| scene.frame_count().saturating_sub(1))
             .unwrap_or(0);
         self.state.frame = frame.min(last);
@@ -2641,7 +3102,7 @@ impl NovaApp {
         }
         let (count, fps) = self
             .project
-            .active_scene()
+            .edit_scene(self.state.edit_symbol)
             .map(|scene| (scene.frame_count().max(1), scene.fps.max(1.0)))
             .unwrap_or((1, 24.0));
         let dt = ctx.input(|input| input.stable_dt).min(0.25);
@@ -3696,6 +4157,7 @@ impl eframe::App for NovaApp {
             });
         }
 
+        self.refresh_asset_textures(&ctx);
         self.update_playback(&ctx);
         self.handle_actions(actions, &ctx);
         self.dialogs(&ctx);
@@ -3765,6 +4227,88 @@ fn with_extension(mut path: PathBuf, extension: &str) -> PathBuf {
         path.set_extension(extension);
     }
     path
+}
+
+/// Extracts `(sample_rate, channels, duration_seconds)` from a PCM WAV file.
+/// Returns `None` for files that are not RIFF/WAVE or not 16-bit PCM.
+fn wav_info(data: &[u8]) -> Option<(u32, u16, f32)> {
+    if data.len() < 12 || &data[0..4] != b"RIFF" || &data[8..12] != b"WAVE" {
+        return None;
+    }
+    let mut offset = 12usize;
+    let mut sample_rate = 0u32;
+    let mut channels = 0u16;
+    let mut data_size = 0u32;
+    while offset + 8 <= data.len() {
+        let id = &data[offset..offset + 4];
+        let size = u32::from_le_bytes([
+            data[offset + 4],
+            data[offset + 5],
+            data[offset + 6],
+            data[offset + 7],
+        ]) as usize;
+        let body = offset + 8;
+        if body + size > data.len() {
+            break;
+        }
+        if id == b"fmt " && size >= 16 {
+            let audio_format = u16::from_le_bytes([data[body], data[body + 1]]);
+            channels = u16::from_le_bytes([data[body + 2], data[body + 3]]);
+            sample_rate = u32::from_le_bytes([
+                data[body + 4],
+                data[body + 5],
+                data[body + 6],
+                data[body + 7],
+            ]);
+            let bits = u16::from_le_bytes([data[body + 14], data[body + 15]]);
+            if audio_format != 1 || bits != 16 || channels == 0 || sample_rate == 0 {
+                return None;
+            }
+        } else if id == b"data" {
+            data_size = size as u32;
+        }
+        offset = body + size + (size & 1);
+    }
+    if sample_rate == 0 || data_size == 0 {
+        return None;
+    }
+    let bytes_per_second = sample_rate as f32 * channels as f32 * 2.0;
+    let duration = data_size as f32 / bytes_per_second;
+    Some((sample_rate, channels, duration))
+}
+
+/// Writes embedded audio bytes to a temp file and plays it via `PlaySoundW`.
+#[cfg(windows)]
+fn play_sound_bytes(data: &[u8], mime: &str) -> Result<(), String> {
+    use std::os::windows::ffi::OsStrExt;
+    if data.is_empty() {
+        return Err("Audio-Daten sind leer".into());
+    }
+    let extension = if mime.contains("mpeg") { "mp3" } else { "wav" };
+    let temp =
+        std::env::temp_dir().join(format!("nova-preview-{}.{extension}", uuid::Uuid::new_v4()));
+    std::fs::write(&temp, data).map_err(|error| error.to_string())?;
+    let wide: Vec<u16> = temp
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+    // SND_FILENAME | SND_ASYNC — fire and forget; the file stays until the
+    // next boot, which is acceptable for short preview clips.
+    const SND_FILENAME: u32 = 0x0002_0000;
+    const SND_ASYNC: u32 = 0x0001;
+    let ok = unsafe {
+        windows_sys::Win32::Media::Audio::PlaySoundW(
+            wide.as_ptr(),
+            std::ptr::null_mut(),
+            SND_FILENAME | SND_ASYNC,
+        )
+    };
+    let _ = std::fs::remove_file(&temp);
+    if ok == 0 {
+        return Err("PlaySoundW hat die Datei abgelehnt".into());
+    }
+    Ok(())
 }
 
 #[allow(dead_code)]

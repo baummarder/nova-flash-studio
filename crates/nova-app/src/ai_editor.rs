@@ -13,8 +13,8 @@ use std::time::{Duration, Instant};
 use eframe::egui::{self, Context, RichText, TextEdit, Ui};
 use nova_ai::{
     AgentOutcome, AgentSession, AppliedChange, BuildReport, ChangeKind, ChangePreview, DiffKind,
-    ProviderManager, ReqwestTransport, Workspace, apply_operations, build_project,
-    default_config_dir, default_store, execute_prepared, load_settings, preview_operations,
+    ProviderManager, ReqwestTransport, Workspace, apply_operations_with, build_project,
+    default_config_dir, default_store, execute_prepared, load_settings, preview_operations_with,
 };
 use nova_as::{Diagnostic, Severity, analyze};
 use nova_core::{CodeProvenance, Project, Script, ScriptId};
@@ -552,7 +552,14 @@ impl AiEditor {
         self.preview_errors.clear();
         self.operation_previews.clear();
         self.operation_errors.clear();
-        let plan = preview_operations(project, &self.session.pending_operations);
+        let read_asset = |path: &str| -> Result<Vec<u8>, String> {
+            self.workspace
+                .as_ref()
+                .ok_or_else(|| "Kein Projektordner ausgewählt.".to_string())?
+                .read_bytes(path)
+                .map_err(|error| error.to_string())
+        };
+        let plan = preview_operations_with(project, &self.session.pending_operations, &read_asset);
         self.operation_previews = plan.summaries;
         self.operation_errors = plan.errors;
         if self.session.pending_changes.is_empty() {
@@ -639,7 +646,14 @@ impl AiEditor {
             }
         }
         if model_error.is_none() && !operations.is_empty() {
-            if let Err(error) = apply_operations(project, &operations) {
+            let read_asset = |path: &str| -> Result<Vec<u8>, String> {
+                self.workspace
+                    .as_ref()
+                    .ok_or_else(|| "Kein Projektordner ausgewählt.".to_string())?
+                    .read_bytes(path)
+                    .map_err(|error| error.to_string())
+            };
+            if let Err(error) = apply_operations_with(project, &operations, &read_asset) {
                 model_error = Some(format!("Projektoperationen nicht angewendet: {error}"));
             }
         }
@@ -1593,11 +1607,13 @@ mod tests {
             ProjectOperation::AddLayer {
                 name: "Game".into(),
                 scene: None,
+                symbol: None,
                 frames: Some(3),
             },
             ProjectOperation::AddObject {
                 name: "Boden".into(),
                 scene: None,
+                symbol: None,
                 layer: Some("Game".into()),
                 shape: ObjectShape::Rect,
                 x: 0.0,
@@ -1619,7 +1635,7 @@ mod tests {
         editor.accept_pending(&mut project, &mut state);
         assert!(editor.error.is_none(), "{:?}", editor.error);
         assert!(editor.session.pending_operations.is_empty());
-        let scene = project.active_scene().unwrap();
+        let scene = project.edit_scene(state.edit_symbol).unwrap();
         let layer = scene
             .layers
             .iter()

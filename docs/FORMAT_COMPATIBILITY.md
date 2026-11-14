@@ -1,7 +1,7 @@
 # Format compatibility report
 
 This report describes the real format support in NØVA Flash Studio
-`0.4.0-rc1`. It is intentionally narrower than "supports FLA" or "supports
+`0.5.0-rc1`. It is intentionally narrower than "supports FLA" or "supports
 SWF": every claim below is tied to implemented code, fixtures and tests. The
 M8 additions are documented in their own section below; M7.3 format results are
 retained as historical evidence.

@@ -11,6 +11,7 @@ pub enum LayerKind {
     Folder,
     Guide,
     Mask,
+    Sound,
 }
 
 impl LayerKind {
@@ -20,7 +21,12 @@ impl LayerKind {
             Self::Folder => "Ordner",
             Self::Guide => "Hilfsebene",
             Self::Mask => "Maske",
+            Self::Sound => "Sound",
         }
+    }
+
+    pub fn is_visual(self) -> bool {
+        !matches!(self, Self::Folder | Self::Guide | Self::Sound)
     }
 }
 
@@ -147,6 +153,19 @@ impl Scene {
 
     pub fn layer_by_id(&self, id: Uuid) -> Option<&Layer> {
         self.layers.iter().find(|layer| layer.id == id)
+    }
+
+    /// A mask layer masks the next lower visual layer. This convention is used
+    /// by the editor preview and the SWF clip-depth export.
+    pub fn mask_target_index(&self, mask_index: usize) -> Option<usize> {
+        if self.layers.get(mask_index)?.kind != LayerKind::Mask {
+            return None;
+        }
+        let target = mask_index.checked_sub(1)?;
+        self.layers
+            .get(target)
+            .filter(|layer| layer.kind.is_visual())
+            .map(|_| target)
     }
 
     /// Depth of a layer below top-level folders. Top-level layers have depth 0.
@@ -347,7 +366,7 @@ impl Scene {
             if layer.frames.is_empty() {
                 return Err(format!("Ebene '{}' hat keine Frames", layer.name));
             }
-            for frame in &layer.frames {
+            for (frame_index, frame) in layer.frames.iter().enumerate() {
                 for object in &frame.objects {
                     if !object.transform.x.is_finite()
                         || !object.transform.y.is_finite()
@@ -359,6 +378,75 @@ impl Scene {
                             "Objekt '{}' hat ungültige Transformwerte",
                             object.name
                         ));
+                    }
+                    if let super::ObjectKind::Bitmap {
+                        width,
+                        height,
+                        crop,
+                        ..
+                    } = &object.kind
+                    {
+                        if !width.is_finite()
+                            || !height.is_finite()
+                            || *width <= 0.0
+                            || *height <= 0.0
+                        {
+                            return Err(format!(
+                                "Bitmap-Objekt '{}' hat ungültige Maße",
+                                object.name
+                            ));
+                        }
+                        if let Some(crop) = crop
+                            && (!crop.x.is_finite()
+                                || !crop.y.is_finite()
+                                || !crop.width.is_finite()
+                                || !crop.height.is_finite()
+                                || crop.width <= 0.0
+                                || crop.height <= 0.0)
+                        {
+                            return Err(format!(
+                                "Bitmap-Objekt '{}' hat einen ungültigen Ausschnitt",
+                                object.name
+                            ));
+                        }
+                    }
+                }
+                if let Some(cue) = &frame.sound {
+                    if !cue.offset.is_finite() || !cue.duration.is_finite() || cue.duration < 0.0 {
+                        return Err(format!(
+                            "Sound-Cue in Ebene '{}' hat ungültige Zeitwerte",
+                            layer.name
+                        ));
+                    }
+                    if layer.kind != LayerKind::Sound {
+                        return Err(format!(
+                            "Sound-Cue in Ebene '{}' benötigt eine Sound-Ebene",
+                            layer.name
+                        ));
+                    }
+                }
+                if let Some(tween) = &frame.tween
+                    && tween.kind == super::TweenKind::Shape
+                {
+                    let Some(next_index) = layer.next_keyframe_after(frame_index) else {
+                        return Err(format!(
+                            "Form-Tween in Ebene '{}' hat kein Ziel-Schlüsselbild",
+                            layer.name
+                        ));
+                    };
+                    let next = &layer.frames[next_index];
+                    for object in &frame.objects {
+                        if let Some(target) = next
+                            .objects
+                            .iter()
+                            .find(|candidate| candidate.id == object.id)
+                            && !super::shapes_compatible(&object.kind, &target.kind)
+                        {
+                            return Err(format!(
+                                "Form-Tween für '{}' verbindet inkompatible Formen",
+                                object.name
+                            ));
+                        }
                     }
                 }
             }

@@ -16,10 +16,12 @@
 
 use std::collections::{HashMap, HashSet};
 
+use uuid::Uuid;
+
 use nova_as::{CompileOptions, CompiledUnit, compile_with_options};
 use nova_core::{
-    CodeProvenance, ObjectKind, PathCommand, Project, Rgba, Scene, SwfCompression, SymbolId,
-    TargetRuntime, resolve_scene,
+    AssetKind, CodeProvenance, LayerKind, ObjectKind, PathCommand, Project, Rgba, Scene, SoundCue,
+    SwfCompression, SymbolId, TargetRuntime, resolve_scene,
 };
 use nova_swf::shape::{Command, Point, Shape, ShapePath};
 use nova_swf::types::{Color, Matrix, PlaceObject, Rect as SwfRect};
@@ -35,6 +37,8 @@ pub struct BuildStats {
     pub placed_objects: usize,
     pub defined_shapes: usize,
     pub defined_sprites: usize,
+    pub defined_bitmaps: usize,
+    pub defined_sounds: usize,
     pub embedded_scripts: usize,
     pub abc_bytes: usize,
     pub bytes: usize,
@@ -116,13 +120,6 @@ pub fn build_swf(project: &Project) -> Result<BuildOutput, BuildError> {
                 .into(),
         );
     }
-    if !project.assets.is_empty() {
-        warnings.push(format!(
-            "{} Asset(s) werden noch nicht exportiert (Bitmaps/Sounds sind ein späteres Modul).",
-            project.assets.len()
-        ));
-    }
-
     if scripts_enabled {
         for (index, script) in project.scripts.iter().enumerate() {
             if let Some(abc) = &script.abc {
@@ -208,6 +205,7 @@ pub fn build_swf(project: &Project) -> Result<BuildOutput, BuildError> {
     // their first frame unless that frame already has an explicit label.
     let mut resolved: Vec<Vec<nova_core::ResolvedObject>> = Vec::new();
     let mut frame_labels: Vec<Option<String>> = Vec::new();
+    let mut frame_sounds: Vec<Vec<(Uuid, SoundCue)>> = Vec::new();
     for (scene_index, current) in export_scenes.iter().enumerate() {
         for frame in 0..current.frame_count() {
             resolved.push(resolve_scene(current, frame));
@@ -222,6 +220,13 @@ pub fn build_swf(project: &Project) -> Result<BuildOutput, BuildError> {
                 explicit
             };
             frame_labels.push(label);
+            let mut cues = Vec::new();
+            for layer in &current.layers {
+                if let Some(cue) = layer.frames.get(frame).and_then(|frame| frame.sound) {
+                    cues.push((layer.id, cue));
+                }
+            }
+            frame_sounds.push(cues);
         }
     }
 
@@ -231,97 +236,31 @@ pub fn build_swf(project: &Project) -> Result<BuildOutput, BuildError> {
         ..Default::default()
     };
 
-    // Library symbols become one-frame sprites.
-    let mut symbol_characters: HashMap<SymbolId, u16> = HashMap::new();
+    let mut characters = CharacterTables::default();
+    // Library symbols are real sprite characters with their own timelines. The
+    // recursive definition order also defines nested dependencies first.
     for symbol in &project.symbols {
-        let sprite_id = next_id;
-        next_id = next_character_id(next_id)?;
-        let shape_id = next_id;
-        next_id = next_character_id(next_id)?;
-        let shape = if symbol.corner_radius > 0.0 {
-            Shape::rounded_rect(
-                symbol.width,
-                symbol.height,
-                symbol.corner_radius,
-                to_color(symbol.fill),
-            )
-        } else {
-            Shape::rect(symbol.width, symbol.height, to_color(symbol.fill))
-        };
-        movie.tags.push(Tag::DefineShape {
-            id: shape_id,
-            shape,
-        });
-        movie.tags.push(Tag::DefineSprite {
-            id: sprite_id,
-            frame_count: 1,
-            tags: vec![
-                Tag::PlaceObject2(
-                    PlaceObject::new(1)
-                        .character(shape_id)
-                        .matrix(Matrix::default()),
-                ),
-                Tag::ShowFrame,
-            ],
-        });
-        symbol_characters.insert(symbol.id, sprite_id);
-        stats.defined_shapes += 1;
-        stats.defined_sprites += 1;
+        characters.define_symbol(project, symbol.id, &mut movie, &mut warnings, &mut stats)?;
     }
+    characters.next_id = next_id.max(characters.next_id);
 
-    // Define one shape per unique (geometry, fill) pair used by the scene.
-    let mut shape_characters: HashMap<ShapeKey, u16> = HashMap::new();
-    // Remember which character/depth every instance gets so the per-frame
+    // Remember which character every root instance gets so the per-frame
     // placement only has to look up the map.
     let mut instance_characters: HashMap<uuid::Uuid, u16> = HashMap::new();
-
     for objects in &resolved {
         for object in objects {
-            let key = shape_key(&object.instance);
-            if let Some(key) = key {
-                if !shape_characters.contains_key(&key) {
-                    let id = next_id;
-                    next_id = next_character_id(next_id)?;
-                    movie.tags.push(Tag::DefineShape {
-                        id,
-                        shape: key.to_shape(),
-                    });
-                    shape_characters.insert(key, id);
-                    stats.defined_shapes += 1;
-                }
-                let character = shape_characters[&key];
+            if let Some(character) = characters.character_for(
+                project,
+                &object.instance,
+                &mut movie,
+                &mut warnings,
+                &mut stats,
+            )? {
                 instance_characters.insert(object.instance.id, character);
-            } else if let ObjectKind::Path {
-                width,
-                height,
-                paths,
-            } = &object.instance.kind
-            {
-                let id = next_id;
-                next_id = next_character_id(next_id)?;
-                movie.tags.push(Tag::DefineShape {
-                    id,
-                    shape: path_shape(*width, *height, paths),
-                });
-                instance_characters.insert(object.instance.id, id);
-                stats.defined_shapes += 1;
-            } else if let ObjectKind::Text(text) = &object.instance.kind {
-                let id = next_id;
-                next_id = next_character_id(next_id)?;
-                let (width, height) = text.metrics();
-                movie.tags.push(Tag::DefineShape {
-                    id,
-                    shape: path_shape(width, height, &text.paths(object.instance.fill)),
-                });
-                instance_characters.insert(object.instance.id, id);
-                stats.defined_shapes += 1;
-            } else if let ObjectKind::Symbol { symbol } = &object.instance.kind {
-                if let Some(character) = symbol_characters.get(symbol) {
-                    instance_characters.insert(object.instance.id, *character);
-                }
             }
         }
     }
+    next_id = characters.next_id;
 
     // Link compiled classes to SWF characters. Objects with an assigned script
     // are wrapped in a one-frame sprite so the class can extend MovieClip and
@@ -573,11 +512,51 @@ pub fn build_swf(project: &Project) -> Result<BuildOutput, BuildError> {
     let mut active_scripted: HashSet<uuid::Uuid> = HashSet::new();
 
     let mut previous_depths = 0usize;
+    let mut warned_timeline_sound = false;
+    let mut warned_mask_target = false;
     for (frame_index, objects) in resolved.iter().enumerate() {
         for depth in 1..=previous_depths {
             movie.tags.push(Tag::RemoveObject2 {
                 depth: depth as u16,
             });
+        }
+
+        if let Some(cues) = frame_sounds.get(frame_index) {
+            for (_layer_id, cue) in cues {
+                if let Some(sound_id) = characters.define_sound(
+                    project,
+                    cue.asset,
+                    &mut movie,
+                    &mut warnings,
+                    &mut stats,
+                )? {
+                    let rate = characters
+                        .sound_sample_rates
+                        .get(&cue.asset)
+                        .copied()
+                        .unwrap_or(44_100);
+                    let in_point = (cue.offset > 0.0)
+                        .then(|| (cue.offset * rate as f32).round().max(0.0) as u32);
+                    let out_point = (cue.duration > 0.0).then(|| {
+                        ((cue.offset.max(0.0) + cue.duration) * rate as f32)
+                            .round()
+                            .max(0.0) as u32
+                    });
+                    if !cue.event && !warned_timeline_sound {
+                        warnings.push(
+                            "Timeline-Sounds werden in dieser Version als StartSound-Ereignis exportiert; eine echte SoundStream-Kompression ist nicht implementiert."
+                                .into(),
+                        );
+                        warned_timeline_sound = true;
+                    }
+                    movie.tags.push(Tag::StartSound {
+                        sound_id,
+                        loop_count: cue.loop_count.max(1),
+                        in_point,
+                        out_point,
+                    });
+                }
+            }
         }
 
         let current_scripted: HashSet<uuid::Uuid> = objects
@@ -608,6 +587,7 @@ pub fn build_swf(project: &Project) -> Result<BuildOutput, BuildError> {
 
         let mut used_names: HashMap<String, u32> = HashMap::new();
         let mut next_depth: u16 = 1;
+        let mut layer_depths: HashMap<usize, u16> = HashMap::new();
         for object in objects {
             let id = object.instance.id;
             let Some(&character) = instance_characters.get(&id) else {
@@ -660,13 +640,28 @@ pub fn build_swf(project: &Project) -> Result<BuildOutput, BuildError> {
                 transform.x,
                 transform.y,
             );
-            movie.tags.push(Tag::PlaceObject2(
-                PlaceObject::new(depth)
-                    .character(character)
-                    .matrix(matrix)
-                    .named(name),
-            ));
+            let mut place = PlaceObject::new(depth)
+                .character(character)
+                .matrix(matrix)
+                .named(name);
+            if object.layer_kind == LayerKind::Mask {
+                let target_depth = object
+                    .layer_index
+                    .checked_sub(1)
+                    .and_then(|target| layer_depths.get(&target).copied());
+                if let Some(target_depth) = target_depth {
+                    place.clip_depth = Some(target_depth);
+                } else if !warned_mask_target {
+                    warnings.push(
+                        "Eine Maskenebene hat keine sichtbare Ebene direkt darunter; die Maske wird ohne ClipDepth exportiert."
+                            .into(),
+                    );
+                    warned_mask_target = true;
+                }
+            }
+            movie.tags.push(Tag::PlaceObject2(place));
             stats.placed_objects += 1;
+            layer_depths.insert(object.layer_index, depth);
         }
         previous_depths = next_depth.saturating_sub(1) as usize;
         movie.tags.push(Tag::ShowFrame);
@@ -691,6 +686,487 @@ pub fn build_scene(project: &Project, scene: &Scene) -> Result<BuildOutput, Buil
     let mut copy = project.clone();
     copy.active_scene = Some(scene.id);
     build_swf(&copy)
+}
+
+#[derive(Default)]
+struct CharacterTables {
+    next_id: u16,
+    symbols: HashMap<SymbolId, u16>,
+    symbols_in_progress: HashSet<SymbolId>,
+    shapes: HashMap<ShapeKey, u16>,
+    bitmaps: HashMap<(uuid::Uuid, i32, i32, i32, i32), u16>,
+    sounds: HashMap<uuid::Uuid, u16>,
+    failed_sounds: HashSet<uuid::Uuid>,
+    sound_sample_rates: HashMap<uuid::Uuid, u32>,
+    warned_buttons: HashSet<SymbolId>,
+}
+
+impl CharacterTables {
+    fn alloc(&mut self) -> Result<u16, BuildError> {
+        if self.next_id == 0 {
+            self.next_id = 1;
+        }
+        let id = self.next_id;
+        self.next_id = next_character_id(self.next_id)?;
+        Ok(id)
+    }
+
+    fn character_for(
+        &mut self,
+        project: &Project,
+        object: &nova_core::ObjectInstance,
+        movie: &mut Movie,
+        warnings: &mut Vec<String>,
+        stats: &mut BuildStats,
+    ) -> Result<Option<u16>, BuildError> {
+        match &object.kind {
+            ObjectKind::Rect { .. } | ObjectKind::Ellipse { .. } => {
+                let key = shape_key(object).expect("primitive shape");
+                if let Some(id) = self.shapes.get(&key) {
+                    return Ok(Some(*id));
+                }
+                let id = self.alloc()?;
+                movie.tags.push(Tag::DefineShape {
+                    id,
+                    shape: key.to_shape(),
+                });
+                self.shapes.insert(key, id);
+                stats.defined_shapes += 1;
+                Ok(Some(id))
+            }
+            ObjectKind::Path {
+                width,
+                height,
+                paths,
+            } => {
+                let id = self.alloc()?;
+                movie.tags.push(Tag::DefineShape {
+                    id,
+                    shape: path_shape(*width, *height, paths),
+                });
+                stats.defined_shapes += 1;
+                Ok(Some(id))
+            }
+            ObjectKind::Text(text) => {
+                let id = self.alloc()?;
+                let (width, height) = text.metrics();
+                movie.tags.push(Tag::DefineShape {
+                    id,
+                    shape: path_shape(width, height, &text.paths(object.fill)),
+                });
+                stats.defined_shapes += 1;
+                Ok(Some(id))
+            }
+            ObjectKind::Bitmap { asset, crop, .. } => {
+                self.define_bitmap(project, *asset, *crop, movie, warnings, stats)
+            }
+            ObjectKind::Symbol { symbol } => {
+                self.define_symbol(project, *symbol, movie, warnings, stats)?;
+                Ok(self.symbols.get(symbol).copied())
+            }
+        }
+    }
+
+    fn define_bitmap(
+        &mut self,
+        project: &Project,
+        asset_id: uuid::Uuid,
+        crop: Option<nova_core::BitmapCrop>,
+        movie: &mut Movie,
+        warnings: &mut Vec<String>,
+        stats: &mut BuildStats,
+    ) -> Result<Option<u16>, BuildError> {
+        let crop = crop.unwrap_or(nova_core::BitmapCrop::FULL).normalized();
+        let key = (
+            asset_id,
+            (crop.x * 10_000.0).round() as i32,
+            (crop.y * 10_000.0).round() as i32,
+            (crop.width * 10_000.0).round() as i32,
+            (crop.height * 10_000.0).round() as i32,
+        );
+        if let Some(id) = self.bitmaps.get(&key) {
+            return Ok(Some(*id));
+        }
+        let Some(asset) = project.asset(asset_id) else {
+            warnings.push(
+                "Bitmap-Objekt verweist auf ein unbekanntes Asset und wurde übersprungen.".into(),
+            );
+            return Ok(None);
+        };
+        if asset.kind != AssetKind::Bitmap {
+            warnings.push(format!(
+                "Asset '{}' ist kein Bitmap und wurde für die Platzierung übersprungen.",
+                asset.name
+            ));
+            return Ok(None);
+        }
+        if asset.data.is_empty() {
+            warnings.push(format!(
+                "Bitmap-Asset '{}' enthält keine eingebetteten Daten und wurde übersprungen.",
+                asset.name
+            ));
+            return Ok(None);
+        }
+        let full_crop = crop.is_full();
+        let id = if full_crop && asset.mime.eq_ignore_ascii_case("image/jpeg") {
+            let id = self.alloc()?;
+            movie.tags.push(Tag::DefineBitsJPEG2 {
+                id,
+                data: asset.data.clone(),
+            });
+            id
+        } else {
+            let image = image::load_from_memory(&asset.data)
+                .map_err(|error| BuildError::Asset(format!("Bitmap '{}': {error}", asset.name)))?;
+            let rgba = image.to_rgba8();
+            let (source_width, source_height) = rgba.dimensions();
+            let x = (crop.x * source_width as f32).floor() as u32;
+            let y = (crop.y * source_height as f32).floor() as u32;
+            let width = (crop.width * source_width as f32).round().max(1.0) as u32;
+            let height = (crop.height * source_height as f32).round().max(1.0) as u32;
+            let width = width.min(source_width.saturating_sub(x)).max(1);
+            let height = height.min(source_height.saturating_sub(y)).max(1);
+            let cropped = image::imageops::crop_imm(
+                &rgba,
+                x.min(source_width - 1),
+                y.min(source_height - 1),
+                width,
+                height,
+            )
+            .to_image();
+            let width = u16::try_from(cropped.width())
+                .map_err(|_| BuildError::Limit("Bitmap ist breiter als 65535 Pixel".into()))?;
+            let height = u16::try_from(cropped.height())
+                .map_err(|_| BuildError::Limit("Bitmap ist höher als 65535 Pixel".into()))?;
+            let id = self.alloc()?;
+            movie.tags.push(Tag::DefineBitsLossless2 {
+                id,
+                width,
+                height,
+                rgba: cropped.into_raw(),
+            });
+            id
+        };
+        self.bitmaps.insert(key, id);
+        stats.defined_bitmaps += 1;
+        Ok(Some(id))
+    }
+
+    fn define_sound(
+        &mut self,
+        project: &Project,
+        asset_id: uuid::Uuid,
+        movie: &mut Movie,
+        warnings: &mut Vec<String>,
+        stats: &mut BuildStats,
+    ) -> Result<Option<u16>, BuildError> {
+        if let Some(id) = self.sounds.get(&asset_id) {
+            return Ok(Some(*id));
+        }
+        if self.failed_sounds.contains(&asset_id) {
+            return Ok(None);
+        }
+        let Some(asset) = project.asset(asset_id) else {
+            warnings.push("Sound-Cue verweist auf ein unbekanntes Asset.".into());
+            self.failed_sounds.insert(asset_id);
+            return Ok(None);
+        };
+        if asset.kind != AssetKind::Audio || asset.data.is_empty() {
+            warnings.push(format!(
+                "Audio-Asset '{}' enthält keine exportierbaren Daten und wurde übersprungen.",
+                asset.name
+            ));
+            self.failed_sounds.insert(asset_id);
+            return Ok(None);
+        }
+        let Some(payload) = sound_payload(asset, warnings) else {
+            self.failed_sounds.insert(asset_id);
+            return Ok(None);
+        };
+        let id = self.alloc()?;
+        movie.tags.push(Tag::DefineSound {
+            id,
+            format: payload.format,
+            rate: payload.rate,
+            size_16bit: true,
+            stereo: payload.stereo,
+            sample_count: payload.sample_count,
+            data: payload.data,
+        });
+        self.sounds.insert(asset_id, id);
+        self.sound_sample_rates
+            .insert(asset_id, payload.sample_rate);
+        stats.defined_sounds += 1;
+        Ok(Some(id))
+    }
+
+    fn define_symbol(
+        &mut self,
+        project: &Project,
+        symbol_id: SymbolId,
+        movie: &mut Movie,
+        warnings: &mut Vec<String>,
+        stats: &mut BuildStats,
+    ) -> Result<u16, BuildError> {
+        if let Some(id) = self.symbols.get(&symbol_id) {
+            return Ok(*id);
+        }
+        if !self.symbols_in_progress.insert(symbol_id) {
+            return Err(BuildError::Limit(
+                "Rekursiver Symbol-Zyklus beim SWF-Export erkannt".into(),
+            ));
+        }
+        let Some(symbol) = project.symbol(symbol_id) else {
+            self.symbols_in_progress.remove(&symbol_id);
+            return Err(BuildError::Limit(format!(
+                "Symbol {symbol_id} existiert nicht"
+            )));
+        };
+        if symbol.kind == nova_core::SymbolKind::Button && self.warned_buttons.insert(symbol_id) {
+            warnings.push(format!(
+                "Button-Symbol '{}' wird als MovieClip-Sprite exportiert; Button-Zustände und Hit-Tests sind nicht implementiert.",
+                symbol.name
+            ));
+        }
+        let frame_count = symbol.frame_count().max(1);
+        let mut tags = Vec::new();
+        let mut previous_depths = 0usize;
+        let mut warned_timeline_sound = false;
+        let mut warned_mask_target = false;
+        for frame_index in 0..frame_count {
+            for depth in 1..=previous_depths {
+                tags.push(Tag::RemoveObject2 {
+                    depth: depth as u16,
+                });
+            }
+            if let Some(label) = symbol
+                .timeline
+                .layers
+                .iter()
+                .filter_map(|layer| layer.frames.get(frame_index))
+                .find_map(|frame| frame.label.clone())
+            {
+                tags.push(Tag::FrameLabel {
+                    label,
+                    named_anchor: false,
+                });
+            }
+            for layer in &symbol.timeline.layers {
+                if let Some(cue) = layer.frames.get(frame_index).and_then(|frame| frame.sound) {
+                    if let Some(sound_id) =
+                        self.define_sound(project, cue.asset, movie, warnings, stats)?
+                    {
+                        let rate = self
+                            .sound_sample_rates
+                            .get(&cue.asset)
+                            .copied()
+                            .unwrap_or(44_100);
+                        let in_point = (cue.offset > 0.0)
+                            .then(|| (cue.offset * rate as f32).round().max(0.0) as u32);
+                        let out_point = (cue.duration > 0.0).then(|| {
+                            ((cue.offset.max(0.0) + cue.duration) * rate as f32)
+                                .round()
+                                .max(0.0) as u32
+                        });
+                        if !cue.event && !warned_timeline_sound {
+                            warnings.push(format!(
+                                "Timeline-Sound im Symbol '{}' wird als StartSound-Ereignis exportiert; echtes SoundStreaming ist nicht implementiert.",
+                                symbol.name
+                            ));
+                            warned_timeline_sound = true;
+                        }
+                        tags.push(Tag::StartSound {
+                            sound_id,
+                            loop_count: cue.loop_count.max(1),
+                            in_point,
+                            out_point,
+                        });
+                    }
+                }
+            }
+            let objects = resolve_scene(&symbol.timeline, frame_index);
+            let mut next_depth: u16 = 1;
+            let mut layer_depths: HashMap<usize, u16> = HashMap::new();
+            for object in &objects {
+                let Some(character) =
+                    self.character_for(project, &object.instance, movie, warnings, stats)?
+                else {
+                    continue;
+                };
+                let depth = next_depth;
+                next_depth = next_depth.checked_add(1).ok_or_else(|| {
+                    BuildError::Limit("SWF-Tiefe eines Symbols überschritten".into())
+                })?;
+                let transform = object.instance.transform;
+                let matrix = Matrix::from_transform(
+                    transform.scale_x,
+                    transform.scale_y,
+                    transform.rotation,
+                    transform.x,
+                    transform.y,
+                );
+                let mut place = PlaceObject::new(depth).character(character).matrix(matrix);
+                if object.layer_kind == LayerKind::Mask {
+                    let target = object
+                        .layer_index
+                        .checked_sub(1)
+                        .and_then(|target| layer_depths.get(&target).copied());
+                    if let Some(target) = target {
+                        place.clip_depth = Some(target);
+                    } else if !warned_mask_target {
+                        warnings.push(format!(
+                            "Maske im Symbol '{}' hat keine sichtbare Ebene direkt darunter; kein ClipDepth.",
+                            symbol.name
+                        ));
+                        warned_mask_target = true;
+                    }
+                }
+                tags.push(Tag::PlaceObject2(place));
+                stats.placed_objects += 1;
+                layer_depths.insert(object.layer_index, depth);
+            }
+            previous_depths = next_depth.saturating_sub(1) as usize;
+            tags.push(Tag::ShowFrame);
+        }
+        let sprite_id = self.alloc()?;
+        movie.tags.push(Tag::DefineSprite {
+            id: sprite_id,
+            frame_count: frame_count as u16,
+            tags,
+        });
+        self.symbols.insert(symbol_id, sprite_id);
+        self.symbols_in_progress.remove(&symbol_id);
+        stats.defined_sprites += 1;
+        Ok(sprite_id)
+    }
+}
+
+struct SoundPayload {
+    format: u8,
+    rate: u8,
+    stereo: bool,
+    sample_rate: u32,
+    sample_count: u32,
+    data: Vec<u8>,
+}
+
+fn sound_rate_index(sample_rate: u32) -> u8 {
+    match sample_rate {
+        0..=7_999 => 0,
+        8_000..=15_999 => 1,
+        16_000..=31_999 => 2,
+        _ => 3,
+    }
+}
+
+fn sound_payload(asset: &nova_core::Asset, warnings: &mut Vec<String>) -> Option<SoundPayload> {
+    let data = &asset.data;
+    if data.len() >= 12 && &data[0..4] == b"RIFF" && &data[8..12] == b"WAVE" {
+        let mut offset = 12usize;
+        let mut channels = 0u16;
+        let mut sample_rate = 0u32;
+        let mut bits = 0u16;
+        let mut audio_format = 0u16;
+        let mut pcm: Option<&[u8]> = None;
+        while offset + 8 <= data.len() {
+            let id = &data[offset..offset + 4];
+            let size = u32::from_le_bytes([
+                data[offset + 4],
+                data[offset + 5],
+                data[offset + 6],
+                data[offset + 7],
+            ]) as usize;
+            let body = offset + 8;
+            if body + size > data.len() {
+                break;
+            }
+            if id == b"fmt " && size >= 16 {
+                audio_format = u16::from_le_bytes([data[body], data[body + 1]]);
+                channels = u16::from_le_bytes([data[body + 2], data[body + 3]]);
+                sample_rate = u32::from_le_bytes([
+                    data[body + 4],
+                    data[body + 5],
+                    data[body + 6],
+                    data[body + 7],
+                ]);
+                bits = u16::from_le_bytes([data[body + 14], data[body + 15]]);
+            } else if id == b"data" {
+                pcm = Some(&data[body..body + size]);
+            }
+            offset = body + size + (size & 1);
+        }
+        if audio_format != 1 || bits != 16 || channels == 0 || sample_rate == 0 {
+            warnings.push(format!(
+                "WAV '{}' wird nicht exportiert: nur PCM mit 16 Bit wird unterstützt (Format {}, {} Bit).",
+                asset.name, audio_format, bits
+            ));
+            return None;
+        }
+        let pcm = pcm?;
+        let stereo = channels > 1;
+        let bytes_per_sample = 2usize * channels as usize;
+        Some(SoundPayload {
+            format: 0,
+            rate: sound_rate_index(sample_rate),
+            stereo,
+            sample_rate,
+            sample_count: (pcm.len() / bytes_per_sample) as u32,
+            data: pcm.to_vec(),
+        })
+    } else if data.len() > 4 {
+        let start = data
+            .windows(2)
+            .position(|window| window[0] == 0xFF && (window[1] & 0xE0) == 0xE0)
+            .unwrap_or(0);
+        let mp3 = &data[start..];
+        if mp3.len() < 4 {
+            warnings.push(format!("MP3 '{}' ist zu kurz für einen Frame.", asset.name));
+            return None;
+        }
+        let header = u32::from_be_bytes([mp3[0], mp3[1], mp3[2], mp3[3]]);
+        let sample_rate = match (header >> 10) & 0x03 {
+            0 => 44_100,
+            1 => 48_000,
+            2 => 32_000,
+            _ => 22_050,
+        };
+        let stereo = ((header >> 6) & 0x03) != 3;
+        let duration = if asset.duration.is_finite() && asset.duration > 0.0 {
+            asset.duration
+        } else {
+            let bitrate_index = ((header >> 12) & 0x0F) as usize;
+            const MP3_BITRATES: [u32; 16] = [
+                0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 0,
+            ];
+            let bitrate = MP3_BITRATES.get(bitrate_index).copied().unwrap_or(128) * 1000;
+            if bitrate == 0 {
+                0.0
+            } else {
+                (mp3.len() as f64 * 8.0 / bitrate as f64) as f32
+            }
+        };
+        if duration <= 0.0 {
+            warnings.push(format!(
+                "MP3 '{}': Dauer konnte nicht bestimmt werden; der Sound wird nicht exportiert.",
+                asset.name
+            ));
+            return None;
+        }
+        Some(SoundPayload {
+            format: 2,
+            rate: sound_rate_index(sample_rate),
+            stereo,
+            sample_rate,
+            sample_count: (duration * sample_rate as f32).round() as u32,
+            data: mp3.to_vec(),
+        })
+    } else {
+        warnings.push(format!(
+            "Audio-Asset '{}' hat kein erkanntes WAV/MP3-Format und wird nicht exportiert.",
+            asset.name
+        ));
+        None
+    }
 }
 
 fn next_character_id(current: u16) -> Result<u16, BuildError> {
@@ -871,7 +1347,10 @@ fn shape_key(object: &nova_core::ObjectInstance) -> Option<ShapeKey> {
             height: quantize(*height),
             fill,
         }),
-        ObjectKind::Path { .. } | ObjectKind::Symbol { .. } | ObjectKind::Text(_) => None,
+        ObjectKind::Path { .. }
+        | ObjectKind::Symbol { .. }
+        | ObjectKind::Bitmap { .. }
+        | ObjectKind::Text(_) => None,
     }
 }
 

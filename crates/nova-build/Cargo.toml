@@ -12,6 +12,7 @@ nova-core.workspace = true
 nova-swf.workspace = true
 thiserror.workspace = true
 uuid.workspace = true
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif"] }
 
 [dev-dependencies]
 swf = "0.4"

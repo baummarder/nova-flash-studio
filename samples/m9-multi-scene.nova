@@ -1,0 +1,381 @@
+{
+  "format": "nova-flash-studio",
+  "formatVersion": 2,
+  "project": {
+    "id": "2b87fbef-1e0d-4a05-9646-5e9f6ed76965",
+    "metadata": {
+      "name": "M9 Multi Scene",
+      "author": "",
+      "description": "Zwei Szenen mit eigenen Ebenen und Keyframes.",
+      "createdUnix": 1794655555,
+      "modifiedUnix": 1794655555
+    },
+    "scenes": [
+      {
+        "id": "9e6d3c53-3eb2-4907-90bd-3b463ae3cf88",
+        "name": "Intro",
+        "width": 640.0,
+        "height": 360.0,
+        "background": {
+          "r": 18,
+          "g": 20,
+          "b": 26,
+          "a": 255
+        },
+        "fps": 24.0,
+        "layers": [
+          {
+            "id": "72bb640c-98da-43c5-a7e5-4ebc533a97c9",
+            "name": "Ebene 1",
+            "visible": true,
+            "locked": false,
+            "kind": "normal",
+            "frames": [
+              {
+                "keyframe": true
+              }
+            ]
+          },
+          {
+            "id": "47ed775e-122d-4d6c-b851-ae1f93d0d1f2",
+            "name": "Titel",
+            "visible": true,
+            "locked": false,
+            "kind": "normal",
+            "frames": [
+              {
+                "keyframe": true,
+                "objects": [
+                  {
+                    "id": "f47d31b8-f8fb-41bb-aa6c-943a81845531",
+                    "name": "Balken",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 400.0,
+                      "height": 8.0,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 320.0,
+                      "y": 180.0,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 245,
+                      "g": 166,
+                      "b": 35,
+                      "a": 255
+                    }
+                  },
+                  {
+                    "id": "222a1f7e-21eb-4825-9cfa-e6d836d41c21",
+                    "name": "Marke",
+                    "kind": {
+                      "kind": "ellipse",
+                      "width": 40.0,
+                      "height": 40.0
+                    },
+                    "transform": {
+                      "x": 320.0,
+                      "y": 140.0,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 120,
+                      "g": 200,
+                      "b": 255,
+                      "a": 255
+                    }
+                  }
+                ]
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "10f7da77-e5d0-4424-905c-7e1e0dd01c24",
+        "name": "Outro",
+        "width": 640.0,
+        "height": 360.0,
+        "background": {
+          "r": 18,
+          "g": 20,
+          "b": 26,
+          "a": 255
+        },
+        "fps": 24.0,
+        "layers": [
+          {
+            "id": "ec59ef3a-27ea-4757-b11c-589b2ff483b0",
+            "name": "Ebene 1",
+            "visible": true,
+            "locked": false,
+            "kind": "normal",
+            "frames": [
+              {
+                "keyframe": true,
+                "objects": [
+                  {
+                    "id": "8a2d269b-37ba-44d5-93fe-dfe24c3aa220",
+                    "name": "Karte",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 480.0,
+                      "height": 240.0,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 320.0,
+                      "y": 180.0,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 40,
+                      "g": 48,
+                      "b": 66,
+                      "a": 255
+                    }
+                  },
+                  {
+                    "id": "df1e8e6b-73fb-40a2-b283-f80ab0c1b287",
+                    "name": "Punkt",
+                    "kind": {
+                      "kind": "ellipse",
+                      "width": 60.0,
+                      "height": 60.0
+                    },
+                    "transform": {
+                      "x": 320.0,
+                      "y": 120.0,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 245,
+                      "g": 166,
+                      "b": 35,
+                      "a": 255
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "d7a035f9-ddf6-4fd3-84d2-14455f453479",
+            "name": "Endcard",
+            "visible": true,
+            "locked": false,
+            "kind": "normal",
+            "frames": [
+              {
+                "keyframe": true
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "symbols": [],
+    "assets": [],
+    "scripts": [
+      {
+        "id": "618a4362-1850-40b6-a317-9649388390af",
+        "name": "Main.as",
+        "path": "scripts/Main.as",
+        "source": "package {\n    public class Main {\n        public function Main() {\n        }\n    }\n}\n",
+        "provenance": "original_source"
+      }
+    ],
+    "export": {
+      "target": "avm2",
+      "swfVersion": 10,
+      "compression": "zlib",
+      "includeScripts": true,
+      "exportAllScenes": false
+    },
+    "activeScene": "9e6d3c53-3eb2-4907-90bd-3b463ae3cf88"
+  }
+}

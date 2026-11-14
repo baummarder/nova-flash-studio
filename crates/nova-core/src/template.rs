@@ -111,6 +111,7 @@ fn animation_short(name: impl Into<String>) -> Project {
     )]);
     title.frames[0].tween = Some(Tween {
         easing: Easing::EaseOut,
+        ..Tween::default()
     });
     title.frames[24] = keyframe(vec![text_object(
         "Titel",
@@ -142,6 +143,7 @@ fn animation_short(name: impl Into<String>) -> Project {
     star.frames[0] = keyframe(vec![star_object.clone()]);
     star.frames[0].tween = Some(Tween {
         easing: Easing::EaseInOut,
+        ..Tween::default()
     });
     let mut star_end = star_object;
     star_end.transform.rotation = 180.0;
@@ -443,6 +445,7 @@ fn keyframe(objects: Vec<ObjectInstance>) -> Frame {
         objects,
         tween: None,
         label: None,
+        sound: None,
     }
 }
 

@@ -53,7 +53,7 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
     });
     if project.scenes.len() > 1 {
         let current = project
-            .active_scene()
+            .edit_scene(state.edit_symbol)
             .map(|s| s.name.clone())
             .unwrap_or_default();
         egui::ComboBox::from_id_salt("scene_selector")
@@ -74,7 +74,7 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
                     }
                 }
             });
-    } else if let Some(scene) = project.active_scene() {
+    } else if let Some(scene) = project.edit_scene(state.edit_symbol) {
         ui.label(
             RichText::new(format!(
                 "{} · {:.0}×{:.0}",
@@ -129,7 +129,7 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
     }
 
     let layers: Vec<LayerInfo> = project
-        .active_scene()
+        .edit_scene(state.edit_symbol)
         .map(|scene| {
             let collapsed: Vec<Uuid> = scene
                 .layers
@@ -174,7 +174,7 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
                     .on_hover_text("Ordner auf-/zuklappen")
                     .clicked()
                 {
-                    if let Some(scene) = project.active_scene_mut() {
+                    if let Some(scene) = project.edit_scene_mut(state.edit_symbol) {
                         if let Some(folder) = scene.layers.get_mut(layer.index) {
                             folder.expanded = !folder.expanded;
                         }
@@ -194,7 +194,7 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
                 .clicked()
             {
                 visible = !visible;
-                if let Some(scene) = project.active_scene_mut() {
+                if let Some(scene) = project.edit_scene_mut(state.edit_symbol) {
                     if let Some(layer) = scene.layers.get_mut(layer.index) {
                         layer.visible = visible;
                     }
@@ -213,7 +213,7 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
                 .clicked()
             {
                 locked = !locked;
-                if let Some(scene) = project.active_scene_mut() {
+                if let Some(scene) = project.edit_scene_mut(state.edit_symbol) {
                     if let Some(layer) = scene.layers.get_mut(layer.index) {
                         layer.locked = locked;
                     }
@@ -258,11 +258,37 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
                 .color(theme::TEXT_FAINT),
         );
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if ui.small_button("+").on_hover_text("Neues Symbol").clicked() {
-                actions.push(UiAction::AddSymbol);
-            }
+            ui.menu_button("+", |ui| {
+                if ui.button("Grafik").clicked() {
+                    actions.push(UiAction::AddSymbol);
+                    ui.close();
+                }
+                if ui.button("MovieClip").clicked() {
+                    actions.push(UiAction::AddMovieClipSymbol);
+                    ui.close();
+                }
+            })
+            .response
+            .on_hover_text("Neues Symbol");
         });
     });
+
+    if let Some(edit_id) = state.edit_symbol {
+        let name = project
+            .symbol(edit_id)
+            .map(|symbol| symbol.name.clone())
+            .unwrap_or_else(|| "Symbol".into());
+        ui.horizontal(|ui| {
+            ui.label(
+                RichText::new(format!("Bearbeitet: {name}"))
+                    .small()
+                    .color(theme::ACCENT),
+            );
+            if ui.small_button("Zurück").clicked() {
+                actions.push(UiAction::ExitSymbol);
+            }
+        });
+    }
 
     if project.symbols.is_empty() {
         ui.label(
@@ -272,13 +298,14 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
                 .color(theme::TEXT_FAINT),
         );
     }
-    let symbols: Vec<(Uuid, String, Color32)> = project
+    let symbols: Vec<(Uuid, String, String, Color32)> = project
         .symbols
         .iter()
         .map(|symbol| {
             (
                 symbol.id,
                 symbol.name.clone(),
+                symbol.kind.label().to_string(),
                 Color32::from_rgba_unmultiplied(
                     symbol.fill.r,
                     symbol.fill.g,
@@ -288,16 +315,27 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
             )
         })
         .collect();
-    for (id, name, color) in symbols {
+    for (id, name, kind, color) in symbols {
         ui.horizontal(|ui| {
             let (rect, _) = ui.allocate_exact_size(egui::vec2(10.0, 10.0), egui::Sense::hover());
             ui.painter().rect_filled(rect, 2.0, color);
-            let selected = state.selection == Selection::Symbol(id);
+            let selected =
+                state.selection == Selection::Symbol(id) || state.edit_symbol == Some(id);
+            let response = ui
+                .selectable_label(selected, RichText::new(format!("{name} · {kind}")).small())
+                .on_hover_text("Klick: Eigenschaften · Doppelklick: Symbol bearbeiten");
+            if response.clicked() {
+                state.selection = Selection::Symbol(id);
+            }
+            if response.double_clicked() {
+                actions.push(UiAction::EnterSymbol(id));
+            }
             if ui
-                .selectable_label(selected, RichText::new(name).small())
+                .small_button("⧉")
+                .on_hover_text("Symbol duplizieren")
                 .clicked()
             {
-                state.selection = Selection::Symbol(id);
+                actions.push(UiAction::DuplicateSymbol(id));
             }
         });
     }
@@ -356,29 +394,65 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
 
     // Assets --------------------------------------------------------------
     ui.add_space(6.0);
-    ui.label(
-        RichText::new("ASSETS")
-            .small()
-            .strong()
-            .color(theme::TEXT_FAINT),
-    );
+    ui.horizontal(|ui| {
+        ui.label(
+            RichText::new("ASSETS")
+                .small()
+                .strong()
+                .color(theme::TEXT_FAINT),
+        );
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if ui
+                .small_button("🖼")
+                .on_hover_text("Bitmap importieren (PNG/JPEG/GIF)")
+                .clicked()
+            {
+                actions.push(UiAction::ImportBitmap);
+            }
+            if ui
+                .small_button("♪")
+                .on_hover_text("Audio importieren (WAV/MP3)")
+                .clicked()
+            {
+                actions.push(UiAction::ImportAudio);
+            }
+        });
+    });
     if project.assets.is_empty() {
         ui.label(
-            RichText::new("Keine Assets · Import folgt")
+            RichText::new("Keine Assets")
                 .small()
                 .italics()
                 .color(theme::TEXT_FAINT),
-        )
-        .on_hover_text("Bitmaps, Sounds und Fonts sind noch nicht implementiert.");
+        );
     } else {
-        for asset in &project.assets {
-            ui.label(RichText::new(&asset.name).small().color(theme::TEXT_DIM));
+        let assets: Vec<(Uuid, String, &'static str)> = project
+            .assets
+            .iter()
+            .map(|asset| {
+                let glyph = match asset.kind {
+                    nova_core::AssetKind::Bitmap => "▦",
+                    nova_core::AssetKind::Audio => "♪",
+                    nova_core::AssetKind::Font => "Aa",
+                };
+                (asset.id, asset.name.clone(), glyph)
+            })
+            .collect();
+        for (id, name, glyph) in assets {
+            let selected = state.selection == Selection::Asset(id);
+            let response = ui
+                .selectable_label(selected, RichText::new(format!("{glyph} {name}")).small())
+                .on_hover_text("Klick: Asset-Eigenschaften");
+            if response.clicked() {
+                state.selection = Selection::Asset(id);
+                state.selected_asset = Some(id);
+            }
         }
     }
 
     ui.add_space(8.0);
     theme::hairline(ui);
-    if let Some(scene) = project.active_scene() {
+    if let Some(scene) = project.edit_scene(state.edit_symbol) {
         ui.horizontal_wrapped(|ui| {
             ui.label(
                 RichText::new(format!(

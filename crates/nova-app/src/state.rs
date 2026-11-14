@@ -1,11 +1,14 @@
 //! Application state that is independent of the immediate-mode UI.
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Instant;
 
 use egui::Vec2;
 use nova_as::Diagnostic;
-use nova_core::{Easing, Frame, Project, ProjectTemplate, Rgba, ScriptId, Transform};
+use nova_core::{
+    Easing, Frame, LayerKind, Project, ProjectTemplate, Rgba, ScriptId, Transform, TweenKind,
+};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -37,6 +40,81 @@ pub enum Selection {
     Layer(Uuid),
     Objects(Vec<Uuid>),
     Symbol(Uuid),
+    Asset(Uuid),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Tool {
+    Select,
+    Line,
+    Pencil,
+    Brush,
+    Eraser,
+    Fill,
+    PathEdit,
+}
+
+impl Tool {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Select => "Auswahl",
+            Self::Line => "Linie",
+            Self::Pencil => "Bleistift",
+            Self::Brush => "Pinsel",
+            Self::Eraser => "Radierer",
+            Self::Fill => "Füllen",
+            Self::PathEdit => "Pfad",
+        }
+    }
+
+    pub fn hint(self) -> &'static str {
+        match self {
+            Self::Select => "Objekte auswählen, verschieben, skalieren und rotieren.",
+            Self::Line => "Gerade Linie ziehen; Shift erzwingt 45°-Schritte.",
+            Self::Pencil => "Dünnen Freihandstrich zeichnen.",
+            Self::Brush => "Breiten Freihandstrich zeichnen.",
+            Self::Eraser => "Objekt unter dem Zeiger entfernen.",
+            Self::Fill => "Farbe des getroffenen Objekts ändern.",
+            Self::PathEdit => "Pfadknoten des ausgewählten Objekts bearbeiten.",
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DraftStroke {
+    pub tool: Tool,
+    pub points: Vec<egui::Pos2>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TransformMode {
+    ScaleTopLeft,
+    ScaleTopRight,
+    ScaleBottomLeft,
+    ScaleBottomRight,
+    Rotate,
+}
+
+#[derive(Debug, Clone)]
+pub struct TransformDrag {
+    pub mode: TransformMode,
+    pub start_pointer: egui::Pos2,
+    pub centroid: egui::Pos2,
+    pub start_angle: f32,
+    pub start_transforms: Vec<(Uuid, Uuid, Transform)>,
+    pub start_scale: (f32, f32),
+}
+
+/// Path-node drag for the Path edit tool: which object, which sub-path,
+/// which command and which point slot (0 = move-to/line-to point,
+/// 1..=2 = curve control/end for `CurveTo`).
+#[derive(Debug, Clone, Copy)]
+pub struct NodeDrag {
+    pub object: Uuid,
+    pub layer: Uuid,
+    pub path: usize,
+    pub command: usize,
+    pub slot: usize,
 }
 
 impl Selection {
@@ -203,10 +281,23 @@ pub enum UiAction {
     AddFolder,
     AddScript,
     AddSymbol,
+    AddMovieClipSymbol,
     AddRect,
     AddEllipse,
     AddText,
     AddSymbolInstance(Uuid),
+    AddBitmapAsset(Uuid),
+    AddSoundCue(Uuid),
+    PreviewAsset(Uuid),
+    ImportBitmap,
+    ImportAudio,
+    EnterSymbol(Uuid),
+    ExitSymbol,
+    DuplicateSymbol(Uuid),
+    RenameSymbol(Uuid, String),
+    SetTool(Tool),
+    SetLayerKind(LayerKind),
+    SetTweenKind(TweenKind),
     AddScene,
     DeleteScene,
     InsertKeyframe,
@@ -290,6 +381,15 @@ pub struct AppState {
     pub autosave_seconds: u64,
     pub last_autosave: Instant,
     pub last_autosave_path: Option<PathBuf>,
+    /// `Some(id)` while a library symbol timeline is the editing target.
+    pub edit_symbol: Option<Uuid>,
+    pub tool: Tool,
+    pub draft: Option<DraftStroke>,
+    pub transform_drag: Option<TransformDrag>,
+    pub node_drag: Option<NodeDrag>,
+    pub asset_textures: HashMap<Uuid, egui::TextureHandle>,
+    pub selected_asset: Option<Uuid>,
+    pub selected_sound_cue: Option<(Uuid, usize)>,
 }
 
 impl AppState {
@@ -346,6 +446,14 @@ impl AppState {
             autosave_seconds: 60,
             last_autosave: Instant::now(),
             last_autosave_path: None,
+            edit_symbol: None,
+            tool: Tool::Select,
+            draft: None,
+            transform_drag: None,
+            node_drag: None,
+            asset_textures: HashMap::new(),
+            selected_asset: project.assets.first().map(|asset| asset.id),
+            selected_sound_cue: None,
         };
         state.log(
             LogLevel::Info,
@@ -368,10 +476,43 @@ impl AppState {
         self.status = text.into();
     }
 
-    /// Clamps the playhead to the active scene.
+    /// The timeline currently targeted by the stage and timeline panels.
+    pub fn timeline<'a>(&self, project: &'a Project) -> Option<&'a nova_core::Scene> {
+        project.edit_scene(self.edit_symbol)
+    }
+
+    pub fn enter_symbol(&mut self, project: &Project, id: Uuid) {
+        if project.symbol(id).is_some() {
+            self.edit_symbol = Some(id);
+            self.selection = Selection::None;
+            self.frame = 0;
+            self.selected_keyframes.clear();
+            self.drag_cleanup();
+            self.clamp_frame(project);
+        }
+    }
+
+    pub fn exit_symbol(&mut self, project: &Project) {
+        self.edit_symbol = None;
+        self.selection = Selection::None;
+        self.frame = 0;
+        self.selected_keyframes.clear();
+        self.drag_cleanup();
+        self.clamp_frame(project);
+    }
+
+    pub fn drag_cleanup(&mut self) {
+        self.dragging = None;
+        self.marquee = None;
+        self.draft = None;
+        self.transform_drag = None;
+        self.node_drag = None;
+    }
+
+    /// Clamps the playhead to the active scene or symbol timeline.
     pub fn clamp_frame(&mut self, project: &Project) {
         let max = project
-            .active_scene()
+            .edit_scene(self.edit_symbol)
             .map(|scene| scene.frame_count().saturating_sub(1))
             .unwrap_or(0);
         self.frame = self.frame.min(max);
@@ -380,7 +521,7 @@ impl AppState {
     pub fn reset_view(&mut self, project: &Project) {
         self.zoom_initialized = false;
         self.zoom = 1.0;
-        if let Some(scene) = project.active_scene() {
+        if let Some(scene) = project.edit_scene(self.edit_symbol) {
             self.camera_center = egui::pos2(scene.width / 2.0, scene.height / 2.0);
         }
         self.frame = 0;
@@ -399,10 +540,30 @@ impl AppState {
         project: &'a Project,
         id: Uuid,
     ) -> Option<nova_core::ResolvedObject> {
-        let scene = project.active_scene()?;
+        let scene = project.edit_scene(self.edit_symbol)?;
         nova_core::resolve_scene(scene, self.frame)
             .into_iter()
             .find(|object| object.instance.id == id)
+    }
+
+    pub fn asset_texture(
+        &mut self,
+        ctx: &egui::Context,
+        asset: &nova_core::Asset,
+    ) -> Option<&egui::TextureHandle> {
+        if let std::collections::hash_map::Entry::Vacant(entry) =
+            self.asset_textures.entry(asset.id)
+        {
+            let image = image::load_from_memory(&asset.data).ok()?.to_rgba8();
+            let size = [image.width() as usize, image.height() as usize];
+            let color = egui::ColorImage::from_rgba_unmultiplied(size, image.as_raw());
+            entry.insert(ctx.load_texture(
+                format!("asset-{}", asset.id),
+                color,
+                egui::TextureOptions::LINEAR,
+            ));
+        }
+        self.asset_textures.get(&asset.id)
     }
 
     /// The layer that currently owns the selected object.
