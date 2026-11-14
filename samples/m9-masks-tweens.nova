@@ -2,17 +2,17 @@
   "format": "nova-flash-studio",
   "formatVersion": 2,
   "project": {
-    "id": "6c42a7a0-c834-41a4-a627-f8856e5206be",
+    "id": "b3227e00-4944-41c9-8fe6-24d6d66ae322",
     "metadata": {
       "name": "M9 Masks & Tweens",
       "author": "",
       "description": "Hilfsebene, Maskenebene und Form-Tween zwischen zwei Keyframes.",
-      "createdUnix": 1794655555,
-      "modifiedUnix": 1794655555
+      "createdUnix": 1794656488,
+      "modifiedUnix": 1794656488
     },
     "scenes": [
       {
-        "id": "ca2fd24d-137a-45e2-88c7-e069628a6386",
+        "id": "c7b48802-9bb8-4f1e-beea-e0bdd6537968",
         "name": "Szene 1",
         "width": 640.0,
         "height": 360.0,
@@ -25,7 +25,7 @@
         "fps": 24.0,
         "layers": [
           {
-            "id": "c26fc627-138d-436d-a014-5f8d84861eb1",
+            "id": "02ea2854-e3a7-4740-b229-c1b6d9624b17",
             "name": "Ebene 1",
             "visible": true,
             "locked": false,
@@ -37,7 +37,7 @@
             ]
           },
           {
-            "id": "28f6a477-e48d-47d1-a004-dbfc763066bd",
+            "id": "82db666b-74fc-4825-bcef-71f4fecc6d74",
             "name": "Hilfslinien",
             "visible": true,
             "locked": false,
@@ -47,7 +47,7 @@
                 "keyframe": true,
                 "objects": [
                   {
-                    "id": "50a394ee-d3d7-4214-bdd4-3ba51f58f4d9",
+                    "id": "43aef425-9e61-4aa2-9bc5-b280a4329f84",
                     "name": "Zentrierung",
                     "kind": {
                       "kind": "rect",
@@ -215,7 +215,7 @@
             ]
           },
           {
-            "id": "2e011bfd-07a3-45e7-8e08-cf4fccb0fe71",
+            "id": "c576d251-d833-406e-96aa-22a289c72023",
             "name": "Inhalt",
             "visible": true,
             "locked": false,
@@ -225,7 +225,7 @@
                 "keyframe": true,
                 "objects": [
                   {
-                    "id": "796c4363-d823-4dbd-ad82-97876183b382",
+                    "id": "99fbb78e-114a-4fdb-8b2f-a4aa5c3b70f3",
                     "name": "Panel",
                     "kind": {
                       "kind": "rect",
@@ -248,7 +248,7 @@
                     }
                   },
                   {
-                    "id": "2aa65454-c529-477b-9211-7a57b5522d57",
+                    "id": "b6deb481-3d9e-4183-bbc4-594e0c8d370b",
                     "name": "Akzent",
                     "kind": {
                       "kind": "ellipse",
@@ -415,7 +415,7 @@
             ]
           },
           {
-            "id": "0235dfae-a59d-48eb-a134-90ffeb896956",
+            "id": "6d4f6637-0cca-4784-ab2e-19d8fa009049",
             "name": "Maske",
             "visible": true,
             "locked": false,
@@ -425,7 +425,7 @@
                 "keyframe": true,
                 "objects": [
                   {
-                    "id": "cae38e86-3773-4e43-8d69-0370aaf15e4f",
+                    "id": "c7ea0fe3-e01f-4306-a902-0f994ec2b803",
                     "name": "Loch",
                     "kind": {
                       "kind": "ellipse",
@@ -592,7 +592,7 @@
             ]
           },
           {
-            "id": "a94f51f9-dded-4f8d-ad34-dec2a2899ed8",
+            "id": "3a1cb5d9-eca7-4e6a-86e7-0e5b1831d7d9",
             "name": "Form-Tween",
             "visible": true,
             "locked": false,
@@ -602,7 +602,7 @@
                 "keyframe": true,
                 "objects": [
                   {
-                    "id": "cd64e588-87d1-41b6-bed0-e8788656dcba",
+                    "id": "d3ed0327-199c-4cef-85c2-d4cc07ea841b",
                     "name": "Morph",
                     "kind": {
                       "kind": "path",
@@ -739,7 +739,7 @@
                 "keyframe": true,
                 "objects": [
                   {
-                    "id": "cd64e588-87d1-41b6-bed0-e8788656dcba",
+                    "id": "d3ed0327-199c-4cef-85c2-d4cc07ea841b",
                     "name": "Morph",
                     "kind": {
                       "kind": "path",
@@ -877,7 +877,7 @@
     "assets": [],
     "scripts": [
       {
-        "id": "610ba754-5095-42bd-bbf7-c69260e949a9",
+        "id": "9681bfcb-b57b-4f81-a341-01e6d709ad87",
         "name": "Main.as",
         "path": "scripts/Main.as",
         "source": "package {\n    public class Main {\n        public function Main() {\n        }\n    }\n}\n",
@@ -891,6 +891,6 @@
       "includeScripts": true,
       "exportAllScenes": false
     },
-    "activeScene": "ca2fd24d-137a-45e2-88c7-e069628a6386"
+    "activeScene": "c7b48802-9bb8-4f1e-beea-e0bdd6537968"
   }
 }

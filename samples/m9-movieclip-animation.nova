@@ -2,17 +2,17 @@
   "format": "nova-flash-studio",
   "formatVersion": 2,
   "project": {
-    "id": "b219c41b-ccd5-4f9a-84f6-0928cd5d2a99",
+    "id": "cf31f343-658c-4b24-a421-8d230c2f4f85",
     "metadata": {
       "name": "M9 MovieClip Animation",
       "author": "",
       "description": "MovieClip mit eigener 24-Frame-Timeline plus Motion-Tween auf der Bühne.",
-      "createdUnix": 1794655555,
-      "modifiedUnix": 1794655555
+      "createdUnix": 1794656488,
+      "modifiedUnix": 1794656488
     },
     "scenes": [
       {
-        "id": "6dae6479-79fa-444c-852a-5cbf2248685e",
+        "id": "d885efd9-cd31-446f-8e3c-d97d4813e0d5",
         "name": "Szene 1",
         "width": 640.0,
         "height": 360.0,
@@ -25,7 +25,7 @@
         "fps": 24.0,
         "layers": [
           {
-            "id": "fbb0e3a8-8508-41c5-9963-1e02f18e2c64",
+            "id": "45f6e62d-ae4d-46c0-8a1f-a00a08885448",
             "name": "Ebene 1",
             "visible": true,
             "locked": false,
@@ -178,7 +178,7 @@
             ]
           },
           {
-            "id": "23580273-a6ad-4467-9a9d-418e25f468f7",
+            "id": "74ec1253-d962-4919-aaa0-0543b37ae346",
             "name": "Buehne",
             "visible": true,
             "locked": false,
@@ -188,11 +188,11 @@
                 "keyframe": true,
                 "objects": [
                   {
-                    "id": "5d7c956a-ffe2-4ab0-8628-54c6b8f7e870",
+                    "id": "da3b86ae-487c-46fb-a0f2-f6f24af6aebe",
                     "name": "BouncingBall",
                     "kind": {
                       "kind": "symbol",
-                      "symbol": "00e74a69-55ee-49d8-bab6-fa43e9a2d45e"
+                      "symbol": "06d5f4b8-347f-4f26-806f-07a71acae691"
                     },
                     "transform": {
                       "x": 320.0,
@@ -284,11 +284,11 @@
                 "keyframe": true,
                 "objects": [
                   {
-                    "id": "5d7c956a-ffe2-4ab0-8628-54c6b8f7e870",
+                    "id": "da3b86ae-487c-46fb-a0f2-f6f24af6aebe",
                     "name": "BouncingBall",
                     "kind": {
                       "kind": "symbol",
-                      "symbol": "00e74a69-55ee-49d8-bab6-fa43e9a2d45e"
+                      "symbol": "06d5f4b8-347f-4f26-806f-07a71acae691"
                     },
                     "transform": {
                       "x": 500.0,
@@ -343,11 +343,11 @@
                 "keyframe": true,
                 "objects": [
                   {
-                    "id": "5d7c956a-ffe2-4ab0-8628-54c6b8f7e870",
+                    "id": "da3b86ae-487c-46fb-a0f2-f6f24af6aebe",
                     "name": "BouncingBall",
                     "kind": {
                       "kind": "symbol",
-                      "symbol": "00e74a69-55ee-49d8-bab6-fa43e9a2d45e"
+                      "symbol": "06d5f4b8-347f-4f26-806f-07a71acae691"
                     },
                     "transform": {
                       "x": 180.0,
@@ -404,7 +404,7 @@
             ]
           },
           {
-            "id": "ebd81498-768e-48b7-a215-1067ce5f1f13",
+            "id": "f76e139c-bc73-43e5-9388-666c1f67e2f3",
             "name": "Schatten",
             "visible": true,
             "locked": false,
@@ -414,7 +414,7 @@
                 "keyframe": true,
                 "objects": [
                   {
-                    "id": "9a00b9d9-ca76-48cb-9e1c-eaf202a4453b",
+                    "id": "dcd87f12-d7ce-4f49-99e6-c66590043ff5",
                     "name": "Schatten",
                     "kind": {
                       "kind": "ellipse",
@@ -585,7 +585,7 @@
     ],
     "symbols": [
       {
-        "id": "00e74a69-55ee-49d8-bab6-fa43e9a2d45e",
+        "id": "06d5f4b8-347f-4f26-806f-07a71acae691",
         "name": "Ball",
         "kind": "movie_clip",
         "width": 60.0,
@@ -598,7 +598,7 @@
         },
         "corner_radius": 0.0,
         "timeline": {
-          "id": "4ea9b21c-305c-4dce-b87e-d55b16b74217",
+          "id": "0d801e0f-a6c4-4667-b365-9cd4bdba8919",
           "name": "Ball",
           "width": 60.0,
           "height": 60.0,
@@ -611,7 +611,7 @@
           "fps": 24.0,
           "layers": [
             {
-              "id": "c643eb84-e9e7-4c4f-8956-dc917aa0d8b6",
+              "id": "e9160fff-660c-412b-b2f3-f64aa13fd171",
               "name": "Sprung",
               "visible": true,
               "locked": false,
@@ -621,7 +621,7 @@
                   "keyframe": true,
                   "objects": [
                     {
-                      "id": "c9b31156-55d9-40cb-ba4d-3a93f08ed520",
+                      "id": "c14d0e98-deb2-4792-8adf-7dfe490f1a2d",
                       "name": "Kugel",
                       "kind": {
                         "kind": "ellipse",
@@ -682,7 +682,7 @@
                   "keyframe": true,
                   "objects": [
                     {
-                      "id": "c9b31156-55d9-40cb-ba4d-3a93f08ed520",
+                      "id": "c14d0e98-deb2-4792-8adf-7dfe490f1a2d",
                       "name": "Kugel",
                       "kind": {
                         "kind": "ellipse",
@@ -742,7 +742,7 @@
                   "keyframe": true,
                   "objects": [
                     {
-                      "id": "c9b31156-55d9-40cb-ba4d-3a93f08ed520",
+                      "id": "c14d0e98-deb2-4792-8adf-7dfe490f1a2d",
                       "name": "Kugel",
                       "kind": {
                         "kind": "ellipse",
@@ -774,7 +774,7 @@
     "assets": [],
     "scripts": [
       {
-        "id": "9bd86e56-6b4f-4582-a2c0-c605f67a83a1",
+        "id": "09d0f349-6e10-437a-bb87-bd4247b63e17",
         "name": "Main.as",
         "path": "scripts/Main.as",
         "source": "package {\n    public class Main {\n        public function Main() {\n        }\n    }\n}\n",
@@ -788,6 +788,6 @@
       "includeScripts": true,
       "exportAllScenes": false
     },
-    "activeScene": "6dae6479-79fa-444c-852a-5cbf2248685e"
+    "activeScene": "d885efd9-cd31-446f-8e3c-d97d4813e0d5"
   }
 }

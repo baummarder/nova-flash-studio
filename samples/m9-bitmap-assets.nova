@@ -2,17 +2,17 @@
   "format": "nova-flash-studio",
   "formatVersion": 2,
   "project": {
-    "id": "2cadaa0b-c429-49bb-89c2-ae7a847893bc",
+    "id": "c7fc7464-261a-43d3-a4c7-3c0375406015",
     "metadata": {
       "name": "M9 Bitmap Assets",
       "author": "",
       "description": "Eingebettetes PNG-Asset, zwei Platzierungen, Motion-Tween.",
-      "createdUnix": 1794655555,
-      "modifiedUnix": 1794655555
+      "createdUnix": 1794656488,
+      "modifiedUnix": 1794656488
     },
     "scenes": [
       {
-        "id": "c7f3ca5f-fba6-4e58-b390-b96b0f16ed2b",
+        "id": "9e86c81c-6ef2-44d7-b75e-9bcf1664c57a",
         "name": "Szene 1",
         "width": 640.0,
         "height": 360.0,
@@ -25,7 +25,7 @@
         "fps": 24.0,
         "layers": [
           {
-            "id": "173902e7-deb5-47e2-a2fb-4f29539e14d3",
+            "id": "502d77b4-1295-4c7a-b03e-2512b3d80fc7",
             "name": "Ebene 1",
             "visible": true,
             "locked": false,
@@ -91,7 +91,7 @@
             ]
           },
           {
-            "id": "b58baf81-cc4b-4a61-be32-641a1b17cd50",
+            "id": "f8ce69e3-6c39-4fce-a674-d92a573cf710",
             "name": "Bilder",
             "visible": true,
             "locked": false,
@@ -101,11 +101,11 @@
                 "keyframe": true,
                 "objects": [
                   {
-                    "id": "c243d7de-a3cd-4662-a4c7-e750e9a99507",
+                    "id": "e0ce4346-6744-4d31-9bb5-fad79d6595a0",
                     "name": "Raster gross",
                     "kind": {
                       "kind": "bitmap",
-                      "asset": "3209ab5a-df99-4f74-a3a4-0d02e900398b",
+                      "asset": "bc570c83-253c-4f02-91d1-0fac78d07e3a",
                       "width": 128.0,
                       "height": 128.0
                     },
@@ -184,17 +184,17 @@
                 "keyframe": true,
                 "objects": [
                   {
-                    "id": "c243d7de-a3cd-4662-a4c7-e750e9a99507",
+                    "id": "e0ce4346-6744-4d31-9bb5-fad79d6595a0",
                     "name": "Raster gross",
                     "kind": {
                       "kind": "bitmap",
-                      "asset": "3209ab5a-df99-4f74-a3a4-0d02e900398b",
-                      "width": 128.0,
-                      "height": 128.0
+                      "asset": "bc570c83-253c-4f02-91d1-0fac78d07e3a",
+                      "width": 64.0,
+                      "height": 64.0
                     },
                     "transform": {
-                      "x": 200.0,
-                      "y": 160.0,
+                      "x": 440.0,
+                      "y": 240.0,
                       "scale_x": 1.0,
                       "scale_y": 1.0,
                       "rotation": 0.0
@@ -207,11 +207,11 @@
                     }
                   },
                   {
-                    "id": "33ba0d21-d0d0-4a8d-975e-7b4ca25e5569",
+                    "id": "57c161d8-337e-44b8-b39f-555dbfece4da",
                     "name": "Raster klein",
                     "kind": {
                       "kind": "bitmap",
-                      "asset": "3209ab5a-df99-4f74-a3a4-0d02e900398b",
+                      "asset": "bc570c83-253c-4f02-91d1-0fac78d07e3a",
                       "width": 48.0,
                       "height": 48.0
                     },
@@ -290,7 +290,7 @@
     "symbols": [],
     "assets": [
       {
-        "id": "3209ab5a-df99-4f74-a3a4-0d02e900398b",
+        "id": "bc570c83-253c-4f02-91d1-0fac78d07e3a",
         "name": "Raster",
         "kind": "bitmap",
         "file": "assets/raster.png",
@@ -1022,7 +1022,7 @@
     ],
     "scripts": [
       {
-        "id": "775702f8-3dc8-4e46-bc3b-42d907a5a58e",
+        "id": "d4d683a6-9fdc-4acb-b41d-0be390ce9a82",
         "name": "Main.as",
         "path": "scripts/Main.as",
         "source": "package {\n    public class Main {\n        public function Main() {\n        }\n    }\n}\n",
@@ -1036,6 +1036,6 @@
       "includeScripts": true,
       "exportAllScenes": false
     },
-    "activeScene": "c7f3ca5f-fba6-4e58-b390-b96b0f16ed2b"
+    "activeScene": "9e86c81c-6ef2-44d7-b75e-9bcf1664c57a"
   }
 }

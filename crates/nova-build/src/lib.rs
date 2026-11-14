@@ -271,7 +271,7 @@ pub fn build_swf(project: &Project) -> Result<BuildOutput, BuildError> {
     // owned by ActionScript after the first frame, so the baked timeline must
     // not overwrite it on every frame.
     let mut scripted_objects: HashSet<uuid::Uuid> = HashSet::new();
-    if has_scripts {
+    let avm2_links = if has_scripts {
         // Preserved SWF imports carry the original SymbolClass table. The
         // character ids in that table refer to the imported SWF, so map them to
         // reconstructed objects through `ObjectInstance::source_character` and
@@ -470,37 +470,58 @@ pub fn build_swf(project: &Project) -> Result<BuildOutput, BuildError> {
             }
         }
 
-        let mut abc_names: HashSet<String> = HashSet::new();
-        for script in &compiled_scripts {
-            let base = if script.path.is_empty() {
-                format!("script{}", script.index)
-            } else {
-                script.path.clone()
-            };
-            let mut name = base.clone();
-            let mut suffix = 1;
-            while !abc_names.insert(name.clone()) {
-                name = format!("{base}#{suffix}");
-                suffix += 1;
+        // ABC is only embedded when at least one class link exists; unlinked
+        // bytecode can never be instantiated and would only mark the file as
+        // AVM2, which breaks bitmap playback in some runtimes.
+        if !symbol_links.is_empty() {
+            let mut abc_names: HashSet<String> = HashSet::new();
+            for script in &compiled_scripts {
+                let base = if script.path.is_empty() {
+                    format!("script{}", script.index)
+                } else {
+                    script.path.clone()
+                };
+                let mut name = base.clone();
+                let mut suffix = 1;
+                while !abc_names.insert(name.clone()) {
+                    name = format!("{base}#{suffix}");
+                    suffix += 1;
+                }
+                movie.tags.push(Tag::DoAbc2 {
+                    // Lazy initialization; the SymbolClass lookup of a linked class
+                    // triggers the script initializer. No runtime has confirmed this
+                    // ordering yet, so the limitation is documented.
+                    flags: 1,
+                    name,
+                    data: script.unit.abc.clone(),
+                });
+                stats.embedded_scripts += 1;
+                stats.abc_bytes += script.unit.abc.len();
             }
-            movie.tags.push(Tag::DoAbc2 {
-                // Lazy initialization; the SymbolClass lookup of a linked class
-                // triggers the script initializer. No runtime has confirmed this
-                // ordering yet, so the limitation is documented.
-                flags: 1,
-                name,
-                data: script.unit.abc.clone(),
-            });
-            stats.embedded_scripts += 1;
-            stats.abc_bytes += script.unit.abc.len();
         }
 
-        if !symbol_links.is_empty() {
+        let avm2_links_present = !symbol_links.is_empty();
+        if avm2_links_present {
             symbol_links.sort_by_key(|(character, _)| *character);
             movie.tags.push(Tag::SymbolClass {
                 links: symbol_links,
             });
         }
+        avm2_links_present
+    } else {
+        false
+    };
+
+    // An AVM2-flagged file without any linked class cannot execute its ABC.
+    // Some runtimes (verified: Ruffle 0.7.1) then refuse to render bitmap
+    // characters on the timeline, so scriptless/unlinked projects are emitted
+    // with the AS3 flag cleared. Timeline content is identical either way.
+    let avm2_inert = export.target == TargetRuntime::Avm2 && !avm2_links;
+    if avm2_inert {
+        warnings.push(
+            "Keine Skript-Verknüpfung gefunden; die SWF wird ohne AS3-Flag exportiert (Bitmaps bleiben in AVM1-kompatiblen Playern sichtbar)."
+                .into(),
+        );
     }
 
     // Scripted objects are placed once and then owned by ActionScript. They get
@@ -665,6 +686,15 @@ pub fn build_swf(project: &Project) -> Result<BuildOutput, BuildError> {
         }
         previous_depths = next_depth.saturating_sub(1) as usize;
         movie.tags.push(Tag::ShowFrame);
+    }
+
+    if avm2_inert {
+        if let Some(Tag::FileAttributes {
+            action_script_3, ..
+        }) = movie.tags.first_mut()
+        {
+            *action_script_3 = false;
+        }
     }
 
     let compression = match export.compression {

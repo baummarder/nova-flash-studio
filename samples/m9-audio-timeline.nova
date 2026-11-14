@@ -2,17 +2,17 @@
   "format": "nova-flash-studio",
   "formatVersion": 2,
   "project": {
-    "id": "d043685a-9009-4bdc-b5ab-b927165716e7",
+    "id": "e4a331a6-2ab6-4b1b-8417-c1459657dc20",
     "metadata": {
       "name": "M9 Audio Timeline",
       "author": "",
       "description": "Eingebettetes WAV-Asset mit Event- und Timeline-Cue auf einer Sound-Ebene.",
-      "createdUnix": 1794655555,
-      "modifiedUnix": 1794655555
+      "createdUnix": 1794656488,
+      "modifiedUnix": 1794656488
     },
     "scenes": [
       {
-        "id": "02d27dea-153c-4c79-b88a-78e1c372ff47",
+        "id": "b6b4b4f9-b189-480a-bbf9-8431a358aa1f",
         "name": "Szene 1",
         "width": 640.0,
         "height": 360.0,
@@ -25,7 +25,7 @@
         "fps": 24.0,
         "layers": [
           {
-            "id": "a44ad7d9-4785-435e-95e5-d470d3173915",
+            "id": "b6f41e9e-079d-4d03-9133-dc295dab110c",
             "name": "Ebene 1",
             "visible": true,
             "locked": false,
@@ -35,7 +35,7 @@
                 "keyframe": true,
                 "objects": [
                   {
-                    "id": "5d627132-8f8e-457d-aca7-30cadba43a2d",
+                    "id": "5a7235a0-e786-4c2f-a2f3-1ce2ea605f91",
                     "name": "Rahmen",
                     "kind": {
                       "kind": "rect",
@@ -58,7 +58,7 @@
                     }
                   },
                   {
-                    "id": "61d7a009-9962-455a-bdc7-2f9b5cf6caa4",
+                    "id": "ffb331ab-28ad-47f5-9f60-d26dadcc2197",
                     "name": "Punkt",
                     "kind": {
                       "kind": "ellipse",
@@ -84,7 +84,7 @@
             ]
           },
           {
-            "id": "521e40ca-3da7-44c9-8936-89c62314b22d",
+            "id": "5bfa160b-5695-4972-8b33-58862e261956",
             "name": "Optik",
             "visible": true,
             "locked": false,
@@ -309,7 +309,7 @@
             ]
           },
           {
-            "id": "b00ba652-03d5-481d-9f7d-73576484f8fa",
+            "id": "d9b37cf2-f0e1-4baa-8ad2-11b4c63353ca",
             "name": "Tonspur",
             "visible": true,
             "locked": false,
@@ -318,7 +318,7 @@
               {
                 "keyframe": true,
                 "sound": {
-                  "asset": "bc87a851-362c-4f03-a16b-2d54beb27f1f",
+                  "asset": "babd4828-7025-46e7-948b-7910da09df41",
                   "offset": 0.0,
                   "duration": 1.0,
                   "event": true,
@@ -433,7 +433,7 @@
               {
                 "keyframe": true,
                 "sound": {
-                  "asset": "bc87a851-362c-4f03-a16b-2d54beb27f1f",
+                  "asset": "babd4828-7025-46e7-948b-7910da09df41",
                   "offset": 0.0,
                   "duration": 0.0,
                   "event": false,
@@ -553,7 +553,7 @@
     "symbols": [],
     "assets": [
       {
-        "id": "bc87a851-362c-4f03-a16b-2d54beb27f1f",
+        "id": "babd4828-7025-46e7-948b-7910da09df41",
         "name": "Sinuston",
         "kind": "audio",
         "file": "assets/tone.wav",
@@ -44713,7 +44713,7 @@
     ],
     "scripts": [
       {
-        "id": "87982cfe-7280-44d9-a832-b3bb363c50c5",
+        "id": "1de687bc-c95b-47e2-ae1c-33f9db3354cd",
         "name": "Main.as",
         "path": "scripts/Main.as",
         "source": "package {\n    public class Main {\n        public function Main() {\n        }\n    }\n}\n",
@@ -44727,6 +44727,6 @@
       "includeScripts": true,
       "exportAllScenes": false
     },
-    "activeScene": "02d27dea-153c-4c79-b88a-78e1c372ff47"
+    "activeScene": "b6b4b4f9-b189-480a-bbf9-8431a358aa1f"
   }
 }

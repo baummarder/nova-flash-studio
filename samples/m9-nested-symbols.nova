@@ -2,17 +2,17 @@
   "format": "nova-flash-studio",
   "formatVersion": 2,
   "project": {
-    "id": "03ff9127-9bde-4d70-8929-e556eb3bf286",
+    "id": "7e38db4a-dde5-40ed-b24e-490d6082439d",
     "metadata": {
       "name": "M9 Nested Symbols",
       "author": "",
       "description": "MovieClip-Rad mit verschachtelter Grafik-Speiche, zweimal instanziiert.",
-      "createdUnix": 1794655555,
-      "modifiedUnix": 1794655555
+      "createdUnix": 1794656488,
+      "modifiedUnix": 1794656488
     },
     "scenes": [
       {
-        "id": "87721775-cc2e-4b86-a9cf-6cb2526d2bc5",
+        "id": "dd445e84-fa0c-47a8-8285-9fc1f4ab7a46",
         "name": "Szene 1",
         "width": 640.0,
         "height": 360.0,
@@ -25,7 +25,7 @@
         "fps": 24.0,
         "layers": [
           {
-            "id": "68a859a5-7386-47f0-876b-d96e128d8885",
+            "id": "de207db2-531a-4443-8c73-d05f09bcd849",
             "name": "Ebene 1",
             "visible": true,
             "locked": false,
@@ -37,7 +37,7 @@
             ]
           },
           {
-            "id": "a98bb748-a52a-4869-9fa7-71db5fd1111f",
+            "id": "bc0c01f5-c17b-4723-a946-36408289a86d",
             "name": "Hintergrund",
             "visible": true,
             "locked": false,
@@ -47,11 +47,11 @@
                 "keyframe": true,
                 "objects": [
                   {
-                    "id": "9e3995a6-c1cf-4109-8741-5bcc684f7129",
+                    "id": "66cf2fad-9e3a-45a0-aa6a-a5a1b4f9ec39",
                     "name": "Grosses Rad",
                     "kind": {
                       "kind": "symbol",
-                      "symbol": "d793c525-cbeb-40f7-ae0c-04386a5f4d84"
+                      "symbol": "8ca8a648-dba9-4432-a249-e23cbe1b57b9"
                     },
                     "transform": {
                       "x": 180.0,
@@ -249,7 +249,7 @@
             ]
           },
           {
-            "id": "fce4a5d7-72f2-4967-b63a-176b20ce3d9e",
+            "id": "41d414a6-1b1e-4bca-aaa9-e06dce4d54cc",
             "name": "Raeder",
             "visible": true,
             "locked": false,
@@ -259,11 +259,11 @@
                 "keyframe": true,
                 "objects": [
                   {
-                    "id": "b7909e50-90d7-465e-bc7b-5e2cd63b85a2",
+                    "id": "87797d25-8a15-4f0c-9152-46fb68661c54",
                     "name": "Kleines Rad",
                     "kind": {
                       "kind": "symbol",
-                      "symbol": "d793c525-cbeb-40f7-ae0c-04386a5f4d84"
+                      "symbol": "8ca8a648-dba9-4432-a249-e23cbe1b57b9"
                     },
                     "transform": {
                       "x": 460.0,
@@ -280,7 +280,7 @@
                     }
                   },
                   {
-                    "id": "16e6fce9-9afb-4be1-8002-0a3d19737203",
+                    "id": "64a0e512-f561-45ba-813f-7a857ca6d5d9",
                     "name": "Boden",
                     "kind": {
                       "kind": "rect",
@@ -488,7 +488,7 @@
     ],
     "symbols": [
       {
-        "id": "3a8dc961-dc26-47ed-ad0e-fe4c9919359d",
+        "id": "27af2387-8733-4801-94fc-6b2af5ccb9ad",
         "name": "Speiche",
         "kind": "graphic",
         "width": 16.0,
@@ -501,7 +501,7 @@
         },
         "corner_radius": 0.0,
         "timeline": {
-          "id": "f99d68cb-ca42-4543-88cd-07ed54c171e0",
+          "id": "8c7765f6-9689-4d73-b0af-242cd00df24b",
           "name": "Speiche",
           "width": 16.0,
           "height": 90.0,
@@ -514,7 +514,7 @@
           "fps": 24.0,
           "layers": [
             {
-              "id": "5f44af7b-7125-451b-92e6-110704ad161a",
+              "id": "a53b0298-569d-4066-ac74-03886dc13dd0",
               "name": "Inhalt",
               "visible": true,
               "locked": false,
@@ -524,7 +524,7 @@
                   "keyframe": true,
                   "objects": [
                     {
-                      "id": "e9decbac-a04b-4cef-a91c-c2a57cb02d7b",
+                      "id": "f04b578c-92c8-4772-89db-534767feefc8",
                       "name": "Speiche",
                       "kind": {
                         "kind": "rect",
@@ -547,7 +547,7 @@
                       }
                     },
                     {
-                      "id": "2cc47e61-1a6b-49d9-8bd8-d0cdbaaf3052",
+                      "id": "bd3135d3-cfb7-4b1a-bab8-f5237c59cfea",
                       "name": "Stab",
                       "kind": {
                         "kind": "rect",
@@ -577,7 +577,7 @@
         }
       },
       {
-        "id": "d793c525-cbeb-40f7-ae0c-04386a5f4d84",
+        "id": "8ca8a648-dba9-4432-a249-e23cbe1b57b9",
         "name": "Rad",
         "kind": "movie_clip",
         "width": 120.0,
@@ -590,7 +590,7 @@
         },
         "corner_radius": 0.0,
         "timeline": {
-          "id": "a3012db9-33ea-4aee-bb79-6abf892161f6",
+          "id": "4e69b9ae-3411-4a91-90d5-55eb5c97c9a4",
           "name": "Rad",
           "width": 120.0,
           "height": 120.0,
@@ -603,7 +603,7 @@
           "fps": 24.0,
           "layers": [
             {
-              "id": "79e688f1-b437-4401-8df0-aa369a35caf7",
+              "id": "3696cc93-4be5-4a1e-916b-156ee935a195",
               "name": "Inhalt",
               "visible": true,
               "locked": false,
@@ -615,7 +615,7 @@
               ]
             },
             {
-              "id": "576d3106-34d6-4eb8-bdce-741b79cdb429",
+              "id": "593096a7-f4db-40ee-ad6f-9046f8d5a5e6",
               "name": "Felge",
               "visible": true,
               "locked": false,
@@ -625,7 +625,7 @@
                   "keyframe": true,
                   "objects": [
                     {
-                      "id": "7e4bc42b-1874-4095-9a53-1003bb464b5c",
+                      "id": "fc0a39be-7ee7-4b74-83a0-c537b6a7aafd",
                       "name": "Reifen",
                       "kind": {
                         "kind": "ellipse",
@@ -647,7 +647,7 @@
                       }
                     },
                     {
-                      "id": "555f4aa7-b5ca-4ae9-9400-a065c670e94a",
+                      "id": "85fe5404-3a63-44a6-989f-23c823b3baf5",
                       "name": "Nabe",
                       "kind": {
                         "kind": "ellipse",
@@ -669,11 +669,11 @@
                       }
                     },
                     {
-                      "id": "501b5c2a-46c8-4e0e-88ce-c6bf9f8d91e2",
+                      "id": "184f4efd-37d2-40d6-81f3-81f1612dde29",
                       "name": "Speiche",
                       "kind": {
                         "kind": "symbol",
-                        "symbol": "3a8dc961-dc26-47ed-ad0e-fe4c9919359d"
+                        "symbol": "27af2387-8733-4801-94fc-6b2af5ccb9ad"
                       },
                       "transform": {
                         "x": 0.0,
@@ -690,11 +690,11 @@
                       }
                     },
                     {
-                      "id": "a3686f64-bcdb-4209-9126-fd547276b91f",
+                      "id": "47c2164c-e7b6-40f6-bb5f-846d194bc900",
                       "name": "Speiche",
                       "kind": {
                         "kind": "symbol",
-                        "symbol": "3a8dc961-dc26-47ed-ad0e-fe4c9919359d"
+                        "symbol": "27af2387-8733-4801-94fc-6b2af5ccb9ad"
                       },
                       "transform": {
                         "x": 0.0,
@@ -711,11 +711,11 @@
                       }
                     },
                     {
-                      "id": "070c40c4-3208-4c91-8dff-dc9f50f58757",
+                      "id": "800e02ac-7f28-481b-bf65-0fec585087e9",
                       "name": "Speiche",
                       "kind": {
                         "kind": "symbol",
-                        "symbol": "3a8dc961-dc26-47ed-ad0e-fe4c9919359d"
+                        "symbol": "27af2387-8733-4801-94fc-6b2af5ccb9ad"
                       },
                       "transform": {
                         "x": 0.0,
@@ -732,11 +732,11 @@
                       }
                     },
                     {
-                      "id": "de75360c-b85f-4a42-97c0-2f40ea8802bb",
+                      "id": "567035c7-3e8b-44ca-a06b-a3a74ff8c825",
                       "name": "Speiche",
                       "kind": {
                         "kind": "symbol",
-                        "symbol": "3a8dc961-dc26-47ed-ad0e-fe4c9919359d"
+                        "symbol": "27af2387-8733-4801-94fc-6b2af5ccb9ad"
                       },
                       "transform": {
                         "x": 0.0,
@@ -763,7 +763,7 @@
     "assets": [],
     "scripts": [
       {
-        "id": "6494f761-e594-438f-ad78-bebbbf7987fa",
+        "id": "e6f0f1af-62aa-4291-81e3-eb4836e3bed4",
         "name": "Main.as",
         "path": "scripts/Main.as",
         "source": "package {\n    public class Main {\n        public function Main() {\n        }\n    }\n}\n",
@@ -777,6 +777,6 @@
       "includeScripts": true,
       "exportAllScenes": false
     },
-    "activeScene": "87721775-cc2e-4b86-a9cf-6cb2526d2bc5"
+    "activeScene": "dd445e84-fa0c-47a8-8285-9fc1f4ab7a46"
   }
 }

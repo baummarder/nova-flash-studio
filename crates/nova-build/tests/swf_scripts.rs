@@ -186,6 +186,77 @@ fn bundled_as3_example_project_builds_and_links_its_class() {
 }
 
 #[test]
+fn avm1_target_never_sets_the_as3_flag() {
+    let mut project = Project::new_empty("AVM1");
+    project.export.target = TargetRuntime::Avm1;
+    let output = build_swf(&project).expect("avm1 build");
+    let buffer = swf::decompress_swf(output.bytes.as_slice()).expect("decompress");
+    let parsed = parse(&buffer);
+    assert!(!parsed.header.is_action_script_3());
+    assert!(
+        !parsed
+            .tags
+            .iter()
+            .any(|tag| matches!(tag, swf::Tag::DoAbc2(_))),
+        "AVM1 output must not contain AVM2 bytecode"
+    );
+}
+
+#[test]
+fn unlinked_avm2_project_downgrades_to_avm1_flags() {
+    // Regression for the M9.1 defect: the default `public class Main {}` stub
+    // compiles to ABC that no SymbolClass link can instantiate. Emitting it as
+    // AVM2 made Ruffle 0.7.1 skip bitmap characters entirely.
+    let project = Project::new_empty("Unverklinkt");
+    assert_eq!(project.export.target, TargetRuntime::Avm2);
+    let output = build_swf(&project).expect("unlinked build");
+
+    assert!(
+        output
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("ohne AS3-Flag")),
+        "downgrade must be reported: {:?}",
+        output.warnings
+    );
+    assert_eq!(output.stats.embedded_scripts, 0);
+    assert_eq!(output.stats.abc_bytes, 0);
+
+    let buffer = swf::decompress_swf(output.bytes.as_slice()).expect("decompress");
+    let parsed = parse(&buffer);
+    assert!(
+        !parsed.header.is_action_script_3(),
+        "inert AVM2 content must not keep the AS3 flag"
+    );
+    assert!(
+        !parsed
+            .tags
+            .iter()
+            .any(|tag| matches!(tag, swf::Tag::DoAbc2(_) | swf::Tag::SymbolClass(_))),
+        "unlinked bytecode must not be embedded"
+    );
+}
+
+#[test]
+fn linked_avm2_project_keeps_abc_and_as3_flag() {
+    // The counterpart case: a document class extending MovieClip produces a
+    // SymbolClass link, so AVM2 output (and bitmap-hostile flag) is required.
+    let mut project = Project::new_empty("Verknüpft");
+    project.export.target = TargetRuntime::Avm2;
+    project.scripts = vec![Script::new(
+        "scripts/Main.as",
+        "package {\n    import flash.display.MovieClip;\n    public class Main extends MovieClip {\n        public function Main() {\n        }\n    }\n}\n",
+    )];
+    let output = build_swf(&project).expect("linked build");
+    assert_eq!(output.stats.embedded_scripts, 1);
+    let buffer = swf::decompress_swf(output.bytes.as_slice()).expect("decompress");
+    let parsed = parse(&buffer);
+    assert!(parsed.header.is_action_script_3());
+    assert!(parsed.tags.iter().any(|tag| matches!(tag, swf::Tag::DoAbc2(_))));
+    assert!(parsed.tags.iter().any(|tag| matches!(tag, swf::Tag::SymbolClass(_))));
+}
+
+#[test]
 fn compiler_errors_abort_the_build_with_source_location() {
     let mut project = Project::new_empty("Fehler");
     project.scripts[0].source =

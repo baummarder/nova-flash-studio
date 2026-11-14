@@ -328,6 +328,21 @@ fn bitmap_assets_demo(dir: &std::path::Path) {
         crop: None,
     };
     put(scene, 1, 18, image2);
+    // Motion tween needs a matching end keyframe with the same object id:
+    // `put` copied the frame-0 objects into frame 18, so retarget the copied
+    // "Raster gross" instance to its end pose.
+    for object in scene.layers[1].frames[18].objects.iter_mut() {
+        if object.name == "Raster gross" {
+            object.transform.x = 440.0;
+            object.transform.y = 240.0;
+            object.kind = ObjectKind::Bitmap {
+                asset: asset_id,
+                width: 64.0,
+                height: 64.0,
+                crop: None,
+            };
+        }
+    }
     let layer = &mut scene.layers[1];
     layer.frames[0].tween = Some(Tween {
         easing: Easing::Linear,

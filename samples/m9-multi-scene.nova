@@ -2,17 +2,17 @@
   "format": "nova-flash-studio",
   "formatVersion": 2,
   "project": {
-    "id": "2b87fbef-1e0d-4a05-9646-5e9f6ed76965",
+    "id": "a7355db8-d75d-40fa-b4e7-76e57c005f46",
     "metadata": {
       "name": "M9 Multi Scene",
       "author": "",
       "description": "Zwei Szenen mit eigenen Ebenen und Keyframes.",
-      "createdUnix": 1794655555,
-      "modifiedUnix": 1794655555
+      "createdUnix": 1794656488,
+      "modifiedUnix": 1794656488
     },
     "scenes": [
       {
-        "id": "9e6d3c53-3eb2-4907-90bd-3b463ae3cf88",
+        "id": "c432efaa-1ad5-4843-a070-9546c478f768",
         "name": "Intro",
         "width": 640.0,
         "height": 360.0,
@@ -25,7 +25,7 @@
         "fps": 24.0,
         "layers": [
           {
-            "id": "72bb640c-98da-43c5-a7e5-4ebc533a97c9",
+            "id": "ad23b538-5bcb-4171-a19d-611310373839",
             "name": "Ebene 1",
             "visible": true,
             "locked": false,
@@ -37,7 +37,7 @@
             ]
           },
           {
-            "id": "47ed775e-122d-4d6c-b851-ae1f93d0d1f2",
+            "id": "dd6eeb26-ccbe-4e9f-a7e5-3b5aacbe8301",
             "name": "Titel",
             "visible": true,
             "locked": false,
@@ -47,7 +47,7 @@
                 "keyframe": true,
                 "objects": [
                   {
-                    "id": "f47d31b8-f8fb-41bb-aa6c-943a81845531",
+                    "id": "910b3452-795c-4860-9412-6f3398d6f9ab",
                     "name": "Balken",
                     "kind": {
                       "kind": "rect",
@@ -70,7 +70,7 @@
                     }
                   },
                   {
-                    "id": "222a1f7e-21eb-4825-9cfa-e6d836d41c21",
+                    "id": "f71e7c9a-1501-4f92-9b34-7403b8e49c85",
                     "name": "Marke",
                     "kind": {
                       "kind": "ellipse",
@@ -185,7 +185,7 @@
         ]
       },
       {
-        "id": "10f7da77-e5d0-4424-905c-7e1e0dd01c24",
+        "id": "d5b6bfa4-6497-4c6b-8d3b-19b5621d10b2",
         "name": "Outro",
         "width": 640.0,
         "height": 360.0,
@@ -198,7 +198,7 @@
         "fps": 24.0,
         "layers": [
           {
-            "id": "ec59ef3a-27ea-4757-b11c-589b2ff483b0",
+            "id": "dd713ae1-18b2-4d0f-bea6-1d6d041981ff",
             "name": "Ebene 1",
             "visible": true,
             "locked": false,
@@ -208,7 +208,7 @@
                 "keyframe": true,
                 "objects": [
                   {
-                    "id": "8a2d269b-37ba-44d5-93fe-dfe24c3aa220",
+                    "id": "bf97f3f6-3d9d-40b4-8c1e-dc2fd0b48c1a",
                     "name": "Karte",
                     "kind": {
                       "kind": "rect",
@@ -231,7 +231,7 @@
                     }
                   },
                   {
-                    "id": "df1e8e6b-73fb-40a2-b283-f80ab0c1b287",
+                    "id": "159f75bb-d103-44f5-80fd-f980a0f47415",
                     "name": "Punkt",
                     "kind": {
                       "kind": "ellipse",
@@ -257,7 +257,7 @@
             ]
           },
           {
-            "id": "d7a035f9-ddf6-4fd3-84d2-14455f453479",
+            "id": "7b06d8ba-e78a-4847-ac64-9f55fd0ca922",
             "name": "Endcard",
             "visible": true,
             "locked": false,
@@ -362,7 +362,7 @@
     "assets": [],
     "scripts": [
       {
-        "id": "618a4362-1850-40b6-a317-9649388390af",
+        "id": "f25d72df-6ac7-4570-a6ec-b8160866ccff",
         "name": "Main.as",
         "path": "scripts/Main.as",
         "source": "package {\n    public class Main {\n        public function Main() {\n        }\n    }\n}\n",
@@ -376,6 +376,6 @@
       "includeScripts": true,
       "exportAllScenes": false
     },
-    "activeScene": "9e6d3c53-3eb2-4907-90bd-3b463ae3cf88"
+    "activeScene": "c432efaa-1ad5-4843-a070-9546c478f768"
   }
 }

@@ -116,7 +116,9 @@ Result categories: **PASS**, **FAIL**, **PARTIAL**, **NOT VERIFIED**,
 | `dist/windows/SHA256SUMS.txt` | **PASS** | EXE, ZIP and Setup hashes recorded |
 
 SHA-256 (see `dist/windows/SHA256SUMS.txt` for authoritative values):
-ZIP `18F74E5C…DC907`, Setup `A26B774B…07C0`.
+ZIP `E37D1C9F…D53D40`, Setup `E1888EC0…3593` — rebuilt after the M9.1
+AVM1/AVM2 bitmap fix described in the addendum below; earlier hashes remain
+in `SHA256SUMS.txt` history.
 
 ## Known limitations and honest gaps
 
@@ -141,3 +143,55 @@ ZIP `18F74E5C…DC907`, Setup `A26B774B…07C0`.
 - Adobe Animate open of exported `.xfl` packages.
 - UAC-denied all-users install path (unchanged from M6; headless per-user path
   verified here).
+
+## Post-report addendum (M9.1 runtime pass)
+
+After the report above was written, Ruffle Desktop 0.7.1 was located at
+`C:\Program Files\Ruffle\bin\ruffle.exe` and all six M9 demo SWFs were
+re-captured (`samples/ruffle-captures/`). This pass found and fixed one real
+runtime defect.
+
+### Defect: bitmaps invisible in AVM2-flagged SWFs under Ruffle
+
+Every `.nova` project carries the default `scripts/Main.as` stub, so every
+export was AVM2-flagged (`FileAttributes.action_script_3`) even though the ABC
+was never linked through `SymbolClass` and could not execute. Under Ruffle
+0.7.1, `DefineBitsLossless2`/`DefineBitsJPEG2` characters placed on the
+timeline rendered nothing in that state, while shapes and sprites rendered
+normally. The same file with the AS3 flag cleared rendered the bitmap
+correctly, proving the tag encoding, pixel data and placement were valid.
+
+Reproducer evidence (local captures, not committed):
+
+- `m9-bitmap-assets.swf` (AVM2): zero saturated pixels on stage.
+- Same file minus DoABC2/AS3 flag (AVM1): checkerboard visible.
+- `m9-bitmap-rect.swf`: red shape rendered, bitmap did not — isolating the
+  failure to bitmap characters only.
+
+### Fix
+
+`nova-build` now only embeds `DoABC2`/`SymbolClass` and keeps the AS3 flag
+when at least one class link exists (`symbol_links` non-empty). Scriptless or
+unlinked projects are emitted with `action_script_3 = false` and a warning
+("Keine Skript-Verknüpfung gefunden; ..."). Timeline content is identical;
+the file simply stops claiming an AVM2 runtime it cannot use. Linked AS3
+projects (e.g. `samples/as3-example.nova`) still export DoABC2 + SymbolClass
+and remain AVM2 — verified by `nova probe`.
+
+### Verification after fix
+
+- `cargo test --workspace`: all tests pass, 0 failures.
+- All six M9 SWFs re-exported and re-captured in Ruffle 0.7.1; each shows its
+  expected stage content, including the previously invisible bitmap checker
+  (`72,120,192` / `240,240,240` pixels present).
+- `samples/swf/m9-bitmap-assets.swf` probe: `DefineBitsLossless2` 64x64,
+  `w*h*4` zlib payload verified byte-exact.
+
+### Remaining honest gaps
+
+- AVM2 movies **with** linked scripts that also place bitmaps on the timeline
+  may still hit the same Ruffle 0.7.1 limitation; not separately verified.
+- Whether real Adobe Flash Player renders bitmaps in unlinked-AVM2 files is
+  unknown; the AVM1 downgrade is safe either way because the ABC was inert.
+- Audio remains structural evidence only (`DefineSound`/`StartSound` tags);
+  no audible playback check was performed.
