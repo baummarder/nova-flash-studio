@@ -82,7 +82,12 @@ try {
     # name from a code point so the folder and EXE keep the exact "NØVA" name
     # regardless of the console or script encoding.
     $productName = 'N' + [char]0x00D8 + 'VA Flash Studio'
-    $stageRoot = Join-Path $root 'dist\windows'
+    # Stage into a sibling directory so a failed build never destroys the
+    # previous release. The old dist/windows is archived (never deleted
+    # silently) and only swapped out after the new payload is complete.
+    $distDir = Join-Path $root 'dist'
+    $stageRoot = Join-Path $distDir 'windows.staging'
+    $releaseRoot = Join-Path $distDir 'windows'
     if (Test-Path -LiteralPath $stageRoot) {
         Remove-Item -LiteralPath $stageRoot -Recurse -Force
     }
@@ -147,6 +152,39 @@ try {
     }
     $checksumPath = Join-Path $stageRoot 'SHA256SUMS.txt'
     [System.IO.File]::WriteAllLines($checksumPath, $checksums, [System.Text.UTF8Encoding]::new($false))
+
+    # Record build metadata for reproducibility/traceability.
+    $buildInfo = [ordered]@{
+        product       = $productName
+        version       = $version
+        gitCommit     = (& git rev-parse HEAD 2>$null)
+        gitDirty      = [bool](& git status --porcelain 2>$null)
+        builtAtUtc    = (Get-Date).ToUniversalTime().ToString('o')
+        rustc         = ((& rustc --version 2>$null) -join ' ')
+        target        = 'x86_64-pc-windows-msvc'
+        configuration = 'release'
+        zipSha256     = if ($zipPath) { (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash } else { $null }
+        exeSha256     = $checksums[0].Split(' ')[0]
+    }
+    [System.IO.File]::WriteAllText(
+        (Join-Path $stageRoot 'BUILD-INFO.json'),
+        ($buildInfo | ConvertTo-Json),
+        [System.Text.UTF8Encoding]::new($false)
+    )
+
+    # Archive the PREVIOUS release artifacts before swapping directories.
+    # archive-releases.ps1 never deletes; it verifies checksums, copies into
+    # dist/archive/<version>/ and refuses silent overwrites.
+    & (Join-Path $PSScriptRoot 'archive-releases.ps1') -DistRoot $distDir
+    if ($LASTEXITCODE -ne 0) {
+        throw "archive-releases.ps1 failed with exit code $LASTEXITCODE; previous release left untouched in $releaseRoot"
+    }
+
+    # Swap staged payload into place. If this fails, the old release remains.
+    if (Test-Path -LiteralPath $releaseRoot) {
+        Remove-Item -LiteralPath $releaseRoot -Recurse -Force
+    }
+    Move-Item -LiteralPath $stageRoot -Destination $releaseRoot
 
     Write-Host ''
     Write-Host 'Windows package created:' -ForegroundColor Green

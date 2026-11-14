@@ -129,8 +129,8 @@ layer/mask filtering for tile colliders and the event bus, tilemap canvas
 zoom/pan/grid/collision overlay, region select/copy/paste/move/flip with
 undo, a dedicated tileset slicing dialog, tileset margins/spacing honoured
 everywhere, edit-mode particle preview, camera small-world and
-missing-target fixes, new AI ops (dd_tile_layer,
-configure_tile_layer, lip_tile_region, move_tile_region,
+missing-target fixes, new AI ops (add_tile_layer,
+configure_tile_layer, flip_tile_region, move_tile_region,
 slicing fields on create_tileset), XFL tilemap-to-bitmap export and a
 repeatable perf suite. See `docs/MEGA_MILESTONE_11_1_REPORT.md` for the
 full report and `docs/WORLD_BUILDING.md` for the current documentation.
