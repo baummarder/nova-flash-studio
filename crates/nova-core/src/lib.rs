@@ -10,7 +10,9 @@ pub mod game;
 pub mod gamekit;
 pub mod games;
 pub mod model;
+pub mod particles;
 pub mod template;
+pub mod tilemap;
 pub mod time;
 
 pub use error::{ProjectError, ProjectResult};

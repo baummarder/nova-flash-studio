@@ -17,9 +17,11 @@ pub type ProjectId = Uuid;
 pub const FORMAT_TAG: &str = "nova-flash-studio";
 /// Version 2 adds symbol timelines, bitmap placements/crops, embedded asset
 /// bytes and sound layers/cues. Version 3 adds optional game metadata
-/// (collision/physics on objects, camera/input on scenes). All additions are
-/// serde-defaulted, so version 1 and 2 documents load without data loss.
-pub const CURRENT_FORMAT_VERSION: u32 = 3;
+/// (collision/physics on objects, camera/input on scenes). Version 4 adds
+/// tilemaps/tilesets, polygon collision, particle emitters and world settings.
+/// All additions are serde-defaulted, so version 1–3 documents load without
+/// data loss.
+pub const CURRENT_FORMAT_VERSION: u32 = 4;
 
 fn now_unix() -> u64 {
     SystemTime::now()
@@ -241,6 +243,10 @@ pub struct Asset {
     pub sample_rate: u32,
     #[serde(default)]
     pub channels: u16,
+    /// Optional folder path for the asset browser ("/UI", "/Audio/SFX").
+    /// Purely organizational; references always use `id`.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub folder: String,
 }
 
 impl Asset {
@@ -257,6 +263,7 @@ impl Asset {
             duration: 0.0,
             sample_rate: 0,
             channels: 0,
+            folder: String::new(),
         }
     }
 
@@ -280,6 +287,7 @@ impl Asset {
             duration: 0.0,
             sample_rate: 0,
             channels: 0,
+            folder: String::new(),
         }
     }
 
@@ -304,6 +312,7 @@ impl Asset {
             duration,
             sample_rate,
             channels,
+            folder: String::new(),
         }
     }
 
@@ -374,6 +383,9 @@ pub struct Project {
     pub symbols: Vec<Symbol>,
     #[serde(default)]
     pub assets: Vec<Asset>,
+    /// Tilesets shared by tilemap objects (format v4).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tilesets: Vec<crate::model::Tileset>,
     #[serde(default)]
     pub scripts: Vec<Script>,
     #[serde(default)]
@@ -398,6 +410,7 @@ impl Project {
             scenes: vec![scene],
             symbols: Vec::new(),
             assets: Vec::new(),
+            tilesets: Vec::new(),
             scripts: Vec::new(),
             export: ExportConfig::default(),
             active_scene: Some(id),
@@ -804,6 +817,35 @@ impl Project {
                 ProjectError::Validation(format!("Symbol '{}': {error}", symbol.name))
             })?;
             self.validate_timeline_objects(&symbol.timeline, "Symbol", &mut seen)?;
+        }
+        let mut tileset_ids = HashSet::new();
+        for tileset in &self.tilesets {
+            if !tileset_ids.insert(tileset.id) {
+                return Err(ProjectError::Validation(format!(
+                    "Doppelte Tileset-ID: {}",
+                    tileset.id
+                )));
+            }
+            if tileset.name.trim().is_empty() {
+                return Err(ProjectError::Validation("Tileset hat keinen Namen".into()));
+            }
+            if tileset.tile_width == 0 || tileset.tile_height == 0 {
+                return Err(ProjectError::Validation(format!(
+                    "Tileset '{}' hat ungültige Kachelmaße",
+                    tileset.name
+                )));
+            }
+            // A missing bitmap asset is tolerated (the tilemap keeps its data
+            // and renders as a placeholder), but a referenced asset of the
+            // wrong kind is a real authoring error.
+            if let Some(asset) = self.assets.iter().find(|a| a.id == tileset.asset) {
+                if asset.kind != AssetKind::Bitmap {
+                    return Err(ProjectError::Validation(format!(
+                        "Tileset '{}' referenziert ein Nicht-Bitmap-Asset",
+                        tileset.name
+                    )));
+                }
+            }
         }
         // Nested symbols must not form cycles. A cycle cannot be exported as a
         // finite DefineSprite graph and would hang both editor preview and
@@ -1358,8 +1400,12 @@ mod tests {
                 right: 800.0,
                 bottom: 600.0,
                 zoom: 1.5,
+                follow_smoothing: 0.0,
+                dead_zone: (0.0, 0.0),
+                shake: 0.0,
             }),
             transitions: Vec::new(),
+            world: None,
             input: Some(crate::model::InputBindings {
                 left: "A".into(),
                 right: "D".into(),
@@ -1375,6 +1421,7 @@ mod tests {
                 shape: crate::model::CollisionShape::Circle,
                 width: 24.0,
                 height: 24.0,
+                ..Default::default()
             }),
             physics: Some(crate::model::PhysicsSpec {
                 body: crate::model::BodyType::Dynamic,
@@ -1391,7 +1438,7 @@ mod tests {
         let object = &loaded_scene.layers[0].frames[0].objects[0];
         let game = object.game.as_ref().expect("game config preserved");
         assert_eq!(
-            game.collision.unwrap().shape,
+            game.collision.as_ref().unwrap().shape,
             crate::model::CollisionShape::Circle
         );
         assert!(game.physics.unwrap().controlled);

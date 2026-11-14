@@ -303,6 +303,51 @@ fn game_scene_properties(ui: &mut Ui, project: &mut Project, state: &mut AppStat
                         .changed();
                     ui.end_row();
 
+                    ui.label("Glättung");
+                    changed |= ui
+                        .add(
+                            egui::DragValue::new(&mut camera.follow_smoothing)
+                                .range(0.0..=1.0)
+                                .speed(0.02)
+                                .suffix(" s"),
+                        )
+                        .on_hover_text("0 = sofort, 1 = maximale Verzögerung")
+                        .changed();
+                    ui.end_row();
+
+                    ui.label("Totzone");
+                    ui.horizontal(|ui| {
+                        changed |= ui
+                            .add(
+                                egui::DragValue::new(&mut camera.dead_zone.0)
+                                    .range(0.0..=2000.0)
+                                    .speed(1.0)
+                                    .suffix(" px"),
+                            )
+                            .changed();
+                        changed |= ui
+                            .add(
+                                egui::DragValue::new(&mut camera.dead_zone.1)
+                                    .range(0.0..=2000.0)
+                                    .speed(1.0)
+                                    .suffix(" px"),
+                            )
+                            .changed();
+                    });
+                    ui.end_row();
+
+                    ui.label("Shake");
+                    changed |= ui
+                        .add(
+                            egui::DragValue::new(&mut camera.shake)
+                                .range(0.0..=200.0)
+                                .speed(0.5)
+                                .suffix(" px"),
+                        )
+                        .on_hover_text("Maximale Kamerawackelung in px (ereignisgesteuert)")
+                        .changed();
+                    ui.end_row();
+
                     for (label, field) in [
                         ("Links", &mut camera.left),
                         ("Oben", &mut camera.top),
@@ -349,6 +394,68 @@ fn game_scene_properties(ui: &mut Ui, project: &mut Project, state: &mut AppStat
                         changed |= ui.text_edit_singleline(field).changed();
                         ui.end_row();
                     }
+                });
+        }
+
+        // World -----------------------------------------------------------------
+        ui.add_space(4.0);
+        theme::section(ui, "Welt");
+        let mut world_enabled = game.world.is_some();
+        if ui
+            .checkbox(&mut world_enabled, "Weltgrenzen")
+            .on_hover_text("Begrenzt die Spielwelt und legt den Spawnpunkt fest")
+            .changed()
+        {
+            game.world = if world_enabled {
+                Some(nova_core::WorldConfig::default())
+            } else {
+                None
+            };
+            changed = true;
+        }
+        if let Some(world) = game.world.as_mut() {
+            egui::Grid::new("game_world_grid")
+                .num_columns(2)
+                .spacing(egui::vec2(8.0, 6.0))
+                .show(ui, |ui| {
+                    ui.label("Breite");
+                    changed |= ui
+                        .add(
+                            egui::DragValue::new(&mut world.width)
+                                .range(0.0..=100_000.0)
+                                .speed(1.0)
+                                .suffix(" px"),
+                        )
+                        .changed();
+                    ui.end_row();
+                    ui.label("Höhe");
+                    changed |= ui
+                        .add(
+                            egui::DragValue::new(&mut world.height)
+                                .range(0.0..=100_000.0)
+                                .speed(1.0)
+                                .suffix(" px"),
+                        )
+                        .changed();
+                    ui.end_row();
+                    ui.label("Spawn X");
+                    changed |= ui
+                        .add(
+                            egui::DragValue::new(&mut world.spawn.0)
+                                .speed(1.0)
+                                .suffix(" px"),
+                        )
+                        .changed();
+                    ui.end_row();
+                    ui.label("Spawn Y");
+                    changed |= ui
+                        .add(
+                            egui::DragValue::new(&mut world.spawn.1)
+                                .speed(1.0)
+                                .suffix(" px"),
+                        )
+                        .changed();
+                    ui.end_row();
                 });
         }
 
@@ -891,6 +998,7 @@ fn object_properties(
         _ => None,
     };
     let mut game_cfg = instance.game.clone();
+    let mut particles = instance.particles.clone();
     let mut changed = false;
 
     egui::Grid::new("object_grid")
@@ -1258,6 +1366,37 @@ fn object_properties(
                     .color(theme::TEXT_FAINT),
             );
         }
+        ObjectKind::Tilemap(map) => {
+            let tileset_name = project
+                .tilesets
+                .iter()
+                .find(|t| t.id == map.tileset)
+                .map(|t| t.name.clone())
+                .unwrap_or_else(|| "(fehlender Tileset)".into());
+            egui::Grid::new("tilemap_grid")
+                .num_columns(2)
+                .spacing(egui::vec2(8.0, 6.0))
+                .show(ui, |ui| {
+                    for (label, value) in [
+                        ("Tileset", tileset_name.as_str()),
+                        (
+                            "Kachel",
+                            &format!("{}×{}", map.tile_width, map.tile_height)[..],
+                        ),
+                        ("Raster", &format!("{}×{}", map.columns, map.rows)[..]),
+                        ("Ebenen", &format!("{}", map.layers.len())[..]),
+                    ] {
+                        ui.label(label);
+                        ui.label(RichText::new(value).small().color(theme::TEXT_DIM));
+                        ui.end_row();
+                    }
+                });
+            ui.label(
+                RichText::new("Kacheln werden im Kachel-Editor (unterer Tab) gemalt.")
+                    .small()
+                    .color(theme::TEXT_FAINT),
+            );
+        }
     }
 
     // Game components ---------------------------------------------------
@@ -1297,25 +1436,91 @@ fn object_properties(
                 .show(ui, |ui| {
                     ui.label("Form");
                     egui::ComboBox::from_id_salt("game_collision_shape")
-                        .selected_text(match collision.shape {
+                        .selected_text(match &collision.shape {
                             nova_core::CollisionShape::Rectangle => "Rechteck",
                             nova_core::CollisionShape::Circle => "Kreis",
+                            nova_core::CollisionShape::Polygon { .. } => "Polygon",
                         })
                         .show_ui(ui, |ui| {
                             for (shape, label) in [
                                 (nova_core::CollisionShape::Rectangle, "Rechteck"),
                                 (nova_core::CollisionShape::Circle, "Kreis"),
+                                (
+                                    nova_core::CollisionShape::Polygon { points: Vec::new() },
+                                    "Polygon",
+                                ),
                             ] {
                                 if ui
                                     .selectable_label(collision.shape == shape, label)
                                     .clicked()
                                 {
-                                    collision.shape = shape;
+                                    collision.shape = if matches!(
+                                        shape,
+                                        nova_core::CollisionShape::Polygon { .. }
+                                    ) {
+                                        // Seed a convex hexagon; points are editable below.
+                                        nova_core::CollisionShape::Polygon {
+                                            points: vec![
+                                                (-0.5, -0.5),
+                                                (0.5, -0.5),
+                                                (0.5, 0.0),
+                                                (0.5, 0.5),
+                                                (-0.5, 0.5),
+                                                (-0.5, 0.0),
+                                            ]
+                                            .into_iter()
+                                            .map(|(px, py)| {
+                                                (
+                                                    px * collision.width.max(8.0),
+                                                    py * collision.height.max(8.0),
+                                                )
+                                            })
+                                            .collect(),
+                                        }
+                                    } else {
+                                        shape
+                                    };
                                     changed = true;
                                 }
                             }
                         });
                     ui.end_row();
+                    // Polygon point editor (relative coords, max 32 points).
+                    if let nova_core::CollisionShape::Polygon { points } = &mut collision.shape {
+                        let mut i = 0;
+                        while i < points.len().min(32) {
+                            ui.label(format!("Pkt {}", i + 1));
+                            ui.horizontal(|ui| {
+                                changed |= ui
+                                    .add(egui::DragValue::new(&mut points[i].0).speed(1.0))
+                                    .changed();
+                                changed |= ui
+                                    .add(egui::DragValue::new(&mut points[i].1).speed(1.0))
+                                    .changed();
+                            });
+                            ui.end_row();
+                            i += 1;
+                        }
+                        if points.len() > 32 {
+                            ui.label(
+                                RichText::new("…weitere Punkte")
+                                    .small()
+                                    .color(theme::TEXT_FAINT),
+                            );
+                            ui.end_row();
+                        }
+                        ui.horizontal(|ui| {
+                            if ui.small_button("+ Punkt").clicked() && points.len() < 64 {
+                                points.push((0.0, 0.0));
+                                changed = true;
+                            }
+                            if ui.small_button("- Punkt").clicked() && points.len() > 3 {
+                                points.pop();
+                                changed = true;
+                            }
+                        });
+                        ui.end_row();
+                    }
                     ui.label("Breite");
                     changed |= ui
                         .add(
@@ -1334,6 +1539,26 @@ fn object_properties(
                                 .speed(1.0)
                                 .suffix(" px"),
                         )
+                        .changed();
+                    ui.end_row();
+                    ui.label("Ebene");
+                    changed |= ui
+                        .add(
+                            egui::DragValue::new(&mut collision.layer)
+                                .range(1..=31)
+                                .speed(0.1),
+                        )
+                        .on_hover_text("Kollisionskategorie 1–31")
+                        .changed();
+                    ui.end_row();
+                    ui.label("Maske");
+                    changed |= ui
+                        .add(
+                            egui::DragValue::new(&mut collision.mask)
+                                .speed(1.0)
+                                .hexadecimal(16, false, false),
+                        )
+                        .on_hover_text("Bitmaske: mit welchen Ebenen kollidiert wird")
                         .changed();
                     ui.end_row();
                 });
@@ -1412,6 +1637,160 @@ fn object_properties(
         );
     }
 
+    // Particles ---------------------------------------------------------
+    ui.add_space(4.0);
+    theme::section(ui, "Partikel");
+    let mut has_particles = particles.is_some();
+    if ui
+        .checkbox(&mut has_particles, "Partikelemitter")
+        .on_hover_text("Gibt in der Spiel-Vorschau Partikel ab (nur Preview, nicht im SWF)")
+        .changed()
+    {
+        particles = if has_particles {
+            Some(nova_core::ParticleEmitter::default())
+        } else {
+            None
+        };
+        changed = true;
+    }
+    if let Some(emitter) = particles.as_mut() {
+        egui::Grid::new("particle_grid")
+            .num_columns(2)
+            .spacing(egui::vec2(8.0, 6.0))
+            .show(ui, |ui| {
+                ui.label("Preset");
+                egui::ComboBox::from_id_salt("particle_preset")
+                    .selected_text(emitter.preset.label())
+                    .show_ui(ui, |ui| {
+                        for preset in nova_core::ParticlePreset::ALL {
+                            if ui
+                                .selectable_label(emitter.preset == preset, preset.label())
+                                .clicked()
+                            {
+                                *emitter = nova_core::ParticleEmitter::preset(preset);
+                                changed = true;
+                            }
+                        }
+                    });
+                ui.end_row();
+                for (label, value, range, speed) in [
+                    ("Rate", &mut emitter.rate, 0.0..=1000.0f32, 1.0),
+                    ("Schwerkraft", &mut emitter.gravity, -1000.0..=1000.0, 5.0),
+                    ("Reibung", &mut emitter.drag, 0.0..=10.0, 0.05),
+                ] {
+                    ui.label(label);
+                    changed |= ui
+                        .add(
+                            egui::DragValue::new(value)
+                                .range(range)
+                                .speed(speed)
+                                .max_decimals(2),
+                        )
+                        .changed();
+                    ui.end_row();
+                }
+                ui.label("Burst");
+                changed |= ui
+                    .add(
+                        egui::DragValue::new(&mut emitter.burst)
+                            .range(0..=1000)
+                            .speed(1),
+                    )
+                    .changed();
+                ui.end_row();
+                ui.label("Max");
+                changed |= ui
+                    .add(
+                        egui::DragValue::new(&mut emitter.max_particles)
+                            .range(1..=100_000)
+                            .speed(10),
+                    )
+                    .changed();
+                ui.end_row();
+                ui.label("Lebensdauer");
+                ui.horizontal(|ui| {
+                    changed |= ui
+                        .add(
+                            egui::DragValue::new(&mut emitter.lifetime.0)
+                                .range(0.01..=60.0)
+                                .speed(0.05),
+                        )
+                        .changed();
+                    ui.label("–");
+                    changed |= ui
+                        .add(
+                            egui::DragValue::new(&mut emitter.lifetime.1)
+                                .range(0.01..=60.0)
+                                .speed(0.05),
+                        )
+                        .changed();
+                });
+                ui.end_row();
+                ui.label("Tempo");
+                ui.horizontal(|ui| {
+                    changed |= ui
+                        .add(
+                            egui::DragValue::new(&mut emitter.speed.0)
+                                .range(0.0..=2000.0)
+                                .speed(1.0),
+                        )
+                        .changed();
+                    ui.label("–");
+                    changed |= ui
+                        .add(
+                            egui::DragValue::new(&mut emitter.speed.1)
+                                .range(0.0..=2000.0)
+                                .speed(1.0),
+                        )
+                        .changed();
+                });
+                ui.end_row();
+                ui.label("Richtung");
+                changed |= ui
+                    .add(
+                        egui::DragValue::new(&mut emitter.direction)
+                            .range(-360.0..=360.0)
+                            .speed(1.0)
+                            .suffix(" °"),
+                    )
+                    .changed();
+                ui.end_row();
+                ui.label("Streuung");
+                changed |= ui
+                    .add(
+                        egui::DragValue::new(&mut emitter.spread)
+                            .range(0.0..=360.0)
+                            .speed(1.0)
+                            .suffix(" °"),
+                    )
+                    .changed();
+                ui.end_row();
+                ui.label("Raum");
+                egui::ComboBox::from_id_salt("particle_space")
+                    .selected_text(match emitter.space {
+                        nova_core::ParticleSpace::Local => "Lokal (folgt Objekt)",
+                        nova_core::ParticleSpace::World => "Welt (bleibt stehen)",
+                    })
+                    .show_ui(ui, |ui| {
+                        for (space, label) in [
+                            (nova_core::ParticleSpace::Local, "Lokal (folgt Objekt)"),
+                            (nova_core::ParticleSpace::World, "Welt (bleibt stehen)"),
+                        ] {
+                            if ui.selectable_label(emitter.space == space, label).clicked() {
+                                emitter.space = space;
+                                changed = true;
+                            }
+                        }
+                    });
+                ui.end_row();
+            });
+        ui.label(
+            RichText::new("Deterministische Simulation in der Vorschau; keine SWF-Ausgabe.")
+                .small()
+                .color(theme::TEXT_FAINT),
+        );
+    }
+
     // Script link ------------------------------------------------------
     ui.add_space(4.0);
     theme::section(ui, "Skript");
@@ -1473,6 +1852,7 @@ fn object_properties(
                 crop: bitmap_crop,
             },
             ObjectKind::Text(_) => ObjectKind::Text(text),
+            ObjectKind::Tilemap(map) => ObjectKind::Tilemap(map.clone()),
         };
         if let Some(scene) = project.edit_scene_mut(state.edit_symbol) {
             if let Some(object) = util::governing_object_mut(scene, layer_id, state.frame, id) {
@@ -1486,6 +1866,7 @@ fn object_properties(
                 object.kind = kind;
                 object.script = script;
                 object.game = game_cfg;
+                object.particles = particles;
             }
         }
         project.touch();

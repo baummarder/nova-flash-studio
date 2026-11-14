@@ -266,6 +266,9 @@ pub enum ProjectOperation {
         camera: Option<nova_core::CameraConfig>,
         #[serde(default)]
         input: Option<nova_core::InputBindings>,
+        /// Optional world bounds/spawn (level editor data, format v4).
+        #[serde(default)]
+        world: Option<nova_core::WorldConfig>,
         #[serde(default)]
         clear: bool,
     },
@@ -285,6 +288,287 @@ pub enum ProjectOperation {
         #[serde(default)]
         remove: bool,
     },
+    /// Creates a tileset over an existing bitmap asset (format v4).
+    CreateTileset {
+        name: String,
+        /// Name of an existing embedded bitmap asset.
+        asset: String,
+        tile_width: u32,
+        tile_height: u32,
+        /// 0-based tile indices that act as solid collision.
+        #[serde(default)]
+        solid_tiles: Vec<usize>,
+        /// Optional display names per tile index.
+        #[serde(default)]
+        tile_names: Vec<String>,
+    },
+    /// Places a tilemap object on a scene layer.
+    CreateTilemap {
+        name: String,
+        /// Tileset name from `create_tileset`.
+        tileset: String,
+        columns: usize,
+        rows: usize,
+        x: f32,
+        y: f32,
+        #[serde(default)]
+        scene: Option<String>,
+        #[serde(default)]
+        layer: Option<String>,
+    },
+    /// Resizes/retiles an existing tilemap object.
+    ModifyTilemap {
+        object: String,
+        #[serde(default)]
+        scene: Option<String>,
+        #[serde(default)]
+        columns: Option<usize>,
+        #[serde(default)]
+        rows: Option<usize>,
+        #[serde(default)]
+        tile_width: Option<f32>,
+        #[serde(default)]
+        tile_height: Option<f32>,
+        #[serde(default)]
+        tileset: Option<String>,
+    },
+    /// Paints cells on one tile layer of a tilemap object.
+    PaintTiles {
+        object: String,
+        /// Tile layer index (0-based).
+        layer: usize,
+        tool: nova_core::tilemap::PaintTool,
+        x0: i32,
+        y0: i32,
+        x1: i32,
+        y1: i32,
+        /// 1-based tile index (0 = empty).
+        #[serde(default)]
+        tile: u16,
+        /// Replace tool: source tile (1-based, 0 = empty).
+        #[serde(default)]
+        from: u16,
+        /// Replace tool: target tile (1-based, 0 = empty).
+        #[serde(default)]
+        to: u16,
+        #[serde(default)]
+        scene: Option<String>,
+    },
+    /// Sets, updates or clears an object's collision shape (rect, circle or
+    /// validated polygon) including layer/mask bits.
+    CreateCollisionShape {
+        object: String,
+        #[serde(default)]
+        scene: Option<String>,
+        shape: nova_core::CollisionShape,
+        #[serde(default)]
+        width: Option<f32>,
+        #[serde(default)]
+        height: Option<f32>,
+        #[serde(default)]
+        layer: Option<u32>,
+        #[serde(default)]
+        mask: Option<u32>,
+        #[serde(default)]
+        remove: bool,
+    },
+    /// Merges camera settings into a scene's game configuration.
+    ModifyCamera {
+        #[serde(default)]
+        scene: Option<String>,
+        #[serde(default)]
+        enabled: Option<bool>,
+        #[serde(default)]
+        follow: Option<String>,
+        #[serde(default)]
+        left: Option<f32>,
+        #[serde(default)]
+        top: Option<f32>,
+        #[serde(default)]
+        right: Option<f32>,
+        #[serde(default)]
+        bottom: Option<f32>,
+        #[serde(default)]
+        zoom: Option<f32>,
+        #[serde(default)]
+        smoothing: Option<f32>,
+        #[serde(default)]
+        dead_zone: Option<(f32, f32)>,
+        #[serde(default)]
+        shake: Option<f32>,
+    },
+    /// Creates (or replaces) a particle emitter on an object.
+    CreateParticleEmitter {
+        object: String,
+        #[serde(default)]
+        scene: Option<String>,
+        #[serde(default)]
+        preset: Option<nova_core::ParticlePreset>,
+        #[serde(default)]
+        rate: Option<f32>,
+        #[serde(default)]
+        burst: Option<u32>,
+        #[serde(default)]
+        lifetime: Option<(f32, f32)>,
+        #[serde(default)]
+        speed: Option<(f32, f32)>,
+        #[serde(default)]
+        direction: Option<f32>,
+        #[serde(default)]
+        spread: Option<f32>,
+        #[serde(default)]
+        gravity: Option<f32>,
+        #[serde(default)]
+        drag: Option<f32>,
+        #[serde(default)]
+        max_particles: Option<u32>,
+        #[serde(default)]
+        space: Option<nova_core::ParticleSpace>,
+        #[serde(default)]
+        remove: bool,
+    },
+    /// Modifies an existing particle emitter; fails when none exists.
+    ConfigureParticleEmitter {
+        object: String,
+        #[serde(default)]
+        scene: Option<String>,
+        #[serde(default)]
+        preset: Option<nova_core::ParticlePreset>,
+        #[serde(default)]
+        rate: Option<f32>,
+        #[serde(default)]
+        burst: Option<u32>,
+        #[serde(default)]
+        lifetime: Option<(f32, f32)>,
+        #[serde(default)]
+        speed: Option<(f32, f32)>,
+        #[serde(default)]
+        direction: Option<f32>,
+        #[serde(default)]
+        spread: Option<f32>,
+        #[serde(default)]
+        gravity: Option<f32>,
+        #[serde(default)]
+        drag: Option<f32>,
+        #[serde(default)]
+        max_particles: Option<u32>,
+        #[serde(default)]
+        space: Option<nova_core::ParticleSpace>,
+    },
+    /// Adds a folder layer for grouping level objects (layer-level groups;
+    /// persistent nested object groups are not part of the format).
+    CreateLevelGroup {
+        name: String,
+        #[serde(default)]
+        scene: Option<String>,
+    },
+    /// Places a rectangle game object with optional collision/physics in one
+    /// step (convenience over `add_object` + `set_game_object`).
+    PlaceGameObject {
+        name: String,
+        x: f32,
+        y: f32,
+        width: f32,
+        height: f32,
+        #[serde(default)]
+        fill: Option<String>,
+        #[serde(default)]
+        scene: Option<String>,
+        #[serde(default)]
+        layer: Option<String>,
+        #[serde(default)]
+        collision: Option<nova_core::CollisionSpec>,
+        #[serde(default)]
+        physics: Option<nova_core::PhysicsSpec>,
+    },
+    /// Imports a workspace asset, detecting bitmap vs audio by extension.
+    ImportProjectAsset {
+        name: Option<String>,
+        path: String,
+    },
+    /// Builds a small playable level in one transaction: scene (created when
+    /// missing), world bounds + spawn, tileset, tilemap with painted strokes,
+    /// placed game objects and camera follow.
+    CreateGameLevel {
+        scene: String,
+        #[serde(default)]
+        world_width: Option<f32>,
+        #[serde(default)]
+        world_height: Option<f32>,
+        #[serde(default)]
+        spawn: Option<(f32, f32)>,
+        #[serde(default)]
+        tileset: Option<LevelTileset>,
+        #[serde(default)]
+        tilemap: Option<LevelTilemap>,
+        #[serde(default)]
+        objects: Vec<LevelObject>,
+        #[serde(default)]
+        camera_follow: Option<String>,
+    },
+}
+
+/// Tileset description inside [`ProjectOperation::CreateGameLevel`].
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LevelTileset {
+    /// Existing bitmap asset name.
+    pub asset: String,
+    pub name: String,
+    pub tile_width: u32,
+    pub tile_height: u32,
+    #[serde(default)]
+    pub solid_tiles: Vec<usize>,
+}
+
+/// Tilemap description inside [`ProjectOperation::CreateGameLevel`].
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LevelTilemap {
+    pub name: String,
+    /// Tileset name created by the same operation.
+    pub tileset: String,
+    pub columns: usize,
+    pub rows: usize,
+    pub x: f32,
+    pub y: f32,
+    /// Painted strokes applied after creation (pencil/rect/flood/replace).
+    #[serde(default)]
+    pub strokes: Vec<LevelStroke>,
+}
+
+/// One paint stroke inside [`LevelTilemap`].
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LevelStroke {
+    pub tool: nova_core::tilemap::PaintTool,
+    pub x0: i32,
+    pub y0: i32,
+    pub x1: i32,
+    pub y1: i32,
+    #[serde(default)]
+    pub tile: u16,
+    #[serde(default)]
+    pub layer: usize,
+}
+
+/// One placed object inside [`ProjectOperation::CreateGameLevel`].
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LevelObject {
+    pub name: String,
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+    #[serde(default)]
+    pub fill: Option<String>,
+    #[serde(default)]
+    pub collision: Option<nova_core::CollisionSpec>,
+    #[serde(default)]
+    pub physics: Option<nova_core::PhysicsSpec>,
+    #[serde(default)]
+    pub particle_preset: Option<nova_core::ParticlePreset>,
 }
 
 #[derive(Debug, thiserror::Error, Clone, PartialEq, Eq)]
@@ -1252,7 +1536,7 @@ fn apply_one(
                             "Kollisionsausmaße müssen positive endliche Zahlen sein.",
                         ));
                     }
-                    config.collision = Some(*spec);
+                    config.collision = Some(spec.clone());
                 }
                 if *no_physics {
                     config.physics = None;
@@ -1281,11 +1565,12 @@ fn apply_one(
             scene,
             camera,
             input,
+            world,
             clear,
         } => {
-            if camera.is_none() && input.is_none() && !clear {
+            if camera.is_none() && input.is_none() && world.is_none() && !clear {
                 return Err(OperationError::invalid(
-                    "SetSceneGame benötigt mindestens camera, input oder clear.",
+                    "SetSceneGame benötigt mindestens camera, input, world oder clear.",
                 ));
             }
             let scene = scene_mut(project, scene.as_deref())?;
@@ -1323,6 +1608,22 @@ fn apply_one(
                         }
                     }
                     config.input = Some(input.clone());
+                }
+                if let Some(world) = world {
+                    if !world.width.is_finite()
+                        || !world.height.is_finite()
+                        || world.width < 0.0
+                        || world.height < 0.0
+                        || world.width > 1_000_000.0
+                        || world.height > 1_000_000.0
+                        || !world.spawn.0.is_finite()
+                        || !world.spawn.1.is_finite()
+                    {
+                        return Err(OperationError::invalid(
+                            "Weltmaße und Spawn müssen endliche, nicht-negative Werte sein.",
+                        ));
+                    }
+                    config.world = Some(world.clone());
                 }
                 scene.game = Some(config);
             }
@@ -1390,7 +1691,971 @@ fn apply_one(
                 "Szene-Transition '{key}' in Szene '{scene_name}' aktualisiert"
             ))
         }
+        ProjectOperation::CreateTileset {
+            name,
+            asset,
+            tile_width,
+            tile_height,
+            solid_tiles,
+            tile_names,
+        } => {
+            let name = validate_asset_name(name)?;
+            if project.tilesets.iter().any(|t| t.name == name) {
+                return Err(OperationError::invalid(format!(
+                    "Ein Tileset namens '{name}' existiert bereits."
+                )));
+            }
+            let asset_ref = project
+                .assets
+                .iter()
+                .find(|a| a.name == asset.trim())
+                .ok_or_else(|| {
+                    OperationError::invalid(format!("Asset '{}' existiert nicht.", asset.trim()))
+                })?;
+            if asset_ref.kind != AssetKind::Bitmap || !asset_ref.is_embedded() {
+                return Err(OperationError::invalid(format!(
+                    "Asset '{}' ist kein eingebettetes Bitmap.",
+                    asset_ref.name
+                )));
+            }
+            let (asset_id, asset_name, asset_w, asset_h) = (
+                asset_ref.id,
+                asset_ref.name.clone(),
+                asset_ref.width,
+                asset_ref.height,
+            );
+            if *tile_width == 0 || *tile_height == 0 || *tile_width > 512 || *tile_height > 512 {
+                return Err(OperationError::invalid(
+                    "Kachelgröße muss zwischen 1 und 512 px liegen.",
+                ));
+            }
+            let tile_count = nova_core::tilemap::tileset_tile_count(
+                &nova_core::Tileset {
+                    tile_width: *tile_width,
+                    tile_height: *tile_height,
+                    columns: nova_core::tilemap::tileset_columns(asset_w, *tile_width),
+                    ..Default::default()
+                },
+                asset_w,
+                asset_h,
+            );
+            if tile_count == 0 {
+                return Err(OperationError::invalid(format!(
+                    "Asset '{}' ist zu klein für {}×{}-Kacheln.",
+                    asset_name, tile_width, tile_height
+                )));
+            }
+            for index in solid_tiles {
+                if *index >= tile_count {
+                    return Err(OperationError::invalid(format!(
+                        "Solid-Kachel {index} liegt außerhalb von 0..{}",
+                        tile_count - 1
+                    )));
+                }
+            }
+            let mut solid = vec![false; tile_count];
+            for index in solid_tiles {
+                solid[*index] = true;
+            }
+            let mut names = vec![String::new(); tile_count];
+            for (index, tile_name) in tile_names.iter().enumerate() {
+                if index >= tile_count {
+                    break;
+                }
+                names[index] = tile_name.trim().chars().take(80).collect();
+            }
+            project.tilesets.push(nova_core::Tileset {
+                name: name.clone(),
+                asset: asset_id,
+                tile_width: *tile_width,
+                tile_height: *tile_height,
+                columns: nova_core::tilemap::tileset_columns(asset_w, *tile_width),
+                solid,
+                names,
+                ..Default::default()
+            });
+            project.touch();
+            Ok(format!(
+                "Tileset '{name}' erstellt ({tile_count} Kacheln aus '{}')",
+                asset_name
+            ))
+        }
+        ProjectOperation::CreateTilemap {
+            name,
+            tileset,
+            columns,
+            rows,
+            x,
+            y,
+            scene,
+            layer,
+        } => {
+            let name = name.trim();
+            if name.is_empty() || name.chars().count() > 120 {
+                return Err(OperationError::invalid(
+                    "Kachelkartenname muss 1 bis 120 Zeichen enthalten.",
+                ));
+            }
+            if !x.is_finite() || !y.is_finite() {
+                return Err(OperationError::invalid("Position muss endlich sein."));
+            }
+            if *columns == 0 || *rows == 0 || *columns > 512 || *rows > 512 {
+                return Err(OperationError::invalid(
+                    "Raster muss zwischen 1×1 und 512×512 Kacheln liegen.",
+                ));
+            }
+            let tileset = project
+                .tilesets
+                .iter()
+                .find(|t| t.name == tileset.trim())
+                .ok_or_else(|| {
+                    OperationError::invalid(format!(
+                        "Tileset '{}' existiert nicht (create_tileset).",
+                        tileset.trim()
+                    ))
+                })?;
+            let (tileset_id, tile_w, tile_h) = (
+                tileset.id,
+                tileset.tile_width as f32,
+                tileset.tile_height as f32,
+            );
+            let map = nova_core::tilemap::new_tilemap(
+                tileset_id,
+                tile_w,
+                tile_h,
+                *columns,
+                *rows,
+                &["Ebene 1"],
+            );
+            let object = ObjectInstance::new(
+                name,
+                nova_core::ObjectKind::Tilemap(map),
+                nova_core::Transform::at(*x, *y),
+                Rgba::WHITE,
+            );
+            let layer_name =
+                insert_object(project, scene.as_deref(), None, layer.as_deref(), object)?;
+            project.touch();
+            Ok(format!(
+                "Kachelkarte '{name}' ({columns}×{rows}) in Ebene '{layer_name}' platziert"
+            ))
+        }
+        ProjectOperation::ModifyTilemap {
+            object,
+            scene,
+            columns,
+            rows,
+            tile_width,
+            tile_height,
+            tileset,
+        } => {
+            let tileset_id = if let Some(t) = tileset {
+                Some(
+                    project
+                        .tilesets
+                        .iter()
+                        .find(|ts| ts.name == t.trim())
+                        .ok_or_else(|| {
+                            OperationError::invalid(format!(
+                                "Tileset '{}' existiert nicht.",
+                                t.trim()
+                            ))
+                        })?
+                        .id,
+                )
+            } else {
+                None
+            };
+            let scene = scene_mut(project, scene.as_deref())?;
+            let needle = object.trim();
+            let (li, fi, oi) = find_object_indices(scene, needle)?;
+            let target = &mut scene.layers[li].frames[fi].objects[oi];
+            let nova_core::ObjectKind::Tilemap(map) = &mut target.kind else {
+                return Err(OperationError::invalid(format!(
+                    "Objekt '{needle}' ist keine Kachelkarte."
+                )));
+            };
+            if let Some(id) = tileset_id {
+                map.tileset = id;
+            }
+            if let Some(w) = tile_width {
+                if !w.is_finite() || *w <= 0.0 || *w > 512.0 {
+                    return Err(OperationError::invalid("Kachelbreite ungültig."));
+                }
+                map.tile_width = *w;
+            }
+            if let Some(h) = tile_height {
+                if !h.is_finite() || *h <= 0.0 || *h > 512.0 {
+                    return Err(OperationError::invalid("Kachelhöhe ungültig."));
+                }
+                map.tile_height = *h;
+            }
+            if columns.is_some() || rows.is_some() {
+                let new_cols = columns.unwrap_or(map.columns);
+                let new_rows = rows.unwrap_or(map.rows);
+                if new_cols == 0 || new_rows == 0 || new_cols > 1024 || new_rows > 1024 {
+                    return Err(OperationError::invalid(
+                        "Raster muss zwischen 1×1 und 1024×1024 liegen.",
+                    ));
+                }
+                nova_core::tilemap::resize(map, new_cols, new_rows);
+            }
+            map.normalize();
+            project.touch();
+            Ok(format!("Kachelkarte '{needle}' aktualisiert"))
+        }
+        ProjectOperation::PaintTiles {
+            object,
+            layer,
+            tool,
+            x0,
+            y0,
+            x1,
+            y1,
+            tile,
+            from,
+            to,
+            scene,
+        } => {
+            let scene = scene_mut(project, scene.as_deref())?;
+            let needle = object.trim();
+            let (li, fi, oi) = find_object_indices(scene, needle)?;
+            let target = &mut scene.layers[li].frames[fi].objects[oi];
+            let nova_core::ObjectKind::Tilemap(map) = &mut target.kind else {
+                return Err(OperationError::invalid(format!(
+                    "Objekt '{needle}' ist keine Kachelkarte."
+                )));
+            };
+            if *layer >= map.layers.len() {
+                return Err(OperationError::invalid(format!(
+                    "Kachelebene {layer} existiert nicht (0..{}).",
+                    map.layers.len().saturating_sub(1)
+                )));
+            }
+            let changed = nova_core::tilemap::paint(
+                map, *layer, *tool, *x0, *y0, *x1, *y1, *tile, *from, *to,
+            )
+            .map_err(OperationError::invalid)?;
+            project.touch();
+            Ok(format!(
+                "{changed} Zellen auf '{needle}' Ebene {layer} gemalt"
+            ))
+        }
+        ProjectOperation::CreateCollisionShape {
+            object,
+            scene,
+            shape,
+            width,
+            height,
+            layer: col_layer,
+            mask,
+            remove,
+        } => {
+            let scene = scene_mut(project, scene.as_deref())?;
+            let needle = object.trim();
+            let (li, fi, oi) = find_object_indices(scene, needle)?;
+            let target = &mut scene.layers[li].frames[fi].objects[oi];
+            if *remove {
+                if let Some(game) = target.game.as_mut() {
+                    game.collision = None;
+                }
+                project.touch();
+                return Ok(format!("Kollision von '{needle}' entfernt"));
+            }
+            // Validate polygon geometry: >=3 points, finite, sane extents.
+            if let nova_core::CollisionShape::Polygon { points } = shape {
+                if points.len() < 3 || points.len() > 64 {
+                    return Err(OperationError::invalid("Polygon braucht 3 bis 64 Punkte."));
+                }
+                let mut min_x = f32::INFINITY;
+                let mut min_y = f32::INFINITY;
+                let mut max_x = f32::NEG_INFINITY;
+                let mut max_y = f32::NEG_INFINITY;
+                for (px, py) in points {
+                    if !px.is_finite()
+                        || !py.is_finite()
+                        || px.abs() > 100_000.0
+                        || py.abs() > 100_000.0
+                    {
+                        return Err(OperationError::invalid(
+                            "Polygonpunkte müssen endliche Koordinaten < 100000 haben.",
+                        ));
+                    }
+                    min_x = min_x.min(*px);
+                    min_y = min_y.min(*py);
+                    max_x = max_x.max(*px);
+                    max_y = max_y.max(*py);
+                }
+                if max_x - min_x < 0.5 || max_y - min_y < 0.5 {
+                    return Err(OperationError::invalid(
+                        "Polygon ist degeneriert (Bounding-Box zu klein).",
+                    ));
+                }
+            }
+            let w = width.unwrap_or_else(|| match shape {
+                nova_core::CollisionShape::Polygon { points } => {
+                    let xs: Vec<f32> = points.iter().map(|p| p.0).collect();
+                    xs.iter().fold(0.0f32, |a, b| a.max(*b))
+                        - xs.iter().fold(0.0f32, |a, b| a.min(*b))
+                }
+                _ => 32.0,
+            });
+            let h = height.unwrap_or_else(|| match shape {
+                nova_core::CollisionShape::Polygon { points } => {
+                    let ys: Vec<f32> = points.iter().map(|p| p.1).collect();
+                    ys.iter().fold(0.0f32, |a, b| a.max(*b))
+                        - ys.iter().fold(0.0f32, |a, b| a.min(*b))
+                }
+                _ => 32.0,
+            });
+            if !w.is_finite()
+                || !h.is_finite()
+                || w <= 0.0
+                || h <= 0.0
+                || w > 100_000.0
+                || h > 100_000.0
+            {
+                return Err(OperationError::invalid(
+                    "Kollisionsausmaße müssen positive endliche Zahlen sein.",
+                ));
+            }
+            if let Some(layer) = col_layer {
+                if *layer == 0 || *layer > 31 {
+                    return Err(OperationError::invalid(
+                        "Kollisions-Layer muss 1..=31 sein.",
+                    ));
+                }
+            }
+            let mut config = target.game.clone().unwrap_or_default();
+            config.collision = Some(nova_core::CollisionSpec {
+                shape: shape.clone(),
+                width: w,
+                height: h,
+                layer: col_layer.unwrap_or(1),
+                mask: mask.unwrap_or(u32::MAX),
+            });
+            target.game = Some(config);
+            project.touch();
+            Ok(format!("Kollisionsform für '{needle}' gesetzt"))
+        }
+        ProjectOperation::ModifyCamera {
+            scene,
+            enabled,
+            follow,
+            left,
+            top,
+            right,
+            bottom,
+            zoom,
+            smoothing,
+            dead_zone,
+            shake,
+        } => {
+            let scene = scene_mut(project, scene.as_deref())?;
+            let scene_name = scene.name.clone();
+            let mut config = scene.game.clone().unwrap_or_default();
+            let camera = config
+                .camera
+                .get_or_insert_with(nova_core::CameraConfig::default);
+            if let Some(v) = enabled {
+                camera.enabled = *v;
+            }
+            if let Some(v) = follow {
+                let v = v.trim();
+                if v.chars().count() > 120 {
+                    return Err(OperationError::invalid("Follow-Name zu lang."));
+                }
+                camera.follow = v.to_string();
+            }
+            for (value, field) in [
+                (left, &mut camera.left),
+                (top, &mut camera.top),
+                (right, &mut camera.right),
+                (bottom, &mut camera.bottom),
+                (zoom, &mut camera.zoom),
+                (shake, &mut camera.shake),
+            ] {
+                if let Some(v) = value {
+                    if !v.is_finite() {
+                        return Err(OperationError::invalid("Kamerawert muss endlich sein."));
+                    }
+                    *field = *v;
+                }
+            }
+            if let Some(v) = smoothing {
+                if !v.is_finite() || !(0.0..=1.0).contains(v) {
+                    return Err(OperationError::invalid("Smoothing muss 0..=1 sein."));
+                }
+                camera.follow_smoothing = *v;
+            }
+            if let Some((dx, dy)) = dead_zone {
+                if !dx.is_finite() || !dy.is_finite() || *dx < 0.0 || *dy < 0.0 {
+                    return Err(OperationError::invalid("Dead-Zone muss >= 0 sein."));
+                }
+                camera.dead_zone = (*dx, *dy);
+            }
+            if let Some(z) = zoom {
+                if *z <= 0.0 || *z > 16.0 {
+                    return Err(OperationError::invalid("Zoom muss 0 < z <= 16 sein."));
+                }
+            }
+            scene.game = Some(config);
+            project.touch();
+            Ok(format!("Kamera in Szene '{scene_name}' aktualisiert"))
+        }
+        ProjectOperation::CreateParticleEmitter {
+            object,
+            scene,
+            preset,
+            rate,
+            burst,
+            lifetime,
+            speed,
+            direction,
+            spread,
+            gravity,
+            drag,
+            max_particles,
+            space,
+            remove,
+        } => apply_particle_op(
+            project,
+            scene.as_deref(),
+            object,
+            *remove,
+            *preset,
+            ParticlePatch {
+                rate: *rate,
+                burst: *burst,
+                lifetime: *lifetime,
+                speed: *speed,
+                direction: *direction,
+                spread: *spread,
+                gravity: *gravity,
+                drag: *drag,
+                max_particles: *max_particles,
+                space: *space,
+            },
+            true,
+        ),
+        ProjectOperation::ConfigureParticleEmitter {
+            object,
+            scene,
+            preset,
+            rate,
+            burst,
+            lifetime,
+            speed,
+            direction,
+            spread,
+            gravity,
+            drag,
+            max_particles,
+            space,
+        } => apply_particle_op(
+            project,
+            scene.as_deref(),
+            object,
+            false,
+            *preset,
+            ParticlePatch {
+                rate: *rate,
+                burst: *burst,
+                lifetime: *lifetime,
+                speed: *speed,
+                direction: *direction,
+                spread: *spread,
+                gravity: *gravity,
+                drag: *drag,
+                max_particles: *max_particles,
+                space: *space,
+            },
+            false,
+        ),
+        ProjectOperation::CreateLevelGroup { name, scene } => {
+            let name = name.trim();
+            if name.is_empty() || name.chars().count() > 120 {
+                return Err(OperationError::invalid(
+                    "Gruppenname muss 1 bis 120 Zeichen enthalten.",
+                ));
+            }
+            let scene = scene_mut(project, scene.as_deref())?;
+            if scene.layers.iter().any(|l| l.name == name) {
+                return Err(OperationError::invalid(format!(
+                    "Eine Ebene namens '{name}' existiert bereits."
+                )));
+            }
+            let frame_count = scene.frame_count();
+            let mut layer = nova_core::Layer::new(name, frame_count);
+            layer.kind = nova_core::LayerKind::Folder;
+            scene.layers.push(layer);
+            project.touch();
+            Ok(format!("Gruppen-Ebene '{name}' erstellt"))
+        }
+        ProjectOperation::PlaceGameObject {
+            name,
+            x,
+            y,
+            width,
+            height,
+            fill,
+            scene,
+            layer,
+            collision,
+            physics,
+        } => {
+            let name = name.trim();
+            if name.is_empty() || name.chars().count() > 120 {
+                return Err(OperationError::invalid(
+                    "Objektname muss 1 bis 120 Zeichen enthalten.",
+                ));
+            }
+            if !x.is_finite() || !y.is_finite() || !width.is_finite() || !height.is_finite() {
+                return Err(OperationError::invalid(
+                    "Position und Größe müssen endlich sein.",
+                ));
+            }
+            if *width <= 0.0 || *height <= 0.0 || *width > 100_000.0 || *height > 100_000.0 {
+                return Err(OperationError::invalid(
+                    "Größe muss positiv und <= 100000 sein.",
+                ));
+            }
+            let rgba = match fill.as_deref().map(str::trim).filter(|f| !f.is_empty()) {
+                Some(hex) => parse_color(hex)?,
+                None => Rgba::WHITE,
+            };
+            let mut object = ObjectInstance::rect(name, *x, *y, *width, *height, rgba);
+            if collision.is_some() || physics.is_some() {
+                object.game = Some(nova_core::GameObjectConfig {
+                    collision: collision.clone(),
+                    physics: *physics,
+                });
+            }
+            let layer_name =
+                insert_object(project, scene.as_deref(), None, layer.as_deref(), object)?;
+            project.touch();
+            Ok(format!(
+                "Game-Objekt '{name}' in Ebene '{layer_name}' platziert"
+            ))
+        }
+        ProjectOperation::ImportProjectAsset { name, path } => {
+            let ext = path
+                .trim()
+                .rsplit('.')
+                .next()
+                .unwrap_or_default()
+                .to_ascii_lowercase();
+            let derived = name.clone().unwrap_or_else(|| {
+                path.trim()
+                    .rsplit('/')
+                    .next()
+                    .unwrap_or("asset")
+                    .to_string()
+            });
+            let result = match ext.as_str() {
+                "png" | "jpg" | "jpeg" | "gif" => apply_operations_with(
+                    project,
+                    &[ProjectOperation::ImportBitmapAsset {
+                        name: derived,
+                        path: path.clone(),
+                    }],
+                    read_asset,
+                ),
+                "wav" | "mp3" => apply_operations_with(
+                    project,
+                    &[ProjectOperation::ImportAudioAsset {
+                        name: derived,
+                        path: path.clone(),
+                    }],
+                    read_asset,
+                ),
+                "ogg" | "flac" => import_audio_asset_op(project, derived, path.clone(), read_asset)
+                    .map(|_| vec!["Audio-Asset importiert".to_string()]),
+                _ => Err(OperationError::invalid(format!(
+                    "Dateityp '.{ext}' wird nicht unterstützt (png/jpg/jpeg/gif/wav/mp3/ogg/flac)."
+                ))),
+            }?;
+            project.touch();
+            Ok(result.join("; "))
+        }
+        ProjectOperation::CreateGameLevel {
+            scene,
+            world_width,
+            world_height,
+            spawn,
+            tileset,
+            tilemap,
+            objects,
+            camera_follow,
+        } => apply_game_level(
+            project,
+            scene,
+            *world_width,
+            *world_height,
+            *spawn,
+            tileset.as_ref(),
+            tilemap.as_ref(),
+            objects,
+            camera_follow.as_deref(),
+        )
+        .map(|notes| notes.join("; ")),
     }
+}
+
+/// Optional overrides for [`apply_particle_op`].
+#[derive(Default)]
+struct ParticlePatch {
+    rate: Option<f32>,
+    burst: Option<u32>,
+    lifetime: Option<(f32, f32)>,
+    speed: Option<(f32, f32)>,
+    direction: Option<f32>,
+    spread: Option<f32>,
+    gravity: Option<f32>,
+    drag: Option<f32>,
+    max_particles: Option<u32>,
+    space: Option<nova_core::ParticleSpace>,
+}
+
+fn validate_particle_patch(patch: &ParticlePatch) -> Result<(), OperationError> {
+    for (value, lo, hi) in [
+        patch.rate.map(|v| (v, 0.0, 10_000.0)),
+        patch.direction.map(|v| (v, -3600.0, 3600.0)),
+        patch.spread.map(|v| (v, 0.0, 360.0)),
+        patch.gravity.map(|v| (v, -100_000.0, 100_000.0)),
+        patch.drag.map(|v| (v, 0.0, 100.0)),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        if !value.is_finite() || value < lo || value > hi {
+            return Err(OperationError::invalid("Partikelparameter ungueltig."));
+        }
+    }
+    if let Some((a, b)) = patch.lifetime {
+        if !a.is_finite() || !b.is_finite() || a <= 0.0 || b < a || b > 3600.0 {
+            return Err(OperationError::invalid("Partikel-Lebensdauer ungueltig."));
+        }
+    }
+    if let Some((a, b)) = patch.speed {
+        if !a.is_finite() || !b.is_finite() || a < 0.0 || b < a || b > 100_000.0 {
+            return Err(OperationError::invalid(
+                "Partikel-Geschwindigkeit ungueltig.",
+            ));
+        }
+    }
+    if let Some(max) = patch.max_particles {
+        if max == 0 || max > 100_000 {
+            return Err(OperationError::invalid(
+                "max_particles muss 1..=100000 sein.",
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn apply_particle_patch(emitter: &mut nova_core::ParticleEmitter, patch: &ParticlePatch) {
+    if let Some(v) = patch.rate {
+        emitter.rate = v;
+    }
+    if let Some(v) = patch.burst {
+        emitter.burst = v;
+    }
+    if let Some(v) = patch.lifetime {
+        emitter.lifetime = v;
+    }
+    if let Some(v) = patch.speed {
+        emitter.speed = v;
+    }
+    if let Some(v) = patch.direction {
+        emitter.direction = v;
+    }
+    if let Some(v) = patch.spread {
+        emitter.spread = v;
+    }
+    if let Some(v) = patch.gravity {
+        emitter.gravity = v;
+    }
+    if let Some(v) = patch.drag {
+        emitter.drag = v;
+    }
+    if let Some(v) = patch.max_particles {
+        emitter.max_particles = v;
+    }
+    if let Some(v) = patch.space {
+        emitter.space = v;
+    }
+}
+
+fn apply_particle_op(
+    project: &mut Project,
+    scene_sel: Option<&str>,
+    object_name: &str,
+    remove: bool,
+    preset: Option<nova_core::ParticlePreset>,
+    patch: ParticlePatch,
+    allow_create: bool,
+) -> Result<String, OperationError> {
+    validate_particle_patch(&patch)?;
+    let scene = scene_mut(project, scene_sel)?;
+    let needle = object_name.trim();
+    let (li, fi, oi) = find_object_indices(scene, needle)?;
+    let target = &mut scene.layers[li].frames[fi].objects[oi];
+    if remove {
+        target.particles = None;
+        project.touch();
+        return Ok(format!("Partikelemitter von '{needle}' entfernt"));
+    }
+    if target.particles.is_none() && !allow_create {
+        return Err(OperationError::invalid(format!(
+            "Objekt '{needle}' hat keinen Partikelemitter (create_particle_emitter)."
+        )));
+    }
+    let mut emitter = target.particles.take().unwrap_or_else(|| {
+        preset
+            .map(nova_core::ParticleEmitter::preset)
+            .unwrap_or_default()
+    });
+    if let Some(p) = preset {
+        // Switching preset re-seeds tuned defaults, then applies overrides.
+        let fresh = nova_core::ParticleEmitter::preset(p);
+        if emitter.preset != p {
+            emitter = fresh;
+        }
+    }
+    apply_particle_patch(&mut emitter, &patch);
+    target.particles = Some(emitter);
+    project.touch();
+    Ok(format!("Partikelemitter für '{needle}' konfiguriert"))
+}
+
+/// Finds the single object named `needle` across all frames/layers.
+fn find_object_indices(
+    scene: &nova_core::Scene,
+    needle: &str,
+) -> Result<(usize, usize, usize), OperationError> {
+    let mut matches = Vec::new();
+    for (layer_index, layer) in scene.layers.iter().enumerate() {
+        for (frame_index, frame) in layer.frames.iter().enumerate() {
+            for (object_index, candidate) in frame.objects.iter().enumerate() {
+                if candidate.name == needle {
+                    matches.push((layer_index, frame_index, object_index));
+                }
+            }
+        }
+    }
+    match matches.len() {
+        0 => Err(OperationError::invalid(format!(
+            "Objekt '{needle}' existiert nicht."
+        ))),
+        1 => Ok(matches[0]),
+        count => Err(OperationError::invalid(format!(
+            "Objektname '{needle}' ist {count}-mal vorhanden."
+        ))),
+    }
+}
+
+/// Imports an audio asset without going through the enum dispatch
+/// (used for ogg/flac which the typed ops don't cover yet).
+fn import_audio_asset_op(
+    project: &mut Project,
+    name: String,
+    path: String,
+    read_asset: &dyn Fn(&str) -> Result<Vec<u8>, String>,
+) -> Result<(), OperationError> {
+    let name = validate_asset_name(&name)?;
+    if project.assets.iter().any(|a| a.name == name) {
+        return Err(OperationError::invalid(format!(
+            "Ein Asset namens '{name}' existiert bereits."
+        )));
+    }
+    let path = validate_asset_path(&path, &["ogg", "flac"])?;
+    let data = read_asset(&path)
+        .map_err(|error| OperationError::invalid(format!("Asset '{path}': {error}")))?;
+    if data.is_empty() || data.len() > 256 * 1024 * 1024 {
+        return Err(OperationError::invalid(format!(
+            "Asset '{path}' ist leer oder überschreitet 256 MB."
+        )));
+    }
+    let mime = if path.ends_with(".ogg") {
+        "audio/ogg"
+    } else {
+        "audio/flac"
+    };
+    project.assets.push(nova_core::Asset::audio(
+        name,
+        path.clone(),
+        mime,
+        0,
+        0,
+        0.0,
+        data,
+    ));
+    project.touch();
+    Ok(())
+}
+
+/// Applies the composite [`ProjectOperation::CreateGameLevel`].
+fn apply_game_level(
+    project: &mut Project,
+    scene_name: &str,
+    world_width: Option<f32>,
+    world_height: Option<f32>,
+    spawn: Option<(f32, f32)>,
+    tileset: Option<&LevelTileset>,
+    tilemap: Option<&LevelTilemap>,
+    objects: &[LevelObject],
+    camera_follow: Option<&str>,
+) -> Result<Vec<String>, OperationError> {
+    let mut notes: Vec<String> = Vec::new();
+    // 1. Scene: create when missing.
+    if !project.scenes.iter().any(|s| s.name == scene_name.trim()) {
+        apply_operations(
+            project,
+            &[ProjectOperation::AddScene {
+                name: scene_name.trim().to_string(),
+            }],
+        )?;
+        notes.push("Szene erstellt".to_string());
+    }
+    let scene_sel = Some(scene_name.trim().to_string());
+    // 2. World bounds + spawn.
+    if world_width.is_some() || world_height.is_some() || spawn.is_some() {
+        let scene_for_world = scene_mut(project, scene_sel.as_deref())?;
+        let mut config = scene_for_world.game.clone().unwrap_or_default();
+        let mut world_cfg = config.world.clone().unwrap_or_default();
+        if let Some(w) = world_width {
+            world_cfg.width = w;
+        }
+        if let Some(h) = world_height {
+            world_cfg.height = h;
+        }
+        if let Some((sx, sy)) = spawn {
+            world_cfg.spawn = (sx, sy);
+        }
+        config.world = Some(world_cfg);
+        scene_for_world.game = Some(config);
+        project.touch();
+        notes.push("Weltgrenzen gesetzt".to_string());
+    }
+    // 3. Tileset.
+    if let Some(ts) = tileset {
+        apply_operations(
+            project,
+            &[ProjectOperation::CreateTileset {
+                name: ts.name.clone(),
+                asset: ts.asset.clone(),
+                tile_width: ts.tile_width,
+                tile_height: ts.tile_height,
+                solid_tiles: ts.solid_tiles.clone(),
+                tile_names: Vec::new(),
+            }],
+        )?;
+        notes.push(format!("Tileset '{}' erstellt", ts.name));
+    }
+    // 4. Tilemap + strokes.
+    if let Some(tm) = tilemap {
+        apply_operations(
+            project,
+            &[ProjectOperation::CreateTilemap {
+                name: tm.name.clone(),
+                tileset: tm.tileset.clone(),
+                columns: tm.columns,
+                rows: tm.rows,
+                x: tm.x,
+                y: tm.y,
+                scene: scene_sel.clone(),
+                layer: None,
+            }],
+        )?;
+        for stroke in &tm.strokes {
+            apply_operations(
+                project,
+                &[ProjectOperation::PaintTiles {
+                    object: tm.name.clone(),
+                    layer: stroke.layer,
+                    tool: stroke.tool,
+                    x0: stroke.x0,
+                    y0: stroke.y0,
+                    x1: stroke.x1,
+                    y1: stroke.y1,
+                    tile: stroke.tile,
+                    from: 0,
+                    to: 0,
+                    scene: scene_sel.clone(),
+                }],
+            )?;
+        }
+        notes.push(format!(
+            "Kachelkarte '{}' mit {} Strichen",
+            tm.name,
+            tm.strokes.len()
+        ));
+    }
+    // 5. Objects.
+    for object in objects {
+        apply_operations(
+            project,
+            &[ProjectOperation::PlaceGameObject {
+                name: object.name.clone(),
+                x: object.x,
+                y: object.y,
+                width: object.width,
+                height: object.height,
+                fill: object.fill.clone(),
+                scene: scene_sel.clone(),
+                layer: None,
+                collision: object.collision.clone(),
+                physics: object.physics,
+            }],
+        )?;
+        if let Some(preset) = object.particle_preset {
+            let _ = apply_operations(
+                project,
+                &[ProjectOperation::CreateParticleEmitter {
+                    object: object.name.clone(),
+                    scene: scene_sel.clone(),
+                    preset: Some(preset),
+                    rate: None,
+                    burst: None,
+                    lifetime: None,
+                    speed: None,
+                    direction: None,
+                    spread: None,
+                    gravity: None,
+                    drag: None,
+                    max_particles: None,
+                    space: None,
+                    remove: false,
+                }],
+            );
+        }
+    }
+    if !objects.is_empty() {
+        notes.push(format!("{} Objekte platziert", objects.len()));
+    }
+    // 6. Camera follow.
+    if let Some(follow) = camera_follow {
+        apply_operations(
+            project,
+            &[ProjectOperation::ModifyCamera {
+                scene: scene_sel.clone(),
+                enabled: Some(true),
+                follow: Some(follow.to_string()),
+                left: None,
+                top: None,
+                right: None,
+                bottom: None,
+                zoom: None,
+                smoothing: None,
+                dead_zone: None,
+                shake: None,
+            }],
+        )?;
+        notes.push(format!("Kamera folgt '{follow}'"));
+    }
+    notes.push("Spiel-Update".to_string());
+    Ok(notes)
 }
 
 fn insert_object(
@@ -2210,6 +3475,7 @@ mod tests {
                         shape: nova_core::CollisionShape::Rectangle,
                         width: 32.0,
                         height: 48.0,
+                        ..Default::default()
                     }),
                     no_collision: false,
                     physics: Some(nova_core::PhysicsSpec {
@@ -2232,6 +3498,9 @@ mod tests {
                         right: 800.0,
                         bottom: 600.0,
                         zoom: 1.5,
+                        follow_smoothing: 0.0,
+                        dead_zone: (0.0, 0.0),
+                        shake: 0.0,
                     }),
                     input: Some(nova_core::InputBindings {
                         left: "A".into(),
@@ -2241,6 +3510,7 @@ mod tests {
                         jump: "Space".into(),
                         action: "E".into(),
                     }),
+                    world: None,
                     clear: false,
                 },
                 ProjectOperation::InstallGameKit,
@@ -2255,7 +3525,7 @@ mod tests {
             .find(|object| object.name == "Held")
             .unwrap();
         let game = object.game.as_ref().unwrap();
-        assert_eq!(game.collision.unwrap().width, 32.0);
+        assert_eq!(game.collision.as_ref().unwrap().width, 32.0);
         assert!(game.physics.unwrap().controlled);
         let scene_game = scene.game.as_ref().unwrap();
         assert!(scene_game.camera.as_ref().unwrap().enabled);
@@ -2368,5 +3638,207 @@ mod tests {
         .unwrap();
         let scene = project.active_scene().unwrap();
         assert!(scene.game.as_ref().unwrap().transitions.is_empty());
+    }
+
+    #[test]
+    fn ai_builds_playable_tilemap_level() {
+        let mut project = Project::new_empty("Level");
+        let reader = |path: &str| -> Result<Vec<u8>, String> {
+            match path {
+                "assets/tiles.png" => Ok(tiny_png()),
+                _ => Err("not found".into()),
+            }
+        };
+        // One composite op: scene + world + tileset + tilemap + strokes +
+        // objects + camera.
+        apply_operations_with(
+            &mut project,
+            &[ProjectOperation::ImportProjectAsset {
+                name: Some("Terrain".into()),
+                path: "assets/tiles.png".into(),
+            }],
+            &reader,
+        )
+        .unwrap();
+        apply_operations_with(
+            &mut project,
+            &[ProjectOperation::CreateGameLevel {
+                scene: "Level 1".into(),
+                world_width: Some(640.0),
+                world_height: Some(360.0),
+                spawn: Some((32.0, 32.0)),
+                tileset: Some(LevelTileset {
+                    asset: "Terrain".into(),
+                    name: "Terrain".into(),
+                    tile_width: 1,
+                    tile_height: 1,
+                    solid_tiles: vec![0],
+                }),
+                tilemap: Some(LevelTilemap {
+                    name: "Ground".into(),
+                    tileset: "Terrain".into(),
+                    columns: 20,
+                    rows: 12,
+                    x: 320.0,
+                    y: 180.0,
+                    strokes: vec![
+                        LevelStroke {
+                            tool: nova_core::tilemap::PaintTool::Rect,
+                            x0: 0,
+                            y0: 10,
+                            x1: 19,
+                            y1: 11,
+                            tile: 1,
+                            layer: 0,
+                        },
+                        LevelStroke {
+                            tool: nova_core::tilemap::PaintTool::Pencil,
+                            x0: 5,
+                            y0: 5,
+                            x1: 5,
+                            y1: 5,
+                            tile: 1,
+                            layer: 0,
+                        },
+                    ],
+                }),
+                objects: vec![LevelObject {
+                    name: "Spieler".into(),
+                    x: 32.0,
+                    y: 32.0,
+                    width: 16.0,
+                    height: 24.0,
+                    fill: Some("#4da3ff".into()),
+                    collision: Some(nova_core::CollisionSpec {
+                        shape: nova_core::CollisionShape::Rectangle,
+                        width: 16.0,
+                        height: 24.0,
+                        ..Default::default()
+                    }),
+                    physics: Some(nova_core::PhysicsSpec {
+                        body: nova_core::BodyType::Dynamic,
+                        gravity_scale: 1.0,
+                        friction: 0.0,
+                        bounce: 0.0,
+                        controlled: true,
+                    }),
+                    particle_preset: Some(nova_core::ParticlePreset::Sparks),
+                }],
+                camera_follow: Some("Spieler".into()),
+            }],
+            &reader,
+        )
+        .unwrap();
+
+        let scene = project
+            .scenes
+            .iter()
+            .find(|s| s.name == "Level 1")
+            .expect("level scene created");
+        // World + camera.
+        let game = scene.game.as_ref().expect("game config");
+        let world = game.world.as_ref().expect("world config");
+        assert_eq!((world.width, world.height), (640.0, 360.0));
+        assert_eq!(world.spawn, (32.0, 32.0));
+        let camera = game.camera.as_ref().expect("camera");
+        assert!(camera.enabled);
+        assert_eq!(camera.follow, "Spieler");
+        // Tileset + tilemap data.
+        assert_eq!(project.tilesets.len(), 1);
+        let tileset = &project.tilesets[0];
+        assert!(tileset.solid[0]);
+        let tilemap_obj = scene
+            .layers
+            .iter()
+            .flat_map(|l| l.frames.iter())
+            .flat_map(|f| f.objects.iter())
+            .find(|o| o.name == "Ground")
+            .expect("tilemap object");
+        let nova_core::ObjectKind::Tilemap(map) = &tilemap_obj.kind else {
+            panic!("Ground is not a tilemap");
+        };
+        assert_eq!((map.columns, map.rows), (20, 12));
+        let layer = &map.layers[0];
+        // Rect stroke filled rows 10-11 across all columns with tile 1.
+        assert_eq!(layer.cells[10 * 20], 1);
+        assert_eq!(layer.cells[11 * 20 + 19], 1);
+        // Pencil stroke painted tile 1 at (5,5).
+        assert_eq!(layer.cells[5 * 20 + 5], 1);
+        // Player object with collision + physics + particles.
+        let player = scene
+            .layers
+            .iter()
+            .flat_map(|l| l.frames.iter())
+            .flat_map(|f| f.objects.iter())
+            .find(|o| o.name == "Spieler")
+            .expect("player object");
+        let game_obj = player.game.as_ref().expect("game object config");
+        assert!(game_obj.collision.is_some());
+        assert!(game_obj.physics.is_some());
+        assert_eq!(
+            player.particles.as_ref().map(|p| p.preset),
+            Some(nova_core::ParticlePreset::Sparks)
+        );
+        project.validate().expect("level project valid");
+    }
+
+    #[test]
+    fn ai_rejects_invalid_tilemap_ops_transactionally() {
+        let mut project = Project::new_empty("T");
+        let before = project.clone();
+        // Painting a non-existent tilemap fails without touching the project.
+        let err = apply_operations(
+            &mut project,
+            &[ProjectOperation::PaintTiles {
+                object: "Missing".into(),
+                layer: 0,
+                tool: nova_core::tilemap::PaintTool::Pencil,
+                x0: 0,
+                y0: 0,
+                x1: 0,
+                y1: 0,
+                tile: 1,
+                from: 0,
+                to: 0,
+                scene: None,
+            }],
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("Missing"));
+        assert_eq!(project, before);
+        // Degenerate polygon collision is rejected.
+        apply_operations(
+            &mut project,
+            &[ProjectOperation::PlaceGameObject {
+                name: "Obj".into(),
+                x: 0.0,
+                y: 0.0,
+                width: 10.0,
+                height: 10.0,
+                fill: None,
+                scene: None,
+                layer: None,
+                collision: None,
+                physics: None,
+            }],
+        )
+        .unwrap();
+        let err = apply_operations(
+            &mut project,
+            &[ProjectOperation::CreateCollisionShape {
+                object: "Obj".into(),
+                scene: None,
+                shape: nova_core::CollisionShape::Polygon {
+                    points: vec![(0.0, 0.0), (1.0, 0.0)],
+                },
+                width: None,
+                height: None,
+                layer: None,
+                mask: None,
+                remove: false,
+            }],
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("Polygon"));
     }
 }

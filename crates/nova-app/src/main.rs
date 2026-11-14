@@ -16,6 +16,7 @@ mod splash;
 mod stage_view;
 mod state;
 mod theme;
+mod tilemap_view;
 mod timeline_view;
 mod tree;
 mod util;

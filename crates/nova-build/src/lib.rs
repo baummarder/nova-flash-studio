@@ -106,6 +106,8 @@ pub fn build_swf(project: &Project) -> Result<BuildOutput, BuildError> {
         }
     }
 
+    warn_unsupported_features(project, &export_scenes, &mut warnings);
+
     let scripts_enabled = export.include_scripts && export.target != TargetRuntime::Avm1;
     let mut compiled_scripts = Vec::new();
     if !project.scripts.is_empty() && !scripts_enabled {
@@ -718,6 +720,34 @@ pub fn build_scene(project: &Project, scene: &Scene) -> Result<BuildOutput, Buil
     build_swf(&copy)
 }
 
+/// Warns once per object about authoring features the SWV format cannot
+/// reproduce. The `.nova` data is preserved; nothing is silently dropped.
+fn warn_unsupported_features(project: &Project, scenes: &[&Scene], warnings: &mut Vec<String>) {
+    use std::collections::HashSet;
+    let mut seen = HashSet::new();
+    let mut scan = |scene: &Scene, warnings: &mut Vec<String>| {
+        for layer in &scene.layers {
+            for frame in &layer.frames {
+                for object in &frame.objects {
+                    if object.particles.is_some() && seen.insert(object.id) {
+                        warnings.push(format!(
+                            "Partikelemitter '{}' wird in der SWF-Vorschau nicht dargestellt; die Einstellung bleibt im Projekt erhalten.",
+                            object.name
+                        ));
+                    }
+                }
+            }
+        }
+    };
+    for scene in scenes {
+        scan(scene, warnings);
+    }
+    // Symbol timelines can host objects too; scan them for completeness.
+    for symbol in &project.symbols {
+        scan(&symbol.timeline, warnings);
+    }
+}
+
 #[derive(Default)]
 struct CharacterTables {
     next_id: u16,
@@ -794,7 +824,126 @@ impl CharacterTables {
                 self.define_symbol(project, *symbol, movie, warnings, stats)?;
                 Ok(self.symbols.get(symbol).copied())
             }
+            ObjectKind::Tilemap(map) => self.define_tilemap(project, map, movie, warnings, stats),
         }
+    }
+
+    /// Bakes a tilemap into a single lossless bitmap: every visible layer is
+    /// alpha-composited cell-by-cell from the shared tileset image. Layer
+    /// opacity is honoured; per-tile solidity is editor metadata and does not
+    /// affect pixels.
+    fn define_tilemap(
+        &mut self,
+        project: &Project,
+        map: &nova_core::TilemapData,
+        movie: &mut Movie,
+        warnings: &mut Vec<String>,
+        stats: &mut BuildStats,
+    ) -> Result<Option<u16>, BuildError> {
+        if map.columns == 0 || map.rows == 0 {
+            return Ok(None);
+        }
+        let Some(tileset) = project.tilesets.iter().find(|t| t.id == map.tileset) else {
+            warnings.push(
+                "Kachelkarte verweist auf einen unbekannten Tileset und wurde übersprungen.".into(),
+            );
+            return Ok(None);
+        };
+        let Some(asset) = project.asset(tileset.asset) else {
+            warnings.push(format!(
+                "Tileset '{}' verweist auf ein unbekanntes Asset und wurde übersprungen.",
+                tileset.name
+            ));
+            return Ok(None);
+        };
+        if asset.data.is_empty() {
+            warnings.push(format!(
+                "Tileset-Asset '{}' enthält keine eingebetteten Daten.",
+                asset.name
+            ));
+            return Ok(None);
+        }
+        let source = image::load_from_memory(&asset.data)
+            .map_err(|error| BuildError::Asset(format!("Tileset '{}': {error}", asset.name)))?
+            .to_rgba8();
+        let (src_w, src_h) = source.dimensions();
+        if tileset.tile_width == 0 || tileset.tile_height == 0 || tileset.columns == 0 {
+            warnings.push(format!(
+                "Tileset '{}' hat ungültige Kachelmaße und wurde übersprungen.",
+                tileset.name
+            ));
+            return Ok(None);
+        }
+        let out_w = map.columns as u32 * tileset.tile_width;
+        let out_h = map.rows as u32 * tileset.tile_height;
+        if out_w == 0 || out_h == 0 || out_w > 8192 || out_h > 8192 {
+            warnings.push(format!(
+                "Kachelkarte ist zu groß für den SWF-Export ({out_w}×{out_h}px)."
+            ));
+            return Ok(None);
+        }
+        let src_px = source.as_raw();
+        let mut out = vec![0u8; (out_w * out_h * 4) as usize];
+        let tile_rows = src_h / tileset.tile_height;
+        for layer in &map.layers {
+            if !layer.visible {
+                continue;
+            }
+            let opacity = layer.opacity.clamp(0.0, 1.0);
+            for cy in 0..map.rows {
+                for cx in 0..map.columns {
+                    let cell = layer.cells.get(cy * map.columns + cx).copied().unwrap_or(0);
+                    if cell == 0 {
+                        continue;
+                    }
+                    let index = cell as usize - 1;
+                    let tile_col = (index as u32 % tileset.columns) * tileset.tile_width;
+                    let tile_row = (index as u32 / tileset.columns) * tileset.tile_height;
+                    if tile_row >= tile_rows * tileset.tile_height {
+                        continue; // tile index outside the source image
+                    }
+                    let sx = tile_col.min(src_w.saturating_sub(tileset.tile_width));
+                    let sy = tile_row.min(src_h.saturating_sub(tileset.tile_height));
+                    let copy_w = tileset.tile_width.min(src_w - sx);
+                    let copy_h = tileset.tile_height.min(src_h - sy);
+                    let dx = cx as u32 * tileset.tile_width;
+                    let dy = cy as u32 * tileset.tile_height;
+                    for py in 0..copy_h {
+                        for px in 0..copy_w {
+                            let s = ((sy + py) * src_w + sx + px) as usize * 4;
+                            let sa = src_px[s + 3] as f32 / 255.0 * opacity;
+                            if sa <= 0.0 {
+                                continue;
+                            }
+                            let d = ((dy + py) * out_w + dx + px) as usize * 4;
+                            let inv = 1.0 - sa;
+                            for c in 0..3 {
+                                out[d + c] = (src_px[s + c] as f32 * sa + out[d + c] as f32 * inv)
+                                    .round()
+                                    .clamp(0.0, 255.0)
+                                    as u8;
+                            }
+                            out[d + 3] = ((sa * 255.0).max(out[d + 3] as f32 * inv))
+                                .round()
+                                .clamp(0.0, 255.0) as u8;
+                        }
+                    }
+                }
+            }
+        }
+        let width = u16::try_from(out_w)
+            .map_err(|_| BuildError::Limit("Kachelkarte breiter als 65535 Pixel".into()))?;
+        let height = u16::try_from(out_h)
+            .map_err(|_| BuildError::Limit("Kachelkarte höher als 65535 Pixel".into()))?;
+        let id = self.alloc()?;
+        movie.tags.push(Tag::DefineBitsLossless2 {
+            id,
+            width,
+            height,
+            rgba: out,
+        });
+        stats.defined_bitmaps += 1;
+        Ok(Some(id))
     }
 
     fn define_bitmap(
@@ -1380,6 +1529,7 @@ fn shape_key(object: &nova_core::ObjectInstance) -> Option<ShapeKey> {
         ObjectKind::Path { .. }
         | ObjectKind::Symbol { .. }
         | ObjectKind::Bitmap { .. }
+        | ObjectKind::Tilemap(_)
         | ObjectKind::Text(_) => None,
     }
 }

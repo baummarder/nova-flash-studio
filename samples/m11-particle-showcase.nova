@@ -1,0 +1,868 @@
+{
+  "format": "nova-flash-studio",
+  "formatVersion": 4,
+  "project": {
+    "id": "488b534f-cb80-4ee7-aac9-a3e61149dfa0",
+    "metadata": {
+      "name": "Particle Showcase",
+      "author": "",
+      "description": "Acht Particle-Emitter-Presets auf Objekten — vollständig in der Spiel-Vorschau.",
+      "createdUnix": 1794667012,
+      "modifiedUnix": 1794667012
+    },
+    "scenes": [
+      {
+        "id": "856e7f59-9d5b-4ba2-9142-eb404f07b37c",
+        "name": "Szene 1",
+        "width": 640.0,
+        "height": 360.0,
+        "background": {
+          "r": 18,
+          "g": 20,
+          "b": 26,
+          "a": 255
+        },
+        "fps": 30.0,
+        "layers": [
+          {
+            "id": "7e75f60e-ddff-48a0-a7d4-746af07e23a0",
+            "name": "Emitter",
+            "visible": true,
+            "locked": false,
+            "kind": "normal",
+            "frames": [
+              {
+                "keyframe": true,
+                "objects": [
+                  {
+                    "id": "03175ac9-eb82-4b6c-ba15-83cdcc9be598",
+                    "name": "Rauch",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 24.0,
+                      "height": 24.0,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 80.0,
+                      "y": 200.0,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 120,
+                      "g": 120,
+                      "b": 130,
+                      "a": 255
+                    },
+                    "particles": {
+                      "preset": "smoke",
+                      "rate": 12.0,
+                      "burst": 0,
+                      "lifetime": [
+                        1.5,
+                        3.0
+                      ],
+                      "sizeStart": [
+                        8.0,
+                        16.0
+                      ],
+                      "sizeEnd": [
+                        24.0,
+                        40.0
+                      ],
+                      "opacityStart": [
+                        0.5,
+                        0.7
+                      ],
+                      "opacityEnd": [
+                        0.0,
+                        0.0
+                      ],
+                      "colorStart": {
+                        "r": 140,
+                        "g": 140,
+                        "b": 150,
+                        "a": 255
+                      },
+                      "colorEnd": {
+                        "r": 90,
+                        "g": 90,
+                        "b": 100,
+                        "a": 255
+                      },
+                      "speed": [
+                        10.0,
+                        30.0
+                      ],
+                      "direction": -90.0,
+                      "spread": 40.0,
+                      "gravity": -20.0,
+                      "drag": 0.6,
+                      "rotationSpeed": [
+                        0.0,
+                        0.0
+                      ],
+                      "maxParticles": 256,
+                      "space": "local"
+                    }
+                  },
+                  {
+                    "id": "7240bfae-31d5-4c40-9cbf-4c3e201bcc93",
+                    "name": "Funken",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 24.0,
+                      "height": 24.0,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 180.0,
+                      "y": 200.0,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 255,
+                      "g": 200,
+                      "b": 80,
+                      "a": 255
+                    },
+                    "particles": {
+                      "preset": "sparks",
+                      "rate": 30.0,
+                      "burst": 0,
+                      "lifetime": [
+                        0.2,
+                        0.6
+                      ],
+                      "sizeStart": [
+                        1.5,
+                        3.0
+                      ],
+                      "sizeEnd": [
+                        0.0,
+                        0.5
+                      ],
+                      "opacityStart": [
+                        1.0,
+                        1.0
+                      ],
+                      "opacityEnd": [
+                        0.0,
+                        0.0
+                      ],
+                      "colorStart": {
+                        "r": 255,
+                        "g": 220,
+                        "b": 120,
+                        "a": 255
+                      },
+                      "colorEnd": {
+                        "r": 255,
+                        "g": 80,
+                        "b": 20,
+                        "a": 255
+                      },
+                      "speed": [
+                        120.0,
+                        260.0
+                      ],
+                      "direction": -90.0,
+                      "spread": 60.0,
+                      "gravity": 600.0,
+                      "drag": 0.4,
+                      "rotationSpeed": [
+                        0.0,
+                        0.0
+                      ],
+                      "maxParticles": 256,
+                      "space": "local"
+                    }
+                  },
+                  {
+                    "id": "46909015-7f26-4c92-bef1-76dadbbbb28b",
+                    "name": "Feuer",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 24.0,
+                      "height": 24.0,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 280.0,
+                      "y": 200.0,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 255,
+                      "g": 120,
+                      "b": 40,
+                      "a": 255
+                    },
+                    "particles": {
+                      "preset": "fire",
+                      "rate": 40.0,
+                      "burst": 0,
+                      "lifetime": [
+                        0.3,
+                        0.8
+                      ],
+                      "sizeStart": [
+                        6.0,
+                        14.0
+                      ],
+                      "sizeEnd": [
+                        0.0,
+                        4.0
+                      ],
+                      "opacityStart": [
+                        0.9,
+                        1.0
+                      ],
+                      "opacityEnd": [
+                        0.0,
+                        0.0
+                      ],
+                      "colorStart": {
+                        "r": 255,
+                        "g": 160,
+                        "b": 40,
+                        "a": 255
+                      },
+                      "colorEnd": {
+                        "r": 200,
+                        "g": 30,
+                        "b": 10,
+                        "a": 255
+                      },
+                      "speed": [
+                        20.0,
+                        60.0
+                      ],
+                      "direction": -90.0,
+                      "spread": 25.0,
+                      "gravity": -120.0,
+                      "drag": 1.2,
+                      "rotationSpeed": [
+                        0.0,
+                        0.0
+                      ],
+                      "maxParticles": 256,
+                      "space": "local"
+                    }
+                  },
+                  {
+                    "id": "17206f5c-a89b-465e-9177-ed4e4e1fd044",
+                    "name": "Regen",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 24.0,
+                      "height": 24.0,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 380.0,
+                      "y": 200.0,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 90,
+                      "g": 160,
+                      "b": 255,
+                      "a": 255
+                    },
+                    "particles": {
+                      "preset": "rain",
+                      "rate": 120.0,
+                      "burst": 0,
+                      "lifetime": [
+                        0.8,
+                        1.4
+                      ],
+                      "sizeStart": [
+                        1.0,
+                        2.0
+                      ],
+                      "sizeEnd": [
+                        1.0,
+                        2.0
+                      ],
+                      "opacityStart": [
+                        0.5,
+                        0.8
+                      ],
+                      "opacityEnd": [
+                        0.3,
+                        0.5
+                      ],
+                      "colorStart": {
+                        "r": 140,
+                        "g": 170,
+                        "b": 220,
+                        "a": 255
+                      },
+                      "colorEnd": {
+                        "r": 140,
+                        "g": 170,
+                        "b": 220,
+                        "a": 255
+                      },
+                      "speed": [
+                        0.0,
+                        20.0
+                      ],
+                      "direction": 90.0,
+                      "spread": 8.0,
+                      "gravity": 900.0,
+                      "drag": 0.0,
+                      "rotationSpeed": [
+                        0.0,
+                        0.0
+                      ],
+                      "maxParticles": 512,
+                      "space": "local"
+                    }
+                  },
+                  {
+                    "id": "eb8efbed-3ce5-4d5b-84e6-0ca72fb25257",
+                    "name": "Schnee",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 24.0,
+                      "height": 24.0,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 480.0,
+                      "y": 200.0,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 240,
+                      "g": 245,
+                      "b": 255,
+                      "a": 255
+                    },
+                    "particles": {
+                      "preset": "snow",
+                      "rate": 30.0,
+                      "burst": 0,
+                      "lifetime": [
+                        2.0,
+                        4.0
+                      ],
+                      "sizeStart": [
+                        2.0,
+                        5.0
+                      ],
+                      "sizeEnd": [
+                        1.0,
+                        3.0
+                      ],
+                      "opacityStart": [
+                        0.8,
+                        1.0
+                      ],
+                      "opacityEnd": [
+                        0.4,
+                        0.8
+                      ],
+                      "colorStart": {
+                        "r": 240,
+                        "g": 245,
+                        "b": 255,
+                        "a": 255
+                      },
+                      "colorEnd": {
+                        "r": 220,
+                        "g": 230,
+                        "b": 250,
+                        "a": 255
+                      },
+                      "speed": [
+                        10.0,
+                        40.0
+                      ],
+                      "direction": 90.0,
+                      "spread": 20.0,
+                      "gravity": 60.0,
+                      "drag": 0.8,
+                      "rotationSpeed": [
+                        -90.0,
+                        90.0
+                      ],
+                      "maxParticles": 256,
+                      "space": "local"
+                    }
+                  },
+                  {
+                    "id": "d000953d-5245-47dc-8a3c-cdec155f3d51",
+                    "name": "Staub",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 24.0,
+                      "height": 24.0,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 80.0,
+                      "y": 320.0,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 170,
+                      "g": 150,
+                      "b": 110,
+                      "a": 255
+                    },
+                    "particles": {
+                      "preset": "dust",
+                      "rate": 8.0,
+                      "burst": 0,
+                      "lifetime": [
+                        0.8,
+                        1.6
+                      ],
+                      "sizeStart": [
+                        3.0,
+                        8.0
+                      ],
+                      "sizeEnd": [
+                        10.0,
+                        20.0
+                      ],
+                      "opacityStart": [
+                        0.4,
+                        0.6
+                      ],
+                      "opacityEnd": [
+                        0.0,
+                        0.0
+                      ],
+                      "colorStart": {
+                        "r": 160,
+                        "g": 150,
+                        "b": 130,
+                        "a": 255
+                      },
+                      "colorEnd": {
+                        "r": 140,
+                        "g": 130,
+                        "b": 110,
+                        "a": 255
+                      },
+                      "speed": [
+                        10.0,
+                        40.0
+                      ],
+                      "direction": -90.0,
+                      "spread": 60.0,
+                      "gravity": -10.0,
+                      "drag": 0.8,
+                      "rotationSpeed": [
+                        0.0,
+                        0.0
+                      ],
+                      "maxParticles": 256,
+                      "space": "local"
+                    }
+                  },
+                  {
+                    "id": "3bc0ea90-2172-4fc1-a39d-e51a51f46297",
+                    "name": "Magie",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 24.0,
+                      "height": 24.0,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 280.0,
+                      "y": 320.0,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 190,
+                      "g": 120,
+                      "b": 255,
+                      "a": 255
+                    },
+                    "particles": {
+                      "preset": "magic",
+                      "rate": 25.0,
+                      "burst": 0,
+                      "lifetime": [
+                        0.6,
+                        1.4
+                      ],
+                      "sizeStart": [
+                        3.0,
+                        7.0
+                      ],
+                      "sizeEnd": [
+                        0.0,
+                        2.0
+                      ],
+                      "opacityStart": [
+                        0.9,
+                        1.0
+                      ],
+                      "opacityEnd": [
+                        0.0,
+                        0.0
+                      ],
+                      "colorStart": {
+                        "r": 170,
+                        "g": 120,
+                        "b": 255,
+                        "a": 255
+                      },
+                      "colorEnd": {
+                        "r": 80,
+                        "g": 200,
+                        "b": 255,
+                        "a": 255
+                      },
+                      "speed": [
+                        30.0,
+                        90.0
+                      ],
+                      "direction": -90.0,
+                      "spread": 360.0,
+                      "gravity": -40.0,
+                      "drag": 0.5,
+                      "rotationSpeed": [
+                        -180.0,
+                        180.0
+                      ],
+                      "maxParticles": 256,
+                      "space": "local"
+                    }
+                  },
+                  {
+                    "id": "77655491-b081-4a6e-b6f8-e587d3f7b943",
+                    "name": "Explosion",
+                    "kind": {
+                      "kind": "rect",
+                      "width": 24.0,
+                      "height": 24.0,
+                      "corner_radius": 0.0
+                    },
+                    "transform": {
+                      "x": 480.0,
+                      "y": 320.0,
+                      "scale_x": 1.0,
+                      "scale_y": 1.0,
+                      "rotation": 0.0
+                    },
+                    "fill": {
+                      "r": 255,
+                      "g": 160,
+                      "b": 60,
+                      "a": 255
+                    },
+                    "particles": {
+                      "preset": "explosion",
+                      "rate": 0.0,
+                      "burst": 60,
+                      "lifetime": [
+                        0.3,
+                        0.9
+                      ],
+                      "sizeStart": [
+                        3.0,
+                        8.0
+                      ],
+                      "sizeEnd": [
+                        0.0,
+                        2.0
+                      ],
+                      "opacityStart": [
+                        1.0,
+                        1.0
+                      ],
+                      "opacityEnd": [
+                        0.0,
+                        0.0
+                      ],
+                      "colorStart": {
+                        "r": 255,
+                        "g": 200,
+                        "b": 80,
+                        "a": 255
+                      },
+                      "colorEnd": {
+                        "r": 255,
+                        "g": 60,
+                        "b": 20,
+                        "a": 255
+                      },
+                      "speed": [
+                        150.0,
+                        380.0
+                      ],
+                      "direction": -90.0,
+                      "spread": 360.0,
+                      "gravity": 300.0,
+                      "drag": 1.5,
+                      "rotationSpeed": [
+                        0.0,
+                        0.0
+                      ],
+                      "maxParticles": 256,
+                      "space": "local"
+                    }
+                  }
+                ]
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              },
+              {
+                "keyframe": false
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "symbols": [],
+    "assets": [],
+    "scripts": [
+      {
+        "id": "a549d794-42cd-4ca5-8ec4-58b8be303ad6",
+        "name": "Main.as",
+        "path": "scripts/Main.as",
+        "source": "package {\n    import flash.display.MovieClip;\n    import flash.display.Graphics;\n\n    /// Particle showcase: the emitters configured on the timeline objects are\n    /// simulated by the NØVA game preview. This document class only draws the\n    /// static backdrop — particle systems are a preview-runtime feature and\n    /// are intentionally NOT exported into the SWF (see docs/EXPORT.md).\n    public dynamic class Main extends MovieClip {\n        public function Main() {\n            var bg:MovieClip = new MovieClip();\n            var g:Graphics = bg.graphics;\n            g.beginFill(0x0B0D14);\n            g.drawRect(0, 0, stage.stageWidth, stage.stageHeight);\n            g.endFill();\n            addChild(bg);\n\n            var floor:MovieClip = new MovieClip();\n            var fg:Graphics = floor.graphics;\n            fg.beginFill(0x1B2030);\n            fg.drawRect(0, stage.stageHeight - 60, stage.stageWidth, 60);\n            fg.endFill();\n            addChild(floor);\n        }\n    }\n}\n",
+        "provenance": "original_source"
+      },
+      {
+        "id": "41d6a88f-8e0a-4bec-bb0d-cdf4d07d1d0f",
+        "name": "Input.as",
+        "path": "scripts/game/Input.as",
+        "source": "package game {\n    import flash.display.Stage;\n    import flash.events.KeyboardEvent;\n    import flash.events.MouseEvent;\n\n    /// Keyboard/mouse state helper. Call `init(stage)` once from the document\n    /// class constructor, `poll()` once per frame, then query `down`/`pressed`.\n    public class Input {\n        private static var held:Object = {};\n        private static var consumed:Object = {};\n        private static var target:Stage = null;\n        public static var mouseX:Number = 0;\n        public static var mouseY:Number = 0;\n\n        public static function init(stage:Stage):void {\n            target = stage;\n            stage.addEventListener(KeyboardEvent.KEY_DOWN, onKeyDown);\n            stage.addEventListener(KeyboardEvent.KEY_UP, onKeyUp);\n            stage.addEventListener(MouseEvent.MOUSE_MOVE, onMouseMove);\n        }\n\n        private static function onKeyDown(e:KeyboardEvent):void {\n            held[e.keyCode] = true;\n        }\n\n        private static function onKeyUp(e:KeyboardEvent):void {\n            held[e.keyCode] = false;\n            consumed[e.keyCode] = false;\n        }\n\n        private static function onMouseMove(e:MouseEvent):void {\n            mouseX = e.stageX;\n            mouseY = e.stageY;\n        }\n\n        /// Called once per frame after all `pressed` queries of the previous\n        /// frame are done. Resets edge-detection memory for released keys.\n        public static function poll():void {\n            // Nothing to copy: `consumed` is cleared lazily inside `pressed`.\n        }\n\n        public static function down(code:int):Boolean {\n            return held[code] == true;\n        }\n\n        /// True only on the frame the key went down (edge trigger).\n        public static function pressed(code:int):Boolean {\n            if (held[code] == true && consumed[code] != true) {\n                consumed[code] = true;\n                return true;\n            }\n            if (held[code] != true) {\n                consumed[code] = false;\n            }\n            return false;\n        }\n    }\n}\n",
+        "provenance": "original_source"
+      },
+      {
+        "id": "9d6cad1f-4ba5-45cf-a21d-b3f140beef2a",
+        "name": "Collision.as",
+        "path": "scripts/game/Collision.as",
+        "source": "package game {\n    import flash.display.DisplayObject;\n\n    /// Axis-aligned and radial collision helpers operating on plain numbers.\n    /// Display objects are measured by their `x`/`y`/`width`/`height` bounds,\n    /// which works for programmatically drawn sprites.\n    public class Collision {\n        public static function aabb(\n            x1:Number, y1:Number, w1:Number, h1:Number,\n            x2:Number, y2:Number, w2:Number, h2:Number\n        ):Boolean {\n            return x1 < x2 + w2 && x1 + w1 > x2 && y1 < y2 + h2 && y1 + h1 > y2;\n        }\n\n        public static function circle(\n            cx1:Number, cy1:Number, r1:Number,\n            cx2:Number, cy2:Number, r2:Number\n        ):Boolean {\n            var dx:Number = cx1 - cx2;\n            var dy:Number = cy1 - cy2;\n            var rr:Number = r1 + r2;\n            return dx * dx + dy * dy < rr * rr;\n        }\n\n        public static function pointInRect(\n            px:Number, py:Number, x:Number, y:Number, w:Number, h:Number\n        ):Boolean {\n            return px >= x && px <= x + w && py >= y && py <= y + h;\n        }\n\n        /// AABB test between two display objects using their bounds.\n        public static function objectsOverlap(a:DisplayObject, b:DisplayObject):Boolean {\n            return aabb(a.x, a.y, a.width, a.height, b.x, b.y, b.width, b.height);\n        }\n    }\n}\n",
+        "provenance": "original_source"
+      },
+      {
+        "id": "4a01f869-4c03-4935-8f73-0111a5df7998",
+        "name": "Physics.as",
+        "path": "scripts/game/Physics.as",
+        "source": "package game {\n    import flash.display.DisplayObject;\n\n    /// Minimal velocity/gravity integration for display objects. Velocity is\n    /// stored in dynamic `vx`/`vy` properties on the object itself.\n    public class Physics {\n        /// Integrates one body: gravity, then position. `gravity` is px/s^2.\n        public static function stepBody(body:DisplayObject, dt:Number, gravity:Number):void {\n            body.vy = body.vy + gravity * dt;\n            body.x = body.x + body.vx * dt;\n            body.y = body.y + body.vy * dt;\n        }\n\n        /// Applies a horizontal acceleration, clamped to `maxSpeed`.\n        public static function accelerate(body:DisplayObject, accel:Number, maxSpeed:Number, dt:Number):void {\n            body.vx = body.vx + accel * dt;\n            if (body.vx > maxSpeed) {\n                body.vx = maxSpeed;\n            }\n            if (body.vx < -maxSpeed) {\n                body.vx = -maxSpeed;\n            }\n        }\n\n        /// Simple ground collision response: keeps `body` above `floorY`\n        /// (bottom edge) and kills downward velocity on contact.\n        /// Returns true while the body rests on the floor.\n        public static function floor(body:DisplayObject, floorY:Number):Boolean {\n            if (body.y + body.height > floorY) {\n                body.y = floorY - body.height;\n                if (body.vy > 0) {\n                    body.vy = 0;\n                }\n                return true;\n            }\n            return false;\n        }\n    }\n}\n",
+        "provenance": "original_source"
+      },
+      {
+        "id": "55241146-2ffc-47b9-ba14-29e68a576027",
+        "name": "Camera.as",
+        "path": "scripts/game/Camera.as",
+        "source": "package game {\n    import flash.display.DisplayObject;\n\n    /// Follow camera for games built on a single world container. Apply the\n    /// result with `applyTo(world)` each frame.\n    public class Camera {\n        public var x:Number = 0;\n        public var y:Number = 0;\n        public var zoom:Number = 1;\n        private var target:DisplayObject = null;\n        private var lerp:Number = 6;\n\n        public function follow(mc:DisplayObject):void {\n            target = mc;\n        }\n\n        /// Advances the camera toward the follow target. Pass world bounds as\n        /// four numbers; use 0/0/0/0 for unbounded.\n        public function update(\n            dt:Number, viewW:Number, viewH:Number,\n            boundL:Number, boundT:Number, boundR:Number, boundB:Number\n        ):void {\n            if (target == null) {\n                return;\n            }\n            var tx:Number = target.x + target.width / 2;\n            var ty:Number = target.y + target.height / 2;\n            var t:Number = dt * lerp;\n            if (t > 1) {\n                t = 1;\n            }\n            x = x + (tx - x) * t;\n            y = y + (ty - y) * t;\n            var halfW:Number = viewW / (2 * zoom);\n            var halfH:Number = viewH / (2 * zoom);\n            if (boundR > boundL) {\n                var loX:Number = boundL + halfW;\n                var hiX:Number = boundR - halfW;\n                if (loX <= hiX) {\n                    if (x < loX) { x = loX; }\n                    if (x > hiX) { x = hiX; }\n                }\n            }\n            if (boundB > boundT) {\n                var loY:Number = boundT + halfH;\n                var hiY:Number = boundB - halfH;\n                if (loY <= hiY) {\n                    if (y < loY) { y = loY; }\n                    if (y > hiY) { y = hiY; }\n                }\n            }\n        }\n\n        /// Positions `world` so the camera centre lands mid-view.\n        public function applyTo(world:DisplayObject):void {\n            world.x = world.stage.stageWidth / 2 - x * zoom;\n            world.y = world.stage.stageHeight / 2 - y * zoom;\n            world.scaleX = zoom;\n            world.scaleY = zoom;\n        }\n    }\n}\n",
+        "provenance": "original_source"
+      },
+      {
+        "id": "891c1a71-8aa8-4daf-b8f7-45b3405be0e8",
+        "name": "Random.as",
+        "path": "scripts/game/Random.as",
+        "source": "package game {\n    import flash.utils.getTimer;\n\n    /// Small deterministic PRNG (linear congruential generator). Seeded from\n    /// `getTimer()`; call `srand` for a fixed sequence in tests.\n    public class Random {\n        private static var state:Number = getTimer() + 1;\n\n        public static function srand(seed:Number):void {\n            state = seed;\n        }\n\n        /// Returns a value in [0, 1).\n        public static function next():Number {\n            state = (state * 1103515245 + 12345) % 2147483648;\n            return state / 2147483648;\n        }\n\n        /// Returns a value in [0, bound).\n        public static function range(bound:Number):Number {\n            return next() * bound;\n        }\n    }\n}\n",
+        "provenance": "original_source"
+      }
+    ],
+    "export": {
+      "target": "avm2",
+      "swfVersion": 10,
+      "compression": "zlib",
+      "includeScripts": true,
+      "exportAllScenes": false
+    },
+    "activeScene": "856e7f59-9d5b-4ba2-9142-eb404f07b37c"
+  }
+}

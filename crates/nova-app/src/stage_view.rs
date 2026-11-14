@@ -197,33 +197,74 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
             let Some(body_state) = preview.states.get(&body.id) else {
                 continue;
             };
-            let (w, h, circle) = match body.collision {
-                Some(spec) => (
-                    spec.width,
-                    spec.height,
-                    spec.shape == nova_core::CollisionShape::Circle,
-                ),
-                None => (body.width, body.height, false),
-            };
-            if w <= 0.0 || h <= 0.0 {
-                continue;
+            let color = Color32::from_rgba_unmultiplied(80, 220, 120, 220);
+            let stroke = Stroke::new(1.5, color);
+            match body.collision.as_ref() {
+                Some(spec) if matches!(spec.shape, nova_core::CollisionShape::Polygon { .. }) => {
+                    if let nova_core::CollisionShape::Polygon { points } = &spec.shape {
+                        let center = Pos2::new(body_state.x, body_state.y);
+                        let poly: Vec<Pos2> = points
+                            .iter()
+                            .map(|(px, py)| view.to_screen(Pos2::new(center.x + px, center.y + py)))
+                            .collect();
+                        if poly.len() >= 3 {
+                            painter.add(egui::Shape::closed_line(poly, stroke));
+                        }
+                    }
+                }
+                Some(spec) => {
+                    let (w, h) = (spec.width, spec.height);
+                    if w <= 0.0 || h <= 0.0 {
+                        continue;
+                    }
+                    let center = view.to_screen(Pos2::new(body_state.x, body_state.y));
+                    let half = Vec2::new(w / 2.0, h / 2.0) * view.zoom;
+                    if spec.shape == nova_core::CollisionShape::Circle {
+                        painter.circle_stroke(center, half.x.max(half.y), stroke);
+                    } else {
+                        let rect = Rect::from_center_size(center, half * 2.0);
+                        painter.rect_stroke(rect, 0.0, stroke, StrokeKind::Inside);
+                    }
+                }
+                None => {
+                    let (w, h) = (body.width, body.height);
+                    if w <= 0.0 || h <= 0.0 {
+                        continue;
+                    }
+                    let center = view.to_screen(Pos2::new(body_state.x, body_state.y));
+                    let half = Vec2::new(w / 2.0, h / 2.0) * view.zoom;
+                    let rect = Rect::from_center_size(center, half * 2.0);
+                    painter.rect_stroke(rect, 0.0, stroke, StrokeKind::Inside);
+                }
             }
-            let center = view.to_screen(Pos2::new(body_state.x, body_state.y));
-            let half = Vec2::new(w / 2.0, h / 2.0) * view.zoom;
-            if circle {
-                painter.circle_stroke(
-                    center,
-                    half.x.max(half.y),
-                    Stroke::new(1.5, Color32::from_rgba_unmultiplied(80, 220, 120, 220)),
+        }
+    }
+
+    // Particle emitters: live preview simulation only.
+    if let Some(preview) = &state.game_preview {
+        for (_emitter, views) in preview.particle_views() {
+            for particle in views {
+                if particle.size <= 0.0 || particle.opacity <= 0.0 {
+                    continue;
+                }
+                let center = view.to_screen(Pos2::new(particle.x, particle.y));
+                let radius = (particle.size * view.zoom / 2.0).max(0.5);
+                let alpha = (particle.color.a as f32 * particle.opacity).round() as u8;
+                let color = Color32::from_rgba_unmultiplied(
+                    particle.color.r,
+                    particle.color.g,
+                    particle.color.b,
+                    alpha,
                 );
-            } else {
-                let rect = Rect::from_center_size(center, half * 2.0);
-                painter.rect_stroke(
-                    rect,
-                    0.0,
-                    Stroke::new(1.5, Color32::from_rgba_unmultiplied(80, 220, 120, 220)),
-                    StrokeKind::Inside,
-                );
+                let radians = particle.rotation.to_radians();
+                let (sin, cos) = radians.sin_cos();
+                let quad = [
+                    center + Vec2::new(-radius * cos + radius * sin, -radius * sin - radius * cos),
+                    center + Vec2::new(radius * cos + radius * sin, radius * sin - radius * cos),
+                    center + Vec2::new(radius * cos - radius * sin, radius * sin + radius * cos),
+                    center + Vec2::new(-radius * cos - radius * sin, -radius * sin + radius * cos),
+                ];
+                painter.add(Shape::convex_polygon(quad.to_vec(), color, Stroke::NONE));
             }
         }
     }
@@ -458,6 +499,9 @@ fn draw_object(
         ObjectKind::Path { paths, .. } => {
             draw_paths(painter, view, &object.instance, paths);
         }
+        ObjectKind::Tilemap(map) => {
+            draw_tilemap(painter, view, &object.instance, map, project, textures);
+        }
         ObjectKind::Text(text) => {
             draw_paths(
                 painter,
@@ -480,6 +524,120 @@ fn draw_object(
 
     if selection.contains_object(object.instance.id) {
         draw_selection(painter, view, &object.instance, size);
+    }
+}
+
+/// Draws a tilemap as textured quads sampled from the tileset bitmap.
+/// Only cells inside the current viewport are emitted, so large maps stay
+/// cheap; the tileset texture is shared — no per-tile textures are created.
+fn draw_tilemap(
+    painter: &egui::Painter,
+    view: &View,
+    instance: &nova_core::ObjectInstance,
+    map: &nova_core::TilemapData,
+    project: &Project,
+    textures: &std::collections::HashMap<Uuid, egui::TextureHandle>,
+) {
+    let Some(tileset) = project.tilesets.iter().find(|t| t.id == map.tileset) else {
+        // Missing tileset: draw the grid outline so the object stays editable.
+        let points = outline_points(
+            view,
+            instance,
+            util::object_size(instance, &project.symbols).unwrap_or((map.width(), map.height())),
+        );
+        painter.add(Shape::convex_polygon(
+            points,
+            Color32::from_rgba_unmultiplied(255, 80, 80, 40),
+            Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 80, 80, 160)),
+        ));
+        return;
+    };
+    let Some(texture) = textures.get(&tileset.asset) else {
+        return; // texture still decoding
+    };
+    let tex_size = texture.size();
+    if tex_size[0] <= 0
+        || tex_size[1] <= 0
+        || tileset.tile_width == 0
+        || tileset.tile_height == 0
+        || tileset.columns == 0
+    {
+        return;
+    }
+    let tile_w = map.tile_width.max(1.0);
+    let tile_h = map.tile_height.max(1.0);
+
+    // Viewport culling in tile coordinates. The object's local space is
+    // centre-based, matching stage_point.
+    let top_left = view.to_stage(view.rect.left_top());
+    let bottom_right = view.to_stage(view.rect.right_bottom());
+    let pad = 2.0f32;
+    let cx0 = (((top_left.x - instance.transform.x) + map.width() / 2.0) / tile_w - pad)
+        .floor()
+        .max(0.0) as usize;
+    let cy0 = (((top_left.y - instance.transform.y) + map.height() / 2.0) / tile_h - pad)
+        .floor()
+        .max(0.0) as usize;
+    let cx1 = (((bottom_right.x - instance.transform.x) + map.width() / 2.0) / tile_w + pad)
+        .ceil()
+        .min(map.columns as f32) as usize;
+    let cy1 = (((bottom_right.y - instance.transform.y) + map.height() / 2.0) / tile_h + pad)
+        .ceil()
+        .min(map.rows as f32) as usize;
+
+    let mut mesh = egui::Mesh::with_texture(texture.id());
+    let tw = tex_size[0] as f32;
+    let th = tex_size[1] as f32;
+    for layer in &map.layers {
+        if !layer.visible || layer.opacity <= 0.0 {
+            continue;
+        }
+        let alpha = (layer.opacity.clamp(0.0, 1.0) * 255.0) as u8;
+        for cy in cy0..cy1.min(map.rows) {
+            for cx in cx0..cx1.min(map.columns) {
+                let cell = layer.cells.get(cy * map.columns + cx).copied().unwrap_or(0);
+                if cell == 0 {
+                    continue;
+                }
+                let index = cell as usize - 1;
+                let tile_col = (index as u32 % tileset.columns) * tileset.tile_width;
+                let tile_row = (index as u32 / tileset.columns) * tileset.tile_height;
+                // UV rect of the tile inside the texture.
+                let u0 = tile_col as f32 / tw;
+                let v0 = tile_row as f32 / th;
+                let u1 = (tile_col + tileset.tile_width) as f32 / tw;
+                let v1 = (tile_row + tileset.tile_height) as f32 / th;
+                // Local quad, centre-based.
+                let lx0 = cx as f32 * tile_w - map.width() / 2.0;
+                let ly0 = cy as f32 * tile_h - map.height() / 2.0;
+                let corners_local = [
+                    (lx0, ly0, u0, v0),
+                    (lx0 + tile_w, ly0, u1, v0),
+                    (lx0 + tile_w, ly0 + tile_h, u1, v1),
+                    (lx0, ly0 + tile_h, u0, v1),
+                ];
+                let vertex_base = mesh.vertices.len() as u32;
+                for (lx, ly, u, v) in corners_local {
+                    let point = util::stage_point(instance, egui::vec2(lx, ly));
+                    mesh.vertices.push(egui::epaint::Vertex {
+                        pos: view.to_screen(Pos2::new(point.x, point.y)),
+                        uv: egui::pos2(u, v),
+                        color: egui::Color32::from_white_alpha(alpha),
+                    });
+                }
+                mesh.indices.extend_from_slice(&[
+                    vertex_base,
+                    vertex_base + 1,
+                    vertex_base + 2,
+                    vertex_base,
+                    vertex_base + 2,
+                    vertex_base + 3,
+                ]);
+            }
+        }
+    }
+    if !mesh.indices.is_empty() {
+        painter.add(egui::Shape::mesh(mesh));
     }
 }
 

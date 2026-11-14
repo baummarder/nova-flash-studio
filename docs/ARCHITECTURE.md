@@ -819,3 +819,93 @@ already covered by M9/M10 operations.
   `offset` and `duration` are honoured by the SWF exporter, not the preview.
 - Ruffle validation covers SWF export regression; it does not exercise the
   editor runtime. Actual audible output was not verified headless.
+
+
+## 15. Mega Milestone 11 additions (0.7.0-rc1)
+
+M11 turns the editor into a visual 2D game-creation environment while keeping
+the crate boundaries: `nova-core` owns tilemap logic (`tilemap.rs`), particles
+(`particles.rs`) and all game runtime state; `nova-app` adds the painting UI;
+`nova-ai` exposes the same operations as typed, transactional edits.
+
+### Document model (format version 4)
+
+- `ObjectKind::Tilemap(TilemapData)`: columns/rows grid, per-layer
+  visibility/lock/opacity, `u16` cell values (`0` = empty).
+- `Project.tilesets: Vec<Tileset>`: bitmap-asset-backed tile sets with tile
+  size, column count, per-tile names and `solid` flags. Tilesets are shared
+  across scenes; image data is never duplicated.
+- `ObjectInstance.particles: Option<ParticleEmitter>` and
+  `CollisionShape::Polygon { points }` (3–64 points, validated non-degenerate)
+  plus `CollisionSpec.layer`/`mask` bit filtering.
+- `GameSceneConfig.world: Option<WorldConfig>` (size + spawn), camera
+  `follow_smoothing`/`dead_zone`/`shake`.
+- All additions serde-defaulted; format v1–v3 documents load unchanged and
+  are normalised to v4 on save. `Project::validate` checks tileset ids/names,
+  tile dimensions and asset kind.
+
+### Core logic
+
+- `nova_core::tilemap` is the single implementation of paint tools
+  (pencil/eraser/rect/flood-fill/eyedrop/replace), brush stamps, flood-fill
+  connectivity and tile index validation — shared by the UI, AI operations
+  and tests.
+- `nova_core::particles` is a deterministic particle system (seeded RNG,
+  fixed-point-free f32 math, capped `max_particles`, local/world space) with
+  `ParticleView` render data consumed by the stage overlay.
+
+### Runtime integration
+
+- `collect_bodies` now emits implicit static bodies for tilemap objects;
+  `attach_tile_colliders` converts tileset-solid cells into a `TileCollider`
+  grid resolved by `resolve_tiles` in `game::step` (min-axis push-out,
+  restitution, grounded flag). Tile collision ignores layer/mask — documented.
+- `GameRuntime` collects `EmitterRuntime`s per scene (object id →
+  `ParticleSystem`), follows objects across frames and exposes
+  `particle_views()` for the stage renderer. Emitter simulation is stepped
+  inside `GameRuntime::step` with the same clamped dt.
+- `GameRuntime` applies world bounds for body clamping and the extended
+  camera (follow smoothing, dead-zone, shake) via `step_camera`.
+
+### Application
+
+- Bottom dock tab **Kacheln** (`tilemap_view.rs`): tile palette rendered from
+  the real tileset texture with per-tile names, all six paint tools, NxN
+  brush size, flood/eyedrop/replace parameters, layer list with
+  visibility/lock/opacity and zoom-to-fit. All mutations go through the
+  history/undo pipeline.
+- Inspector (`properties.rs`): polygon collision point editor, collision
+  layer/mask, camera smoothing/dead-zone/shake, world spawn, and the full
+  particle emitter form (preset + every field).
+- Stage (`stage_view.rs`): tilemaps render cell-by-cell with real texture
+  UVs and per-layer opacity; particles draw during game preview; collision
+  overlays include polygons.
+
+### AI operations
+
+`create_tileset`, `create_tilemap`, `modify_tilemap`, `paint_tiles`,
+`create_collision_shape`, `modify_camera`,
+`create_particle_emitter`/`configure_particle_emitter`,
+`create_level_group`, `place_game_object`, `import_project_asset` and the
+composite `create_game_level` are transactional and validated; the
+`ai_builds_playable_tilemap_level` test exercises the full pipeline.
+
+### Export
+
+- SWF: `define_tilemap` bakes visible layers into a single
+  `DefineBitsLossless2` bitmap (alpha-composited, layer opacity honoured,
+  8192px cap). Missing tilesets/assets warn explicitly. Particles warn once
+  per object.
+- XFL: tilemaps, particles and game metadata warn per object; data stays in
+  `.nova`.
+
+### Verification boundary
+
+- Unit tests: tilemap paint/flood/eyedrop/replace, particle determinism,
+  collision layer/mask, camera extensions, tileset slicing, format-v4
+  roundtrip and AI level workflow.
+- Build tests: tilemap→`DefineBitsLossless2` bake, missing-tileset warning,
+  every game template compiles to SWF.
+- Ruffle 0.7.1 runs the exported M11 SWFs with zero ERROR lines (font
+  fallback warnings only). Audible/visual frame inspection was not performed
+  headless; claims are limited to clean startup logs.

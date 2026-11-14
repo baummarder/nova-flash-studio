@@ -1427,6 +1427,28 @@ fn write_xfl_object(
     project: &Project,
     report: &mut CompatibilityReport,
 ) {
+    // Game/particle metadata has no XFL representation; warn once per object
+    // instead of silently dropping the component data.
+    if object.particles.is_some() {
+        report.warning(
+            IssueCategory::Export,
+            format!(
+                "Objekt '{}': Partikelemitter wird im XFL-Paket nicht exportiert; die Daten bleiben im .nova-Projekt erhalten.",
+                object.name
+            ),
+        );
+    }
+    if let Some(game) = &object.game {
+        if game.collision.is_some() || game.physics.is_some() {
+            report.warning(
+                IssueCategory::Export,
+                format!(
+                    "Objekt '{}': Game-Metadaten (Kollision/Physik) werden im XFL-Paket nicht exportiert.",
+                    object.name
+                ),
+            );
+        }
+    }
     match &object.kind {
         ObjectKind::Rect {
             width,
@@ -1547,6 +1569,15 @@ fn write_xfl_object(
                 format!(
                     "Symbol '{}' wurde mit Name, Transform und Bibliotheksverweis exportiert.",
                     symbol_name
+                ),
+            );
+        }
+        ObjectKind::Tilemap(map) => {
+            report.warning(
+                IssueCategory::Export,
+                format!(
+                    "Kachelkarte '{}' ({}×{} Kacheln) wird im XFL-Paket nicht exportiert; die Daten bleiben im .nova-Projekt erhalten. Der SWF-Export backt Kachelkarten zu einem Bitmap.",
+                    object.name, map.columns, map.rows
                 ),
             );
         }

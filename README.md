@@ -8,8 +8,8 @@ the project format is versioned JSON, and the SWF writer is implemented directly
 against the published SWF file-format specification. Tools and extensions run in
 an embedded QuickJS context; ActionScript is **not** executed by QuickJS.
 
-> **Status: Mega Milestone 10.1 release candidate `0.6.0-rc2`, not stable.**
-> The validated `0.6.0-rc1`, `0.5.0-rc2`/`0.5.0-rc1` artifacts remain under
+> **Status: Mega Milestone 11 release candidate `0.7.0-rc1`, not stable.**
+> The validated `0.6.0-rc2`/`0.6.0-rc1` artifacts remain under
 > `dist/` and `dist/archive/`. M10 added game development on top of M9:
 > optional game metadata in the `.nova` format (version 3, backwards
 > compatible), collision/physics/camera/input configuration per object and
@@ -34,7 +34,22 @@ an embedded QuickJS context; ActionScript is **not** executed by QuickJS.
 > Ruffle 0.7.1. Audio inside the SWF runtime and AS3-side scene switching
 > remain unimplemented and are labelled as such in the report. macOS and
 > Linux packages are scripted and structurally checked but were not built on
-> their native hosts here. See [Limitations](#limitations),
+> their native hosts here.
+>
+> M11 ("World Building & Visual Game Creation", `.nova` format v4) adds
+> serialisable tilemaps and shared tilesets backed by bitmap assets, a real
+> tile-painting editor (pencil/eraser/rect/flood-fill/eyedrop/replace,
+> per-layer visibility/lock/opacity, brush stamps) in a new bottom-dock
+> **Kacheln** tab, tilemap→lossless-bitmap SWF baking with explicit warnings,
+> polygon collision shapes with layer/mask filtering, deterministic particle
+> emitters (nine presets) simulated in the game preview, world bounds and
+> extended camera settings (follow smoothing, dead-zone, shake), tile-cell
+> collision in the preview runtime, twelve new transactional AI operations
+> including a composite `create_game_level`, three new game templates
+> (tilemap platformer, tilemap dungeon, particle showcase) and four new demo
+> projects under `samples/`. See [Limitations](#limitations),
+> [docs/WORLD_BUILDING.md](docs/WORLD_BUILDING.md),
+> [docs/MEGA_MILESTONE_11_REPORT.md](docs/MEGA_MILESTONE_11_REPORT.md),
 > [docs/MEGA_MILESTONE_10_1_REPORT.md](docs/MEGA_MILESTONE_10_1_REPORT.md),
 > [docs/MEGA_MILESTONE_10_REPORT.md](docs/MEGA_MILESTONE_10_REPORT.md),
 > [docs/MEGA_MILESTONE_9_REPORT.md](docs/MEGA_MILESTONE_9_REPORT.md),
@@ -90,7 +105,7 @@ Rust.
 
 | Platform | Package | Status in this repository |
 | --- | --- | --- |
-| Windows 10/11 x64 | `NOVA-Flash-Studio-<version>-windows-x64-Setup.exe` installer, or the portable `NØVA Flash Studio.exe` in the ZIP under `dist/windows/` | Rebuilt and smoke-tested for `0.6.0-rc2`; headless install/uninstall verified |
+| Windows 10/11 x64 | `NOVA-Flash-Studio-<version>-windows-x64-Setup.exe` installer, or the portable `NØVA Flash Studio.exe` in the ZIP under `dist/windows/` | Rebuilt and smoke-tested for `0.7.0-rc1`; headless install/uninstall verified |
 | macOS 10.15+ | `NØVA Flash Studio.app` ZIP | Bundle script and metadata prepared; not built here |
 | Linux x86_64 | `NØVA-Flash-Studio.AppImage` | AppImage recipe prepared; not built here |
 
@@ -130,9 +145,9 @@ bash scripts/package-macos.sh
 bash scripts/package-linux.sh
 ```
 
-The current Windows artifacts are produced from workspace version `0.6.0-rc2`:
+The current Windows artifacts are produced from workspace version `0.7.0-rc1`:
 the portable ZIP, the staged `NØVA Flash Studio.exe`, and the self-contained
-`NOVA-Flash-Studio-0.6.0-rc2-windows-x64-Setup.exe`. Sizes and SHA-256 values are
+`NOVA-Flash-Studio-0.7.0-rc1-windows-x64-Setup.exe`. Sizes and SHA-256 values are
 listed in `dist/windows/SHA256SUMS.txt`, which is authoritative even if a
 documentation-only rebuild changes a ZIP or Setup hash. The validated
 `0.4.0-rc1` artifacts are preserved under `dist/archive/0.4.0-rc1` and
@@ -386,6 +401,14 @@ have context menus for keyframe operations.
   real templates (empty, animation, platformer, UI kit); object
   copy/paste/duplicate; align/distribute; grid snapping; code find/replace with
   case toggle and project-wide search.
+- **World building (M11)** — serialisable tilemaps with shared tilesets
+  (bitmap-backed, per-tile names, solid flags), a tile-painting bottom-dock
+  editor with six tools and layer controls, polygon collision with
+  layer/mask bits, deterministic particle emitters (nine presets) in the
+  game preview, world bounds, extended camera settings, tile-cell collision,
+  twelve transactional AI operations and three new tilemap/particle game
+  templates. Tilemaps bake to `DefineBitsLossless2` on SWF export; particles
+  and tilemaps are preview/`.nova`-native and warn on export.
 - **Packaging** — custom Windows icon/version resource embedding, Windows ZIP
   script, a self-contained branded setup wizard with per-user/all-users
   install, custom directory, optional file associations, uninstaller and
@@ -457,10 +480,18 @@ fallbacks:
   `isFinite`, `parseInt` and `parseFloat` are recognized as built-in free
   functions. There is no complete `playerglobal` declaration set.
 - **The game preview is an editor simulation, not the exported runtime.** It
-  implements gravity, damping, simple collision and a follow camera for
-  configured objects; it is not exported to SWF. Scene transitions, a game
-  event bus and audio playback in the preview are not implemented. See
-  [docs/MEGA_MILESTONE_10_REPORT.md](docs/MEGA_MILESTONE_10_REPORT.md).
+  implements gravity, damping, collision (rectangles, circles, polygons and
+  solid tilemap cells), scene transitions, a game event bus, particle
+  emitters, world bounds and camera smoothing/dead-zone/shake for configured
+  objects; it is not exported to SWF. SWF gameplay therefore comes from the
+  AS3 document class, not from game metadata. See
+  [docs/MEGA_MILESTONE_10_1_REPORT.md](docs/MEGA_MILESTONE_10_1_REPORT.md) and
+  [docs/WORLD_BUILDING.md](docs/WORLD_BUILDING.md).
+- **Tilemaps and particles are preview/`.nova`-native.** SWF export bakes
+  tilemaps into a single bitmap per object (no per-tile editability, no
+  runtime tile collision); particle emitters are not exported at all and
+  produce explicit warnings. XFL export warns per object and keeps the data
+  in the `.nova` project only.
 - **Multi-scene export is opt-in.** By default only the active scene is
   exported and a warning names the ignored scenes. The “Alle Szenen
   aneinanderhängen” export option concatenates scenes and adds boundary labels;
@@ -469,11 +500,13 @@ fallbacks:
   and common German characters and is exported as SWF/XFL shapes, not
   `DefineText`. System/OpenType fonts, font embedding, selection, HTML text and
   editable runtime text are not implemented.
-- **No bitmaps, sounds, video, filters or gradients.** Asset metadata exists in
-  the model but is not embedded or editable.
-- **Symbols are one-frame sprites.** Nested symbol timelines, a full symbol
-  editing mode, masks and guide layers are not implemented (the data model has
-  layer kinds, but the editor/exporter do not act on masks/guides).
+- **No video, filters or gradients.** Bitmaps and sounds are embedded and
+  editable (M9); video, runtime filters and gradient fills are not
+  implemented.
+- **Symbols have real timelines but limited editing.** Nested MovieClips,
+  per-symbol timelines and timeline targets exist (M9); a dedicated symbol
+  editing canvas, masks and guide layers are not implemented (the data model
+  has layer kinds, but the editor/exporter do not act on masks/guides).
 - **Layer folders are functional but not a complete layer workflow.** Folders,
   rename, recursive visibility/lock and reordering exist; guide/mask layers and
   advanced nesting rules are not implemented.

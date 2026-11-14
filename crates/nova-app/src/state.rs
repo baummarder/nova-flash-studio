@@ -29,8 +29,66 @@ impl Mode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BottomTab {
     Timeline,
+    Tiles,
     Console,
     Problems,
+}
+
+/// Painting tool inside the tilemap editor (bottom "Kacheln" tab).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TilemapTool {
+    #[default]
+    Pencil,
+    Eraser,
+    Rect,
+    Flood,
+    Eyedrop,
+    Replace,
+}
+
+impl TilemapTool {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Pencil => "Stift",
+            Self::Eraser => "Radierer",
+            Self::Rect => "Rechteck",
+            Self::Flood => "Füllen",
+            Self::Eyedrop => "Pipette",
+            Self::Replace => "Ersetzen",
+        }
+    }
+}
+
+/// State of the tilemap editor panel.
+#[derive(Debug, Clone)]
+pub struct TilemapEditor {
+    /// (layer id, object id) of the tilemap being edited.
+    pub object: Option<(Uuid, Uuid)>,
+    /// Selected tile as a cell value (0 = empty, else tileset index + 1).
+    pub tile: u16,
+    /// Brush stamp edge length in cells (1 = single tile).
+    pub brush: u32,
+    pub tool: TilemapTool,
+    /// Active tile layer index.
+    pub layer: usize,
+    /// Drag start for the rectangle tool.
+    pub stroke_start: Option<(i32, i32)>,
+    /// Tile captured by the replace/eyedrop tools.
+    pub replace_from: u16,
+}
+
+impl Default for TilemapEditor {
+    fn default() -> Self {
+        Self {
+            object: None,
+            tile: 1,
+            brush: 1,
+            tool: TilemapTool::Pencil,
+            layer: 0,
+            stroke_start: None,
+            replace_from: 0,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -395,6 +453,8 @@ pub struct AppState {
     pub game_preview: Option<nova_core::game::runtime::GameRuntime>,
     /// Master volume for preview audio, 0.0..=1.0.
     pub preview_volume: f32,
+    /// Tilemap editor state (bottom "Kacheln" tab).
+    pub tilemap: TilemapEditor,
 }
 
 impl AppState {
@@ -461,6 +521,7 @@ impl AppState {
             selected_sound_cue: None,
             game_preview: None,
             preview_volume: 1.0,
+            tilemap: TilemapEditor::default(),
         };
         state.log(
             LogLevel::Info,

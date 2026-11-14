@@ -20,8 +20,8 @@ use crate::state::{
     Tool, UiAction,
 };
 use crate::{
-    autosave, branding, code_view, console, flash, properties, stage_view, theme, timeline_view,
-    tree, util,
+    autosave, branding, code_view, console, flash, properties, stage_view, theme, tilemap_view,
+    timeline_view, tree, util,
 };
 
 fn egui_key_for_letter(index: usize) -> Key {
@@ -604,6 +604,7 @@ impl NovaApp {
             let warnings = self.state.warning_count();
             let tabs = [
                 (BottomTab::Timeline, "Timeline".to_string()),
+                (BottomTab::Tiles, "Kacheln".to_string()),
                 (BottomTab::Console, "Konsole".to_string()),
                 (
                     BottomTab::Problems,
@@ -652,6 +653,10 @@ impl NovaApp {
         match self.state.bottom_tab {
             BottomTab::Timeline => {
                 actions.extend(timeline_view::show(ui, &mut self.project, &mut self.state));
+            }
+            BottomTab::Tiles => {
+                self.last_history_label = "Kacheln bearbeiten";
+                tilemap_view::show(ui, &mut self.project, &mut self.state);
             }
             BottomTab::Console => {
                 console::show(ui, &self.project, &mut self.state, &mut self.engine);

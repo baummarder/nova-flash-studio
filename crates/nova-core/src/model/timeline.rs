@@ -155,6 +155,7 @@ impl ResolvedObject {
             | super::ObjectKind::Ellipse { width, height }
             | super::ObjectKind::Path { width, height, .. }
             | super::ObjectKind::Bitmap { width, height, .. } => Some((*width, *height)),
+            super::ObjectKind::Tilemap(map) => Some((map.width(), map.height())),
             super::ObjectKind::Text(text) => Some(text.metrics()),
             super::ObjectKind::Symbol { symbol } => symbols
                 .iter()

@@ -78,6 +78,31 @@ pub struct GameBody {
     pub height: f32,
     pub collision: Option<CollisionSpec>,
     pub physics: Option<PhysicsSpec>,
+    /// Solid-tile collider for tilemap objects (filled by
+    /// [`attach_tile_colliders`]); `None` for regular objects.
+    pub tiles: Option<TileCollider>,
+}
+
+/// Solid-cell grid extracted from a tilemap object for collision tests.
+/// Cell coordinates are in tile units; world position is derived from the
+/// owning body's state minus half the grid size (objects are centre-based).
+#[derive(Debug, Clone)]
+pub struct TileCollider {
+    pub columns: usize,
+    pub rows: usize,
+    pub tile_width: f32,
+    pub tile_height: f32,
+    /// Row-major solidity flags (true = solid), length columns*rows.
+    pub solid: Vec<bool>,
+}
+
+impl TileCollider {
+    /// World-space rect of cell (cx, cy) given the body centre (x, y).
+    fn cell_rect(&self, cx: usize, cy: usize, x: f32, y: f32) -> (f32, f32, f32, f32) {
+        let left = x - self.columns as f32 * self.tile_width / 2.0 + cx as f32 * self.tile_width;
+        let top = y - self.rows as f32 * self.tile_height / 2.0 + cy as f32 * self.tile_height;
+        (left, top, self.tile_width, self.tile_height)
+    }
 }
 
 /// Collects the effective game objects of a scene: every object that carries
@@ -89,14 +114,35 @@ pub fn collect_bodies(scene: &Scene, symbols: &[Symbol]) -> Vec<GameBody> {
     for frame in 0..scene.frame_count() {
         for resolved in resolve_scene(scene, frame) {
             let instance = &resolved.instance;
-            let Some(game) = &instance.game else {
+            // Tilemap objects participate implicitly: they become static
+            // bodies so `attach_tile_colliders` can turn their solid cells
+            // into colliders — no game metadata required.
+            if instance.game.is_none() {
+                if let crate::model::ObjectKind::Tilemap(map) = &instance.kind {
+                    let body = GameBody {
+                        id: instance.id,
+                        name: instance.name.clone(),
+                        x: instance.transform.x,
+                        y: instance.transform.y,
+                        width: map.width(),
+                        height: map.height(),
+                        collision: None,
+                        physics: None,
+                        tiles: None,
+                    };
+                    if merged.insert(instance.id, body).is_none() {
+                        order.push(instance.id);
+                    }
+                }
                 continue;
-            };
+            }
+            let game = instance.game.as_ref().unwrap();
             if game.collision.is_none() && game.physics.is_none() {
                 continue;
             }
             let fallback = game
                 .collision
+                .as_ref()
                 .map(|c| (c.width, c.height))
                 .unwrap_or((32.0, 32.0));
             let (width, height) = resolved.size_hint(symbols).unwrap_or(fallback);
@@ -107,8 +153,9 @@ pub fn collect_bodies(scene: &Scene, symbols: &[Symbol]) -> Vec<GameBody> {
                 y: instance.transform.y,
                 width,
                 height,
-                collision: game.collision,
+                collision: game.collision.clone(),
                 physics: game.physics,
+                tiles: None,
             };
             if merged.insert(instance.id, body).is_none() {
                 order.push(instance.id);
@@ -122,9 +169,10 @@ pub fn collect_bodies(scene: &Scene, symbols: &[Symbol]) -> Vec<GameBody> {
 }
 
 /// Collision extents: explicit spec wins, otherwise the visual size.
+/// Polygon colliders use their bounding box in the preview (documented).
 fn extent(body: &GameBody) -> (f32, f32, CollisionShape) {
-    match body.collision {
-        Some(c) => (c.width.max(1.0), c.height.max(1.0), c.shape),
+    match &body.collision {
+        Some(c) => (c.width.max(1.0), c.height.max(1.0), c.shape.clone()),
         None => (
             body.width.max(1.0),
             body.height.max(1.0),
@@ -198,7 +246,17 @@ pub fn step(
             continue;
         }
         for j in 0..bodies.len() {
-            if i == j || bodies[j].collision.is_none() {
+            if i == j {
+                continue;
+            }
+            if let Some(tiles) = &bodies[j].tiles {
+                resolve_tiles(bodies, states, i, j, tiles);
+                continue;
+            }
+            let (Some(ci), Some(cj)) = (&bodies[i].collision, &bodies[j].collision) else {
+                continue;
+            };
+            if !ci.interacts_with(cj) {
                 continue;
             }
             if bodies[j]
@@ -294,6 +352,133 @@ fn resolve_pair(bodies: &[GameBody], states: &mut HashMap<Uuid, BodyState>, i: u
     states.insert(b.id, sb);
 }
 
+/// Resolves dynamic body `i` against the solid cells of tilemap body `j`.
+/// Only cells overlapping the body's AABB are tested; resolution uses the
+/// same min-axis push-out + restitution as [`resolve_pair`]. Tile collision
+/// ignores layer/mask (tileset solidity is binary) — documented limitation.
+fn resolve_tiles(
+    bodies: &[GameBody],
+    states: &mut HashMap<Uuid, BodyState>,
+    i: usize,
+    j: usize,
+    tiles: &TileCollider,
+) {
+    let a = &bodies[i];
+    let b = &bodies[j];
+    let mut sa = states.remove(&a.id).unwrap_or(BodyState {
+        x: a.x,
+        y: a.y,
+        ..Default::default()
+    });
+    let sb = states.remove(&b.id).unwrap_or(BodyState {
+        x: b.x,
+        y: b.y,
+        ..Default::default()
+    });
+    let (aw, ah, _) = extent(a);
+    let left = sa.x - aw / 2.0;
+    let top = sa.y - ah / 2.0;
+    let right = sa.x + aw / 2.0;
+    let bottom = sa.y + ah / 2.0;
+
+    // Grid origin in world space: tilemap body centre minus half grid size.
+    let grid_left = sb.x - tiles.columns as f32 * tiles.tile_width / 2.0;
+    let grid_top = sb.y - tiles.rows as f32 * tiles.tile_height / 2.0;
+    let min_cx = ((left - grid_left) / tiles.tile_width).floor().max(0.0) as usize;
+    let max_cx = (((right - grid_left) / tiles.tile_width).ceil() as usize).min(tiles.columns);
+    let min_cy = ((top - grid_top) / tiles.tile_height).floor().max(0.0) as usize;
+    let max_cy = (((bottom - grid_top) / tiles.tile_height).ceil() as usize).min(tiles.rows);
+
+    let bounce = a.physics.map(|p| p.bounce).unwrap_or(0.0);
+    let friction = a.physics.map(|p| p.friction).unwrap_or(0.0);
+
+    for cy in min_cy..max_cy {
+        for cx in min_cx..max_cx {
+            if !tiles
+                .solid
+                .get(cy * tiles.columns + cx)
+                .copied()
+                .unwrap_or(false)
+            {
+                continue;
+            }
+            let (cl, ct, cw, ch) = tiles.cell_rect(cx, cy, sb.x, sb.y);
+            let contact = rect_overlap(sa.x, sa.y, aw, ah, cl + cw / 2.0, ct + ch / 2.0, cw, ch);
+            let Some((nx, ny, depth)) = contact else {
+                continue;
+            };
+            sa.x += nx * depth;
+            sa.y += ny * depth;
+            let vn = sa.vx * nx + sa.vy * ny;
+            if vn < 0.0 {
+                sa.vx -= (1.0 + bounce) * vn * nx;
+                sa.vy -= (1.0 + bounce) * vn * ny;
+                let tx = -ny;
+                let ty = nx;
+                let vt = sa.vx * tx + sa.vy * ty;
+                sa.vx -= vt * friction.min(1.0) * tx;
+                sa.vy -= vt * friction.min(1.0) * ty;
+                if ny < -0.5 {
+                    sa.grounded = true;
+                }
+            }
+        }
+    }
+    states.insert(a.id, sa);
+    states.insert(b.id, sb);
+}
+
+/// Fills `GameBody::tiles` for every tilemap object in `bodies` that uses a
+/// tileset with at least one solid tile. Needs the full project because the
+/// tileset (not the tilemap) stores the solidity flags.
+pub fn attach_tile_colliders(
+    bodies: &mut [GameBody],
+    scene: &Scene,
+    project: &crate::model::Project,
+) {
+    use crate::model::ObjectKind;
+    // Map object id -> TilemapData for every tilemap instance on the scene.
+    let mut maps: HashMap<Uuid, crate::model::TilemapData> = HashMap::new();
+    for frame in 0..scene.frame_count() {
+        for resolved in resolve_scene(scene, frame) {
+            if let ObjectKind::Tilemap(data) = &resolved.instance.kind {
+                maps.insert(resolved.instance.id, data.clone());
+            }
+        }
+    }
+    if maps.is_empty() {
+        return;
+    }
+    for body in bodies.iter_mut() {
+        let Some(map) = maps.get(&body.id) else {
+            continue;
+        };
+        let Some(tileset) = project.tilesets.iter().find(|t| t.id == map.tileset) else {
+            continue;
+        };
+        if tileset.solid.iter().all(|solid| !solid) {
+            continue;
+        }
+        let mut solid = vec![false; map.columns * map.rows];
+        for layer in &map.layers {
+            for (index, cell) in layer.cells.iter().enumerate() {
+                if *cell > 0 && tileset.is_solid(*cell as usize - 1) {
+                    solid[index] = true;
+                }
+            }
+        }
+        if solid.iter().any(|s| *s) {
+            body.tiles = Some(TileCollider {
+                columns: map.columns,
+                rows: map.rows,
+                tile_width: map.tile_width,
+                tile_height: map.tile_height,
+                solid,
+            });
+        }
+    }
+}
+
 /// AABB overlap; returns the contact normal pointing from b to a plus depth.
 fn rect_overlap(
     ax: f32,
@@ -323,7 +508,9 @@ fn rect_overlap(
 }
 
 /// Advances the camera one step: follows `follow` (object name) or holds the
-/// stage centre, clamped inside the configured world bounds.
+/// stage centre, applies dead-zone and smoothing, adds deterministic shake
+/// and clamps inside the configured world bounds. `time` is the accumulated
+/// simulation time used for the shake phase.
 pub fn step_camera(
     camera: &mut CameraState,
     config: &crate::model::CameraConfig,
@@ -332,6 +519,7 @@ pub fn step_camera(
     scene_w: f32,
     scene_h: f32,
     dt: f32,
+    time: f32,
 ) {
     if !config.enabled {
         *camera = CameraState {
@@ -353,9 +541,22 @@ pub fn step_camera(
             })
             .unwrap_or((scene_w / 2.0, scene_h / 2.0))
     };
-    let t = (CAMERA_LERP * dt).min(1.0);
-    camera.x += (target.0 - camera.x) * t;
-    camera.y += (target.1 - camera.y) * t;
+    // Dead-zone: the camera only tracks axes on which the target leaves the
+    // configured box around the current centre.
+    let (dz_x, dz_y) = config.dead_zone;
+    let mut tx = target.0;
+    let mut ty = target.1;
+    if dz_x > 0.0 && (tx - camera.x).abs() <= dz_x {
+        tx = camera.x;
+    }
+    if dz_y > 0.0 && (ty - camera.y).abs() <= dz_y {
+        ty = camera.y;
+    }
+    // follow_smoothing 0 = instant (previous behaviour), approaching 1 = laggy.
+    let smooth = config.follow_smoothing.clamp(0.0, 0.95);
+    let t = (CAMERA_LERP * dt * (1.0 - smooth)).min(1.0);
+    camera.x += (tx - camera.x) * t;
+    camera.y += (ty - camera.y) * t;
     camera.zoom = config.zoom.max(0.1);
 
     let half_w = scene_w / (2.0 * camera.zoom);
@@ -373,6 +574,14 @@ pub fn step_camera(
         if lo <= hi {
             camera.y = camera.y.clamp(lo, hi);
         }
+    }
+
+    // Deterministic shake: two incommensurate sines give a stable jitter that
+    // does not depend on wall-clock time or RNG state.
+    if config.shake > 0.0 {
+        let s = config.shake;
+        camera.x += (time * 39.7).sin() * s;
+        camera.y += (time * 47.3 + 1.7).sin() * s * 0.8;
     }
 }
 
@@ -430,6 +639,7 @@ mod tests {
                 shape: CollisionShape::Rectangle,
                 width: 20.0,
                 height: 20.0,
+                ..Default::default()
             }),
             physics: physics(BodyType::Dynamic, true),
         }
@@ -441,6 +651,7 @@ mod tests {
                 shape: CollisionShape::Rectangle,
                 width: 400.0,
                 height: 20.0,
+                ..Default::default()
             }),
             physics: physics(BodyType::Static, false),
         }
@@ -517,12 +728,14 @@ mod tests {
             shape: CollisionShape::Circle,
             width: 20.0,
             height: 20.0,
+            ..Default::default()
         });
         let mut target_game = static_floor(200.0);
         target_game.collision = Some(CollisionSpec {
             shape: CollisionShape::Circle,
             width: 20.0,
             height: 20.0,
+            ..Default::default()
         });
         let scene = scene_with(vec![
             game_object("Mover", 100.0, 100.0, 20.0, 20.0, mover_game),
@@ -572,6 +785,9 @@ mod tests {
             right: 800.0,
             bottom: 600.0,
             zoom: 1.0,
+            follow_smoothing: 0.0,
+            dead_zone: (0.0, 0.0),
+            shake: 0.0,
         };
         for _ in 0..60 {
             step(
@@ -590,6 +806,7 @@ mod tests {
                 400.0,
                 300.0,
                 1.0 / 60.0,
+                0.0,
             );
         }
         let hero = &bodies[0];

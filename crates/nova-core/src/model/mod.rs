@@ -6,13 +6,15 @@ mod object;
 mod project;
 mod scene;
 mod text;
+mod tilemap;
 mod timeline;
 mod transform;
 
 pub use color::Rgba;
 pub use game::{
     BodyType, CameraConfig, CollisionShape, CollisionSpec, GameObjectConfig, GameSceneConfig,
-    InputBindings, PhysicsSpec, SceneTransition,
+    InputBindings, ParticleEmitter, ParticlePreset, ParticleSpace, PhysicsSpec, SceneTransition,
+    WorldConfig,
 };
 pub use object::{
     BitmapCrop, ObjectInstance, ObjectKind, PathCommand, PathShape, ScriptId, Symbol, SymbolId,
@@ -25,6 +27,7 @@ pub use project::{
 };
 pub use scene::{Layer, LayerKind, Scene};
 pub use text::{TextAlign, TextFont, TextObject};
+pub use tilemap::{TileLayer, TilemapData, Tileset};
 pub use timeline::{
     Easing, Frame, ResolvedObject, SoundCue, Tween, TweenKind, resolve_scene, shapes_compatible,
 };

@@ -128,6 +128,9 @@ pub enum ObjectKind {
     },
     /// Editable text baked to vector paths on export.
     Text(TextObject),
+    /// Tilemap grid painted with a shared tileset (format v4). Rendered as a
+    /// grid in the editor and baked to a bitmap on SWF export.
+    Tilemap(crate::model::TilemapData),
 }
 
 impl ObjectKind {
@@ -139,6 +142,7 @@ impl ObjectKind {
             Self::Symbol { .. } => "Symbol",
             Self::Bitmap { .. } => "Bitmap",
             Self::Text(_) => "Text",
+            Self::Tilemap(_) => "Kachelkarte",
         }
     }
 
@@ -149,6 +153,7 @@ impl ObjectKind {
             | Self::Path { width, height, .. }
             | Self::Bitmap { width, height, .. } => Some((*width, *height)),
             Self::Text(text) => Some(text.metrics()),
+            Self::Tilemap(map) => Some((map.width(), map.height())),
             Self::Symbol { .. } => None,
         }
     }
@@ -175,6 +180,10 @@ pub struct ObjectInstance {
     /// ignored by the timeline and the SWF exporter.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub game: Option<crate::model::GameObjectConfig>,
+    /// Optional particle emitter (format v4). Preview-only; preserved in
+    /// `.nova` but not reproduced by the SWF exporter.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub particles: Option<crate::model::ParticleEmitter>,
 }
 
 impl ObjectInstance {
@@ -193,6 +202,7 @@ impl ObjectInstance {
             script: None,
             source_character: None,
             game: None,
+            particles: None,
         }
     }
 

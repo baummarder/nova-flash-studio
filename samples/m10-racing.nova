@@ -1,18 +1,18 @@
 {
   "format": "nova-flash-studio",
-  "formatVersion": 3,
+  "formatVersion": 4,
   "project": {
-    "id": "b1b8db0a-ac3b-4ac6-9eb9-f807ca218fe9",
+    "id": "431112af-0b47-4fd8-939f-1b8446f8aca7",
     "metadata": {
       "name": "Simple Racing",
       "author": "",
       "description": "Scrollender Racer auf kurviger Strecke mit Verkehr.",
-      "createdUnix": 1794662865,
-      "modifiedUnix": 1794662865
+      "createdUnix": 1794667011,
+      "modifiedUnix": 1794667011
     },
     "scenes": [
       {
-        "id": "ee541e02-accb-4348-97e0-82e99e1301ec",
+        "id": "e7d0828c-d3d7-4bda-957e-a717b9e50103",
         "name": "Szene 1",
         "width": 640.0,
         "height": 360.0,
@@ -25,7 +25,7 @@
         "fps": 30.0,
         "layers": [
           {
-            "id": "edfe92df-0eca-4bbd-946c-81e6662d4358",
+            "id": "0d27f3dd-4214-4e12-a4fa-14e87d3567a7",
             "name": "Ebene 1",
             "visible": true,
             "locked": false,
@@ -43,42 +43,42 @@
     "assets": [],
     "scripts": [
       {
-        "id": "33736926-f74a-488b-b946-8d9bf6b7f87a",
+        "id": "f20f9d74-7786-4152-b004-4ee2c8e71d0f",
         "name": "Main.as",
         "path": "scripts/Main.as",
         "source": "package {\n    import flash.display.MovieClip;\n    import flash.display.Graphics;\n    import flash.events.Event;\n    import flash.text.TextField;\n    import flash.text.TextFormat;\n    import flash.ui.Keyboard;\r\n    import flash.utils.getTimer;\n    import game.Input;\n    import game.Collision;\n    import game.Random;\n\n    /// Top-down racer: steer a car along a winding road, dodge traffic,\n    /// survive as long as possible. Score = survival time.\n    public dynamic class Main extends MovieClip {\n        private var car:MovieClip;\n        private var hud:TextField;\n        private var traffic = [];\n        private var spawnTimer:Number = 0;\n        private var score:Number = 0;\n        private var lastTime:int = 0;\n        private var worldW:Number = 800;\n        private var worldH:Number = 4800;\n        private var roadLeft:Number = 200;\n        private var roadRight:Number = 600;\n\n        public function Main() {\n            Input.init(stage);\n            build();\n            addEventListener(Event.ENTER_FRAME, update);\n        }\n\n        private function box(w:Number, h:Number, color:Number):MovieClip {\n            var s:MovieClip = new MovieClip();\n            var g:Graphics = s.graphics;\n            g.beginFill(color);\n            g.drawRect(-w / 2, -h / 2, w, h);\n            g.endFill();\n            return s;\n        }\n\n        private function roadCenter(y:Number):Number {\n            // Gentle winding road via a triangle wave (no Math lib needed)\n            var p:Number = (y * 0.004) % 1.0;\n            if (p < 0) { p = p + 1; }\n            var k:Number = p * 2;\n            if (k > 1) { k = 2 - k; }\n            return worldW / 2 + (k * 2 - 1) * 160;\n        }\n\n        private function build():void {\n            car = box(36, 56, 0x4AC6FF);\n            car.wx = roadCenter(0);\n            car.wy = 200;\n            car.x = car.wx;\n            car.y = car.wy;\n            addChild(car);\n\n            hud = new TextField();\n            var fmt:TextFormat = new TextFormat();\n            fmt.size = 22;\n            fmt.color = 0xFFFFFF;\n            hud.defaultTextFormat = fmt;\n            hud.x = 16;\n            hud.y = 16;\n            addChild(hud);\n            updateHud();\n        }\n\n        private function updateHud():void {\n            var meters:Number = score / 10;\n            hud.text = \"Strecke: \" + meters + \" m\";\n        }\n\n        private function update(event:Event):void {\n            var now:int = getTimer();\n            var dt:Number = (now - lastTime) / 1000;\n            lastTime = now;\n            if (dt <= 0 || dt > 0.1) {\n                dt = 0.016;\n            }\n            Input.poll();\n            score = score + dt;\n\n            // Steering: car follows the road centre plus player offset\n            var steer:Number = 0;\n            if (Input.down(Keyboard.LEFT)) { steer = steer - 1; }\n            if (Input.down(Keyboard.RIGHT)) { steer = steer + 1; }\n            var targetX:Number = roadCenter(car.wy) + steer * 160;\n            car.wx = car.wx + (targetX - car.wx) * 8 * dt;\n            if (car.wx < roadLeft + 24) { car.wx = roadLeft + 24; }\n            if (car.wx > roadRight - 24) { car.wx = roadRight - 24; }\n\n            // Forward speed ramps up slightly\n            var speed:Number = 320 + score * 2;\n            if (speed > 560) { speed = 560; }\n            car.wy = car.wy + speed * dt;\n            if (car.wy > worldH) {\n                car.wy = 200;\n                score = score + 50; // lap bonus\n            }\n\n            // Spawn traffic ahead\n            spawnTimer = spawnTimer - dt;\n            if (spawnTimer <= 0 && traffic.length < 6) {\n                spawnTimer = 0.7 + Random.range(0.8);\n                var t:MovieClip = box(30, 44, 0xFFB03A);\n                t.wx = roadCenter(0) + (Random.range(2) - 1) * 140;\n                t.wy = -60;\n                addChild(t);\n                traffic.push(t);\n            }\n\n            // Move traffic toward the player (world scrolls upward past car)\n            var i:int;\n            for (i = traffic.length - 1; i >= 0; i--) {\n                var t = traffic[i];\n                t.wy = t.wy + (speed * 0.8) * dt;\n                // Wrap: cars ahead of the player wrap to the back\n                if (t.wy > car.wy + 500) {\n                    t.wy = car.wy - 800;\n                    t.wx = roadCenter(t.wy) + (Random.range(2) - 1) * 140;\n                }\n                if (t.wy < -100) {\n                    removeChild(t);\n                    traffic.splice(i, 1);\n                }\n                // Collision -> crash: restart position, lose time bonus\n                if (Collision.aabb(\n                    car.wx - 16, car.wy - 26, 32, 52,\n                    t.wx - 14, t.wy - 20, 28, 40\n                )) {\n                    car.wy = 200;\n                    car.wx = roadCenter(200);\n                    score = score - 30;\n                    if (score < 0) { score = 0; }\n                }\n                // Draw traffic relative to a simple scrolling view:\n                // we render the whole world by shifting every MovieClip.\n                t.x = t.wx - camX() + stage.stageWidth / 2;\n                t.y = t.wy - camY() + stage.stageHeight / 2 - 160;\n            }\n\n            car.x = car.wx - camX() + stage.stageWidth / 2;\n            car.y = car.wy - camY() + stage.stageHeight / 2 - 160;\n            updateHud();\n        }\n\n        // The camera is fixed on the car; helpers keep the math readable.\n        private function camX():Number {\n            return car.wx - stage.stageWidth / 2;\n        }\n        private function camY():Number {\n            return car.wy - 160;\n        }\n    }\n}\n",
         "provenance": "original_source"
       },
       {
-        "id": "9965b9d7-ca07-4a15-9681-bbc6ae2ab31f",
+        "id": "ef8af973-3654-413d-bd02-0358ead45e09",
         "name": "Input.as",
         "path": "scripts/game/Input.as",
         "source": "package game {\n    import flash.display.Stage;\n    import flash.events.KeyboardEvent;\n    import flash.events.MouseEvent;\n\n    /// Keyboard/mouse state helper. Call `init(stage)` once from the document\n    /// class constructor, `poll()` once per frame, then query `down`/`pressed`.\n    public class Input {\n        private static var held:Object = {};\n        private static var consumed:Object = {};\n        private static var target:Stage = null;\n        public static var mouseX:Number = 0;\n        public static var mouseY:Number = 0;\n\n        public static function init(stage:Stage):void {\n            target = stage;\n            stage.addEventListener(KeyboardEvent.KEY_DOWN, onKeyDown);\n            stage.addEventListener(KeyboardEvent.KEY_UP, onKeyUp);\n            stage.addEventListener(MouseEvent.MOUSE_MOVE, onMouseMove);\n        }\n\n        private static function onKeyDown(e:KeyboardEvent):void {\n            held[e.keyCode] = true;\n        }\n\n        private static function onKeyUp(e:KeyboardEvent):void {\n            held[e.keyCode] = false;\n            consumed[e.keyCode] = false;\n        }\n\n        private static function onMouseMove(e:MouseEvent):void {\n            mouseX = e.stageX;\n            mouseY = e.stageY;\n        }\n\n        /// Called once per frame after all `pressed` queries of the previous\n        /// frame are done. Resets edge-detection memory for released keys.\n        public static function poll():void {\n            // Nothing to copy: `consumed` is cleared lazily inside `pressed`.\n        }\n\n        public static function down(code:int):Boolean {\n            return held[code] == true;\n        }\n\n        /// True only on the frame the key went down (edge trigger).\n        public static function pressed(code:int):Boolean {\n            if (held[code] == true && consumed[code] != true) {\n                consumed[code] = true;\n                return true;\n            }\n            if (held[code] != true) {\n                consumed[code] = false;\n            }\n            return false;\n        }\n    }\n}\n",
         "provenance": "original_source"
       },
       {
-        "id": "ded335d4-695f-4d11-a6b3-8e1505eda601",
+        "id": "000a8644-11b6-4090-ba53-94179161a07c",
         "name": "Collision.as",
         "path": "scripts/game/Collision.as",
         "source": "package game {\n    import flash.display.DisplayObject;\n\n    /// Axis-aligned and radial collision helpers operating on plain numbers.\n    /// Display objects are measured by their `x`/`y`/`width`/`height` bounds,\n    /// which works for programmatically drawn sprites.\n    public class Collision {\n        public static function aabb(\n            x1:Number, y1:Number, w1:Number, h1:Number,\n            x2:Number, y2:Number, w2:Number, h2:Number\n        ):Boolean {\n            return x1 < x2 + w2 && x1 + w1 > x2 && y1 < y2 + h2 && y1 + h1 > y2;\n        }\n\n        public static function circle(\n            cx1:Number, cy1:Number, r1:Number,\n            cx2:Number, cy2:Number, r2:Number\n        ):Boolean {\n            var dx:Number = cx1 - cx2;\n            var dy:Number = cy1 - cy2;\n            var rr:Number = r1 + r2;\n            return dx * dx + dy * dy < rr * rr;\n        }\n\n        public static function pointInRect(\n            px:Number, py:Number, x:Number, y:Number, w:Number, h:Number\n        ):Boolean {\n            return px >= x && px <= x + w && py >= y && py <= y + h;\n        }\n\n        /// AABB test between two display objects using their bounds.\n        public static function objectsOverlap(a:DisplayObject, b:DisplayObject):Boolean {\n            return aabb(a.x, a.y, a.width, a.height, b.x, b.y, b.width, b.height);\n        }\n    }\n}\n",
         "provenance": "original_source"
       },
       {
-        "id": "d093f43f-5c5a-4829-8b58-296c691b80e8",
+        "id": "75ee079b-b09f-45cb-b9c2-7ee3aa99c60f",
         "name": "Physics.as",
         "path": "scripts/game/Physics.as",
         "source": "package game {\n    import flash.display.DisplayObject;\n\n    /// Minimal velocity/gravity integration for display objects. Velocity is\n    /// stored in dynamic `vx`/`vy` properties on the object itself.\n    public class Physics {\n        /// Integrates one body: gravity, then position. `gravity` is px/s^2.\n        public static function stepBody(body:DisplayObject, dt:Number, gravity:Number):void {\n            body.vy = body.vy + gravity * dt;\n            body.x = body.x + body.vx * dt;\n            body.y = body.y + body.vy * dt;\n        }\n\n        /// Applies a horizontal acceleration, clamped to `maxSpeed`.\n        public static function accelerate(body:DisplayObject, accel:Number, maxSpeed:Number, dt:Number):void {\n            body.vx = body.vx + accel * dt;\n            if (body.vx > maxSpeed) {\n                body.vx = maxSpeed;\n            }\n            if (body.vx < -maxSpeed) {\n                body.vx = -maxSpeed;\n            }\n        }\n\n        /// Simple ground collision response: keeps `body` above `floorY`\n        /// (bottom edge) and kills downward velocity on contact.\n        /// Returns true while the body rests on the floor.\n        public static function floor(body:DisplayObject, floorY:Number):Boolean {\n            if (body.y + body.height > floorY) {\n                body.y = floorY - body.height;\n                if (body.vy > 0) {\n                    body.vy = 0;\n                }\n                return true;\n            }\n            return false;\n        }\n    }\n}\n",
         "provenance": "original_source"
       },
       {
-        "id": "92074293-7d14-4bb3-8fdc-5dac2df085d4",
+        "id": "7e352b7a-b2aa-4b6e-b777-9b7990120be0",
         "name": "Camera.as",
         "path": "scripts/game/Camera.as",
         "source": "package game {\n    import flash.display.DisplayObject;\n\n    /// Follow camera for games built on a single world container. Apply the\n    /// result with `applyTo(world)` each frame.\n    public class Camera {\n        public var x:Number = 0;\n        public var y:Number = 0;\n        public var zoom:Number = 1;\n        private var target:DisplayObject = null;\n        private var lerp:Number = 6;\n\n        public function follow(mc:DisplayObject):void {\n            target = mc;\n        }\n\n        /// Advances the camera toward the follow target. Pass world bounds as\n        /// four numbers; use 0/0/0/0 for unbounded.\n        public function update(\n            dt:Number, viewW:Number, viewH:Number,\n            boundL:Number, boundT:Number, boundR:Number, boundB:Number\n        ):void {\n            if (target == null) {\n                return;\n            }\n            var tx:Number = target.x + target.width / 2;\n            var ty:Number = target.y + target.height / 2;\n            var t:Number = dt * lerp;\n            if (t > 1) {\n                t = 1;\n            }\n            x = x + (tx - x) * t;\n            y = y + (ty - y) * t;\n            var halfW:Number = viewW / (2 * zoom);\n            var halfH:Number = viewH / (2 * zoom);\n            if (boundR > boundL) {\n                var loX:Number = boundL + halfW;\n                var hiX:Number = boundR - halfW;\n                if (loX <= hiX) {\n                    if (x < loX) { x = loX; }\n                    if (x > hiX) { x = hiX; }\n                }\n            }\n            if (boundB > boundT) {\n                var loY:Number = boundT + halfH;\n                var hiY:Number = boundB - halfH;\n                if (loY <= hiY) {\n                    if (y < loY) { y = loY; }\n                    if (y > hiY) { y = hiY; }\n                }\n            }\n        }\n\n        /// Positions `world` so the camera centre lands mid-view.\n        public function applyTo(world:DisplayObject):void {\n            world.x = world.stage.stageWidth / 2 - x * zoom;\n            world.y = world.stage.stageHeight / 2 - y * zoom;\n            world.scaleX = zoom;\n            world.scaleY = zoom;\n        }\n    }\n}\n",
         "provenance": "original_source"
       },
       {
-        "id": "ff8b464e-85aa-48a4-aeeb-ccd957be7a97",
+        "id": "3c4eb749-32fa-49e8-acd8-479a15654402",
         "name": "Random.as",
         "path": "scripts/game/Random.as",
         "source": "package game {\n    import flash.utils.getTimer;\n\n    /// Small deterministic PRNG (linear congruential generator). Seeded from\n    /// `getTimer()`; call `srand` for a fixed sequence in tests.\n    public class Random {\n        private static var state:Number = getTimer() + 1;\n\n        public static function srand(seed:Number):void {\n            state = seed;\n        }\n\n        /// Returns a value in [0, 1).\n        public static function next():Number {\n            state = (state * 1103515245 + 12345) % 2147483648;\n            return state / 2147483648;\n        }\n\n        /// Returns a value in [0, bound).\n        public static function range(bound:Number):Number {\n            return next() * bound;\n        }\n    }\n}\n",
@@ -92,6 +92,6 @@
       "includeScripts": true,
       "exportAllScenes": false
     },
-    "activeScene": "ee541e02-accb-4348-97e0-82e99e1301ec"
+    "activeScene": "e7d0828c-d3d7-4bda-957e-a717b9e50103"
   }
 }

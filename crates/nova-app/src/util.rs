@@ -28,6 +28,7 @@ pub fn object_size(instance: &ObjectInstance, symbols: &[Symbol]) -> Option<(f32
         | ObjectKind::Path { width, height, .. }
         | ObjectKind::Bitmap { width, height, .. } => Some((*width, *height)),
         ObjectKind::Text(text) => Some(text.metrics()),
+        ObjectKind::Tilemap(map) => Some((map.width(), map.height())),
         ObjectKind::Symbol { symbol } => symbols
             .iter()
             .find(|candidate| candidate.id == *symbol)

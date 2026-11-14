@@ -12,7 +12,13 @@ fn main() {
     std::fs::create_dir_all(&dir).expect("samples dir");
     for template in games::TEMPLATES {
         let project = games::create_project(template.id).expect("template exists");
-        let path = dir.join(format!("m10-{}.nova", template.id));
+        let milestone = if template.id.starts_with("tilemap-") || template.id == "particle-showcase"
+        {
+            "m11"
+        } else {
+            "m10"
+        };
+        let path = dir.join(format!("{milestone}-{}.nova", template.id));
         project.save(&path).expect("save project");
         println!(" wrote {}", path.display());
     }

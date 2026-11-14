@@ -23,8 +23,10 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use super::{
-    BodyState, CameraState, GameBody, InputState, collect_bodies, scene_config, step, step_camera,
+    BodyState, CameraState, GameBody, InputState, attach_tile_colliders, collect_bodies,
+    scene_config, step, step_camera,
 };
+use crate::particles::ParticleSystem;
 
 /// Maximum nested `dispatch` depth. Listeners that re-dispatch recursively are
 /// cut off instead of overflowing the stack; dropped events are counted.
@@ -207,6 +209,17 @@ pub enum RuntimeError {
     InvalidSceneId(String),
 }
 
+/// A particle emitter bound to a scene object.
+pub struct EmitterRuntime {
+    /// Object instance id (also the body id when the object has game data).
+    pub id: Uuid,
+    pub name: String,
+    /// Authored emitter origin.
+    pub x: f32,
+    pub y: f32,
+    pub system: ParticleSystem,
+}
+
 /// Live game runtime: active scene snapshot + simulation + events.
 pub struct GameRuntime {
     /// Active scene id.
@@ -228,6 +241,8 @@ pub struct GameRuntime {
     pub time: f32,
     /// Scene-level config snapshot of the active scene.
     pub config: GameSceneConfig,
+    /// Particle emitters of the active scene.
+    pub emitters: Vec<EmitterRuntime>,
     scene_w: f32,
     scene_h: f32,
     /// Body states remembered per scene so returning to a scene restores
@@ -260,7 +275,9 @@ impl GameRuntime {
     }
 
     fn load(project: &Project, scene: &Scene, status: RuntimeStatus) -> Self {
-        let bodies = collect_bodies(scene, &project.symbols);
+        let mut bodies = collect_bodies(scene, &project.symbols);
+        attach_tile_colliders(&mut bodies, scene, project);
+        let emitters = collect_emitters(scene);
         let mut states = HashMap::new();
         for body in &bodies {
             states.insert(
@@ -272,7 +289,14 @@ impl GameRuntime {
                 },
             );
         }
-        let (w, h) = (scene.width, scene.height);
+        // World bounds (level editor) override the stage rectangle when set.
+        let config = scene_config(scene);
+        let (w, h) = config
+            .world
+            .as_ref()
+            .filter(|world| world.width > 0.0 && world.height > 0.0)
+            .map(|world| (world.width, world.height))
+            .unwrap_or((scene.width, scene.height));
         Self {
             scene: scene.id,
             scene_name: scene.name.clone(),
@@ -286,7 +310,8 @@ impl GameRuntime {
             events: EventBus::new(),
             status,
             time: 0.0,
-            config: scene_config(scene),
+            config,
+            emitters,
             scene_w: w,
             scene_h: h,
             scene_states: HashMap::new(),
@@ -442,8 +467,10 @@ impl GameRuntime {
         let Some(scene) = project.scenes.iter().find(|s| s.id == self.scene) else {
             return;
         };
-        let bodies = collect_bodies(scene, &project.symbols);
+        let mut bodies = collect_bodies(scene, &project.symbols);
+        attach_tile_colliders(&mut bodies, scene, project);
         self.bodies = bodies;
+        self.emitters = collect_emitters(scene);
         self.states.clear();
         for body in &self.bodies {
             self.states.insert(
@@ -456,8 +483,20 @@ impl GameRuntime {
             );
         }
         self.config = scene_config(scene);
-        self.scene_w = scene.width;
-        self.scene_h = scene.height;
+        self.scene_w = self
+            .config
+            .world
+            .as_ref()
+            .filter(|world| world.width > 0.0 && world.height > 0.0)
+            .map(|world| world.width)
+            .unwrap_or(scene.width);
+        self.scene_h = self
+            .config
+            .world
+            .as_ref()
+            .filter(|world| world.width > 0.0 && world.height > 0.0)
+            .map(|world| world.height)
+            .unwrap_or(scene.height);
         self.camera = CameraState {
             x: self.scene_w / 2.0,
             y: self.scene_h / 2.0,
@@ -508,7 +547,18 @@ impl GameRuntime {
                 self.scene_w,
                 self.scene_h,
                 dt,
+                self.time,
             );
+        }
+        // Particle emitters follow their object (body state when the object
+        // also participates in the simulation).
+        for index in 0..self.emitters.len() {
+            let (id, x, y) = {
+                let e = &self.emitters[index];
+                (e.id, e.x, e.y)
+            };
+            let origin = self.states.get(&id).map(|s| (s.x, s.y)).unwrap_or((x, y));
+            self.emitters[index].system.update(origin, dt);
         }
         self.time += dt;
         self.prev_input = *input;
@@ -607,6 +657,21 @@ impl GameRuntime {
         }
     }
 
+    /// Render-ready particle views per emitter, in world space.
+    pub fn particle_views(&self) -> Vec<(Uuid, Vec<crate::particles::ParticleView>)> {
+        self.emitters
+            .iter()
+            .map(|e| {
+                let origin = self
+                    .states
+                    .get(&e.id)
+                    .map(|s| (s.x, s.y))
+                    .unwrap_or((e.x, e.y));
+                (e.id, e.system.view(origin))
+            })
+            .collect()
+    }
+
     fn name_of(&self, id: Uuid) -> String {
         self.bodies
             .iter()
@@ -614,6 +679,36 @@ impl GameRuntime {
             .map(|body| body.name.clone())
             .unwrap_or_else(|| id.to_string())
     }
+}
+
+/// Collects particle emitters from a scene: every object carrying
+/// `particles` metadata, merged across frames (last keyframe wins).
+fn collect_emitters(scene: &Scene) -> Vec<EmitterRuntime> {
+    use crate::model::resolve_scene;
+    let mut merged: HashMap<Uuid, EmitterRuntime> = HashMap::new();
+    let mut order: Vec<Uuid> = Vec::new();
+    for frame in 0..scene.frame_count() {
+        for resolved in resolve_scene(scene, frame) {
+            let instance = &resolved.instance;
+            let Some(spec) = &instance.particles else {
+                continue;
+            };
+            let emitter = EmitterRuntime {
+                id: instance.id,
+                name: instance.name.clone(),
+                x: instance.transform.x,
+                y: instance.transform.y,
+                system: ParticleSystem::new(spec.clone()),
+            };
+            if merged.insert(instance.id, emitter).is_none() {
+                order.push(instance.id);
+            }
+        }
+    }
+    order
+        .into_iter()
+        .filter_map(|id| merged.remove(&id))
+        .collect()
 }
 
 /// Axis-aligned overlap test between two bodies at their current states.
@@ -667,6 +762,7 @@ mod tests {
                         shape: crate::model::CollisionShape::Rectangle,
                         width: 40.0,
                         height: 40.0,
+                        ..Default::default()
                     }),
                     physics: Some(crate::model::PhysicsSpec {
                         body: crate::model::BodyType::Dynamic,
@@ -677,6 +773,7 @@ mod tests {
                     }),
                 }),
                 source_character: None,
+                particles: None,
             });
             project.scenes.push(scene);
         }
@@ -824,7 +921,7 @@ mod tests {
             // SAFETY-free approach: capture bus via raw pointer is unsound;
             // instead this test uses a second bus owned outside? Listeners
             // cannot borrow the bus mutably. Use a thread_local recursion
-            // counter instead — see below.
+            // counter instead â€” see below.
             let _ = e;
         });
         // Real recursion test: a listener that dispatches through a shared
@@ -879,9 +976,11 @@ mod tests {
                     shape: crate::model::CollisionShape::Rectangle,
                     width: 40.0,
                     height: 40.0,
+                    ..Default::default()
                 }),
                 physics: None,
             }),
+            particles: None,
         };
         // Inject the body directly into the runtime snapshot.
         let body = GameBody {
@@ -891,8 +990,9 @@ mod tests {
             y: runtime.bodies[0].y,
             width: 40.0,
             height: 40.0,
-            collision: other.game.as_ref().unwrap().collision,
+            collision: other.game.as_ref().unwrap().collision.clone(),
             physics: None,
+            tiles: None,
         };
         runtime.bodies.push(body);
         runtime.states.insert(
