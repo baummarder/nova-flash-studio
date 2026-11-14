@@ -213,10 +213,13 @@ the gate before claiming Adobe runtime compatibility.
 
 ## Deliberate limits
 
-- only the active scene is exported;
+- only the active scene is exported by default; multi-scene concatenation is an
+  opt-in export setting and uses NØVA boundary labels rather than Adobe scene
+  metadata;
 - imported SWF sprites are flattened; there is no nested editable sprite library;
 - imported text, bitmaps, sounds, fonts, filters and video are not embedded;
-- assets (bitmaps, sounds, fonts, text) are not embedded;
+- assets (bitmaps, sounds, fonts) are not embedded; static text is baked to
+  shapes and is not editable player text;
 - library symbols have one-frame timelines;
 - scripted objects are code-owned after first placement;
 - masks/guides are not emitted;

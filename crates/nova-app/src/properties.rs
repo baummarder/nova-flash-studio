@@ -1,10 +1,12 @@
 //! Right-hand properties inspector for the scene, layers, objects and symbols.
 
 use egui::{RichText, ScrollArea, Ui};
-use nova_core::{LayerKind, ObjectKind, Project, Rgba, SwfCompression, TargetRuntime};
+use nova_core::{
+    LayerKind, ObjectKind, Project, Rgba, SwfCompression, TargetRuntime, TextAlign, TextFont,
+};
 use uuid::Uuid;
 
-use crate::state::{AppState, Selection, UiAction};
+use crate::state::{AlignMode, AppState, Selection, UiAction};
 use crate::theme;
 use crate::util;
 
@@ -276,6 +278,18 @@ fn export_properties(ui: &mut Ui, project: &mut Project, state: &mut AppState) {
                 )
                 .changed();
             ui.end_row();
+
+            ui.label("Szenen");
+            changed |= ui
+                .checkbox(
+                    &mut project.export.export_all_scenes,
+                    "Alle Szenen aneinanderhängen",
+                )
+                .on_hover_text(
+                    "Exportiert alle Szenen als eine SWF-Timeline. Bühnenmaße, FPS und Hintergrund stammen aus der ersten Szene; Abweichungen werden gemeldet.",
+                )
+                .changed();
+            ui.end_row();
         });
 
     if changed {
@@ -302,6 +316,21 @@ fn layer_properties(
 ) {
     let mut changed = false;
     let mut found = false;
+    let folder_options: Vec<(Uuid, String)> = project
+        .active_scene()
+        .map(|scene| {
+            scene
+                .layers
+                .iter()
+                .filter(|candidate| {
+                    candidate.kind == LayerKind::Folder
+                        && candidate.id != id
+                        && !scene.layer_is_descendant_of(candidate.id, id)
+                })
+                .map(|candidate| (candidate.id, candidate.name.clone()))
+                .collect()
+        })
+        .unwrap_or_default();
 
     if let Some(scene) = project.active_scene_mut() {
         if let Some(layer) = scene.layers.iter_mut().find(|layer| layer.id == id) {
@@ -347,6 +376,46 @@ fn layer_properties(
                         changed = true;
                     }
                     ui.end_row();
+
+                    ui.label("Ordner");
+                    let parent_name = layer
+                        .parent
+                        .and_then(|parent| {
+                            folder_options
+                                .iter()
+                                .find(|(id, _)| *id == parent)
+                                .map(|(_, name)| name.clone())
+                        })
+                        .unwrap_or_else(|| "Kein Ordner".into());
+                    egui::ComboBox::from_id_salt("layer_parent")
+                        .selected_text(parent_name)
+                        .show_ui(ui, |ui| {
+                            if ui
+                                .selectable_label(layer.parent.is_none(), "Kein Ordner")
+                                .clicked()
+                            {
+                                layer.parent = None;
+                                changed = true;
+                            }
+                            for (folder_id, folder_name) in &folder_options {
+                                if ui
+                                    .selectable_label(layer.parent == Some(*folder_id), folder_name)
+                                    .clicked()
+                                {
+                                    layer.parent = Some(*folder_id);
+                                    changed = true;
+                                }
+                            }
+                        });
+                    ui.end_row();
+
+                    if layer.kind == LayerKind::Folder {
+                        ui.label("Aufgeklappt");
+                        changed |= ui
+                            .checkbox(&mut layer.expanded, "Unterebenen in Timeline zeigen")
+                            .changed();
+                        ui.end_row();
+                    }
 
                     ui.label("Frames");
                     ui.label(
@@ -473,6 +542,9 @@ fn layer_properties(
     }
 
     if changed {
+        if let Some(scene) = project.active_scene_mut() {
+            scene.repair_folder_links();
+        }
         project.touch();
         state.dirty = true;
     }
@@ -585,6 +657,10 @@ fn object_properties(
     let mut corner_radius = match &instance.kind {
         ObjectKind::Rect { corner_radius, .. } => *corner_radius,
         _ => 0.0,
+    };
+    let mut text = match &instance.kind {
+        ObjectKind::Text(text) => text.clone(),
+        _ => nova_core::TextObject::default(),
     };
     let mut changed = false;
 
@@ -774,6 +850,87 @@ fn object_properties(
                 .color(theme::TEXT_FAINT),
             );
         }
+        ObjectKind::Text(_) => {
+            ui.label("Text");
+            changed |= ui
+                .add(
+                    egui::TextEdit::multiline(&mut text.text)
+                        .desired_rows(3)
+                        .desired_width(f32::INFINITY)
+                        .hint_text("Text eingeben"),
+                )
+                .changed();
+            egui::Grid::new("text_grid")
+                .num_columns(2)
+                .spacing(egui::vec2(8.0, 6.0))
+                .show(ui, |ui| {
+                    ui.label("Schrift");
+                    egui::ComboBox::from_id_salt("text_font")
+                        .selected_text(text.font.label())
+                        .show_ui(ui, |ui| {
+                            for candidate in [TextFont::NoveSans, TextFont::NoveMono] {
+                                if ui
+                                    .selectable_label(text.font == candidate, candidate.label())
+                                    .clicked()
+                                {
+                                    text.font = candidate;
+                                    changed = true;
+                                }
+                            }
+                        });
+                    ui.end_row();
+
+                    ui.label("Größe");
+                    changed |= ui
+                        .add(
+                            egui::DragValue::new(&mut text.size)
+                                .range(6.0..=512.0)
+                                .speed(1.0)
+                                .suffix(" px"),
+                        )
+                        .changed();
+                    ui.end_row();
+
+                    ui.label("Ausrichtung");
+                    egui::ComboBox::from_id_salt("text_align")
+                        .selected_text(text.align.label())
+                        .show_ui(ui, |ui| {
+                            for candidate in [TextAlign::Left, TextAlign::Center, TextAlign::Right]
+                            {
+                                if ui
+                                    .selectable_label(text.align == candidate, candidate.label())
+                                    .clicked()
+                                {
+                                    text.align = candidate;
+                                    changed = true;
+                                }
+                            }
+                        });
+                    ui.end_row();
+
+                    ui.label("Stil");
+                    ui.horizontal(|ui| {
+                        changed |= ui.checkbox(&mut text.bold, "Fett").changed();
+                        changed |= ui.checkbox(&mut text.italic, "Kursiv").changed();
+                    });
+                    ui.end_row();
+
+                    ui.label("Gemessen");
+                    ui.label(
+                        RichText::new(format!("{:.0}×{:.0} px", width, height))
+                            .small()
+                            .color(theme::TEXT_DIM),
+                    );
+                    ui.end_row();
+                });
+            ui.label(
+                RichText::new(
+                    "Text wird als eingebauter Vektorfont gerendert und beim SWF-Export in Formen gebacken. Kein DefineText, keine Laufzeitbearbeitung.",
+                )
+                .small()
+                .color(theme::TEXT_FAINT),
+            );
+        }
         ObjectKind::Symbol { symbol } => {
             if let Some(definition) = project.symbol(*symbol) {
                 ui.label(
@@ -847,6 +1004,7 @@ fn object_properties(
                 paths: paths.clone(),
             },
             ObjectKind::Symbol { symbol } => ObjectKind::Symbol { symbol: *symbol },
+            ObjectKind::Text(_) => ObjectKind::Text(text),
         };
         if let Some(scene) = project.active_scene_mut() {
             if let Some(object) = util::governing_object_mut(scene, layer_id, state.frame, id) {
@@ -895,6 +1053,32 @@ fn multi_object_properties(
         .small()
         .color(theme::TEXT_FAINT),
     );
+    ui.add_space(4.0);
+    ui.horizontal_wrapped(|ui| {
+        for (label, mode) in [
+            ("Links", AlignMode::Left),
+            ("Mitte X", AlignMode::HorizontalCenter),
+            ("Rechts", AlignMode::Right),
+            ("Oben", AlignMode::Top),
+            ("Mitte Y", AlignMode::VerticalCenter),
+            ("Unten", AlignMode::Bottom),
+            ("Verteilen X", AlignMode::DistributeHorizontal),
+            ("Verteilen Y", AlignMode::DistributeVertical),
+        ] {
+            if ui.small_button(label).clicked() {
+                actions.push(UiAction::AlignSelection(mode));
+            }
+        }
+    });
+    ui.horizontal(|ui| {
+        if ui.small_button("Kopieren").clicked() {
+            actions.push(UiAction::CopyObjects);
+        }
+        if ui.small_button("Duplizieren").clicked() {
+            actions.push(UiAction::DuplicateObjects);
+        }
+    });
+    ui.add_space(4.0);
 
     let mut targets = Vec::new();
     for id in ids {

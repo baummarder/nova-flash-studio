@@ -1,7 +1,9 @@
 # SWF Runtime Compatibility Report
 
-Status of generated SWF files as of `v0.3.0-rc2` and Milestones 7–7.3. This
-report distinguishes four different claims that are easy to confuse:
+Status of generated SWF files as of `v0.4.0-rc1`. The visual runtime evidence is
+from Milestone 7.3; M8 export additions are tested structurally and are labelled
+as such below. This report distinguishes four different claims that are easy to
+confuse:
 
 | Layer | What it proves | What it does not prove |
 | --- | --- | --- |
@@ -199,3 +201,24 @@ compiler rejects `dynamic`, and the issue is documented as a limitation.
   display-class execution is **PARTIAL** and not a general compatibility claim.
 - Ruffle `Error #1056` for named timeline children is non-fatal and unfixed.
 - Audio/video, text rendering and frame-accurate timing were not verified.
+
+## Mega Milestone 8 additions
+
+M8 adds export features but does **not** replace the M7.3 visual evidence.
+
+| M8 export feature | Verification | Status |
+| --- | --- | --- |
+| Text objects baked to `DefineShape3` | `nova-build` test asserts shapes and no `DefineText`; independent SWF parser preserves tags | **PASS (structural)**; visual text rendering **NOT VERIFIED** |
+| Layer folders and hidden-folder descendants | Export test checks hidden content is absent | **PASS** |
+| Multi-scene concatenation and boundary labels | SWF frame-count/label test | **PASS (structural)**; playback **NOT VERIFIED** |
+| Four templates build real SWFs | CLI/template and `nova-build` tests | **PASS (structural)** |
+| AS3 array/object/index ABC | ABC structural parse test | **PASS (structural)**; runtime **NOT VERIFIED** |
+
+Text is emitted as vector shapes using the built-in 5×7 font. Because no
+`DefineText`/font tags are emitted, there is no selectable, editable or
+system-font text in the player. The M8 scene/text fixtures were not launched in
+Ruffle or Adobe. Multi-frame `SymbolClass` execution and the Ruffle `Error
+#1056` limitation remain as documented above.
+
+Adobe visual playback remains **NOT VERIFIED**, and no M8 result should be read
+as Adobe compatibility evidence.

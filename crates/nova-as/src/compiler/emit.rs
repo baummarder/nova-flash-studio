@@ -1207,15 +1207,10 @@ impl<'a> Emitter<'a> {
             ExprKind::Ident(name) => self.emit_ident(ctx, name, expr),
             ExprKind::Member { target, name } => self.emit_member(ctx, target, name, expr),
             ExprKind::Index { target, index } => {
+                let multiname = self.abc.constant_pool.add_multiname_l();
                 self.emit_expr(ctx, target);
                 self.emit_expr(ctx, index);
-                ctx.builder.pop_value();
-                ctx.builder.pop_value();
-                ctx.builder.push_undefined();
-                self.error(
-                    "Indexzugriff (a[b]) wird vom ABC-Compiler nicht unterstützt",
-                    expr.span,
-                );
+                ctx.builder.get_property_late(multiname);
             }
             ExprKind::Call { callee, args } => self.emit_call(ctx, callee, args, expr),
             ExprKind::New { callee, args } => self.emit_new(ctx, callee, args, expr),
@@ -1247,24 +1242,16 @@ impl<'a> Emitter<'a> {
             ExprKind::Array(items) => {
                 for item in items {
                     self.emit_expr(ctx, item);
-                    ctx.builder.pop_value();
                 }
-                ctx.builder.push_undefined();
-                self.error(
-                    "Array-Literale werden vom ABC-Compiler nicht unterstützt",
-                    expr.span,
-                );
+                ctx.builder.new_array(items.len() as u32);
             }
             ExprKind::Object(fields) => {
-                for (_, value) in fields {
+                for (name, value) in fields {
+                    let key = self.abc.constant_pool.intern_string(name);
+                    ctx.builder.push_string(key);
                     self.emit_expr(ctx, value);
-                    ctx.builder.pop_value();
                 }
-                ctx.builder.push_undefined();
-                self.error(
-                    "Objekt-Literale werden vom ABC-Compiler nicht unterstützt",
-                    expr.span,
-                );
+                ctx.builder.new_object(fields.len() as u32);
             }
             ExprKind::Paren(inner) => self.emit_expr(ctx, inner),
         }
@@ -1837,6 +1824,44 @@ impl<'a> Emitter<'a> {
                 ctx.builder.set_property(qname);
                 ctx.builder.get_local(temp);
             }
+            Place::Index {
+                receiver,
+                index,
+                qname,
+                ty,
+            } => {
+                if assign == AssignOp::Assign {
+                    let temp = ctx.locals.temp();
+                    self.emit_receiver(ctx, receiver);
+                    self.emit_expr(ctx, index);
+                    self.emit_expr(ctx, value);
+                    self.emit_coerce(ctx, &ty);
+                    ctx.builder.set_local(temp);
+                    ctx.builder.get_local(temp);
+                    ctx.builder.set_property_late(qname);
+                    ctx.builder.get_local(temp);
+                } else {
+                    let object = ctx.locals.temp();
+                    let key = ctx.locals.temp();
+                    let result = ctx.locals.temp();
+                    self.emit_receiver(ctx, receiver);
+                    ctx.builder.set_local(object);
+                    self.emit_expr(ctx, index);
+                    ctx.builder.set_local(key);
+                    ctx.builder.get_local(object);
+                    ctx.builder.get_local(key);
+                    ctx.builder.get_property_late(qname);
+                    self.emit_expr(ctx, value);
+                    self.emit_binary_assign(ctx, assign);
+                    self.emit_coerce(ctx, &ty);
+                    ctx.builder.set_local(result);
+                    ctx.builder.get_local(object);
+                    ctx.builder.get_local(key);
+                    ctx.builder.get_local(result);
+                    ctx.builder.set_property_late(qname);
+                    ctx.builder.get_local(result);
+                }
+            }
         }
         let _ = expr;
     }
@@ -1907,6 +1932,38 @@ impl<'a> Emitter<'a> {
             } => {
                 self.emit_receiver(ctx, receiver);
                 self.emit_field_incdec(ctx, qname, increment, is_prefix, &ty);
+            }
+            Place::Index {
+                receiver,
+                index,
+                qname,
+                ty,
+            } => {
+                let object = ctx.locals.temp();
+                let key = ctx.locals.temp();
+                self.emit_receiver(ctx, receiver);
+                ctx.builder.set_local(object);
+                self.emit_expr(ctx, index);
+                ctx.builder.set_local(key);
+                ctx.builder.get_local(object);
+                ctx.builder.get_local(key);
+                ctx.builder.get_property_late(qname);
+                let old = ctx.locals.temp();
+                ctx.builder.set_local(old);
+                ctx.builder.get_local(old);
+                ctx.builder.inc_dec(increment);
+                self.emit_coerce(ctx, &ty);
+                let new = ctx.locals.temp();
+                ctx.builder.set_local(new);
+                ctx.builder.get_local(object);
+                ctx.builder.get_local(key);
+                ctx.builder.get_local(new);
+                ctx.builder.set_property_late(qname);
+                if is_prefix {
+                    ctx.builder.get_local(new);
+                } else {
+                    ctx.builder.get_local(old);
+                }
             }
         }
     }
@@ -2043,6 +2100,15 @@ impl<'a> Emitter<'a> {
                         })
                     }
                 }
+            }
+            ExprKind::Index { target, index } => {
+                let qname = self.abc.constant_pool.add_multiname_l();
+                Some(Place::Index {
+                    receiver: Receiver::Expr(target),
+                    index,
+                    qname,
+                    ty: Type::Any,
+                })
             }
             _ => None,
         }
@@ -2195,6 +2261,12 @@ enum Place<'e> {
         qname: u32,
         ty: Type,
     },
+    Index {
+        receiver: Receiver<'e>,
+        index: &'e Expr,
+        qname: u32,
+        ty: Type,
+    },
 }
 
 impl Place<'_> {
@@ -2203,7 +2275,8 @@ impl Place<'_> {
             Place::Local { ty, .. }
             | Place::Instance { ty, .. }
             | Place::Static { ty, .. }
-            | Place::Dynamic { ty, .. } => ty.clone(),
+            | Place::Dynamic { ty, .. }
+            | Place::Index { ty, .. } => ty.clone(),
         }
     }
 }
@@ -2399,9 +2472,32 @@ impl CodeBuilder {
         self.op_u30(op::GETPROPERTY, multiname);
     }
 
+    fn get_property_late(&mut self, multiname: u32) {
+        self.op_u30(op::GETPROPERTY, multiname);
+        self.pop_count(2);
+        self.push();
+    }
+
     fn set_property(&mut self, multiname: u32) {
         self.op_u30(op::SETPROPERTY, multiname);
         self.pop_count(2);
+    }
+
+    fn set_property_late(&mut self, multiname: u32) {
+        self.op_u30(op::SETPROPERTY, multiname);
+        self.pop_count(3);
+    }
+
+    fn new_array(&mut self, count: u32) {
+        self.op_u30(op::NEWARRAY, count);
+        self.pop_count(count);
+        self.push();
+    }
+
+    fn new_object(&mut self, count: u32) {
+        self.op_u30(op::NEWOBJECT, count);
+        self.pop_count(count * 2);
+        self.push();
     }
 
     fn find_property(&mut self, multiname: u32) {

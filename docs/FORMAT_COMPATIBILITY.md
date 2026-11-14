@@ -1,8 +1,10 @@
 # Format compatibility report
 
 This report describes the real format support in NØVA Flash Studio
-`0.3.0-rc2`. It is intentionally narrower than "supports FLA" or "supports
-SWF": every claim below is tied to implemented code, fixtures and tests.
+`0.4.0-rc1`. It is intentionally narrower than "supports FLA" or "supports
+SWF": every claim below is tied to implemented code, fixtures and tests. The
+M8 additions are documented in their own section below; M7.3 format results are
+retained as historical evidence.
 
 ## Non-claims
 
@@ -208,6 +210,47 @@ confirmed diff; preserved ABC remains bytecode and is never presented as
 reconstructed source. Milestone 7.3 validated the backend workflow live against
 local Ollama `qwen2.5-coder:7b`; cloud providers and the full interactive GUI
 workflow remain unverified.
+
+## Mega Milestone 8 format changes
+
+### `.nova`
+
+- Format version remains `1`. New fields (`Text` objects, layer folder parent/
+  expanded, `export_all_scenes`) use serde defaults and load old projects.
+- Multiple scenes are persisted and editable. `export_all_scenes` defaults to
+  `false`, so existing active-scene-only behavior is preserved.
+- Text objects store text, size, alignment and colour with a built-in font.
+  There is no external font reference to lose.
+
+### SWF export/import
+
+- Text is exported as `DefineShape3` geometry. There is no `DefineText`,
+  `DefineFont`, system-font or editable runtime text. Imported `DefineText` is
+  still not reconstructed as editable text.
+- Multi-scene export concatenates scene timelines and inserts scene boundary
+  labels. This is an NØVA export convention, not an Adobe scene marker.
+- Layer folders are editor-only; hidden folder descendants are excluded from the
+  exported timeline.
+- Import still flattens sprites and does not reconstruct nested MovieClip
+  timelines, bitmaps, sounds or fonts.
+
+### XFL export/import
+
+- The XFL exporter writes text as baked shape glyphs, not editable text fields.
+- The M7.3 XFL round-trip limitation is unchanged: frames 1–22 were empty and
+  the authored tween was lost. M8 did not claim or achieve tween-fidelity.
+- Native `.fla` export remains explicitly unsupported. The ZIP/XFL package is
+  experimental and **NOT VERIFIED** in Adobe Animate.
+
+### M8 status
+
+| Area | Import | Export | Fidelity |
+| --- | --- | --- | --- |
+| Multi-scene `.nova` | **PASS** | **PASS** (opt-in) | Native |
+| Text | Preserved/unsupported as editable | Shapes only | Static |
+| Layer folders | **PASS** | Flattened by visibility | Editor-only |
+| XFL | **PASS** subset | **PASS** experimental | **PARTIAL** |
+| Native `.fla` | **PASS** subset | **NOT AVAILABLE** | — |
 
 ## Current limitations
 

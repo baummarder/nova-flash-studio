@@ -30,6 +30,9 @@ struct LayerRow {
     visible: bool,
     locked: bool,
     kind: String,
+    depth: usize,
+    folder: bool,
+    expanded: bool,
     cells: Vec<FrameCell>,
 }
 
@@ -47,11 +50,22 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
     let rows: Vec<LayerRow> = project
         .active_scene()
         .map(|scene| {
+            let collapsed: Vec<Uuid> = scene
+                .layers
+                .iter()
+                .filter(|layer| layer.kind == nova_core::LayerKind::Folder && !layer.expanded)
+                .map(|layer| layer.id)
+                .collect();
             scene
                 .layers
                 .iter()
                 .enumerate()
                 .rev()
+                .filter(|(_, layer)| {
+                    !collapsed.iter().any(|folder| {
+                        *folder != layer.id && scene.layer_is_descendant_of(layer.id, *folder)
+                    })
+                })
                 .map(|(index, layer)| LayerRow {
                     index,
                     id: layer.id,
@@ -59,6 +73,9 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
                     visible: layer.visible,
                     locked: layer.locked,
                     kind: layer.kind.label().to_string(),
+                    depth: scene.layer_depth(layer.id),
+                    folder: layer.kind == nova_core::LayerKind::Folder,
+                    expanded: layer.expanded,
                     cells: layer
                         .frames
                         .iter()
@@ -119,8 +136,38 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
                     } else {
                         theme::TEXT_FAINT
                     };
+                    let indent = 10.0 + row.depth as f32 * 11.0;
+                    if row.folder {
+                        let triangle = Rect::from_min_size(
+                            Pos2::new(rect.left() + indent - 1.0, rect.top()),
+                            Vec2::new(12.0, ROW_HEIGHT),
+                        );
+                        let triangle_response = ui.interact(
+                            triangle,
+                            ui.make_persistent_id(("timeline_folder_toggle", row.id)),
+                            Sense::click(),
+                        );
+                        ui.painter().text(
+                            triangle.center(),
+                            Align2::CENTER_CENTER,
+                            if row.expanded { "▾" } else { "▸" },
+                            FontId::proportional(10.0),
+                            theme::TEXT_DIM,
+                        );
+                        if triangle_response.clicked() {
+                            if let Some(scene) = project.active_scene_mut() {
+                                if let Some(folder) =
+                                    scene.layers.iter_mut().find(|layer| layer.id == row.id)
+                                {
+                                    folder.expanded = !folder.expanded;
+                                }
+                            }
+                            state.dirty = true;
+                        }
+                    }
                     ui.painter().text(
-                        rect.left_center() + Vec2::new(10.0, 0.0),
+                        rect.left_center()
+                            + Vec2::new(indent + if row.folder { 11.0 } else { 0.0 }, 0.0),
                         Align2::LEFT_CENTER,
                         &row.name,
                         FontId::proportional(11.5),
@@ -264,6 +311,13 @@ fn toolbar(
         ui.separator();
         ui.checkbox(&mut state.onion_skin, "Onion");
         ui.checkbox(&mut state.loop_playback, "Loop");
+        if ui
+            .button("Ordner")
+            .on_hover_text("Neue Ordnerebene")
+            .clicked()
+        {
+            actions.push(UiAction::AddFolder);
+        }
 
         let mut zoom = state.frame_width;
         if ui

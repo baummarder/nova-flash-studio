@@ -8,43 +8,29 @@ the project format is versioned JSON, and the SWF writer is implemented directly
 against the published SWF file-format specification. Tools and extensions run in
 an embedded QuickJS context; ActionScript is **not** executed by QuickJS.
 
-> **Status: Milestones 2-7.3 implemented — release candidate `0.3.0-rc2`, not
-> stable.** The SWF container, shapes, sprites and frame-by-frame animation
-> export work and are
-> covered by tests. The editor has undo/redo, multi-select, tween authoring,
-> keyframe workflow and autosave with crash recovery. A documented AS3 subset is
-> type-checked and compiled to real AVM2 ABC, embedded with `DoABC2` and linked
-> with `SymbolClass`. Unsupported ActionScript is rejected with source
-> diagnostics instead of being mistranslated. Milestones 5–6 added the branded
-> Windows installer, portable distribution, licensing files, and runtime fixes
-> found by executing generated SWFs in Ruffle. **Milestone 7 makes Adobe Flash
-> Player Projector the default external runtime**, adds first-launch setup and a
-> dedicated **Runtime** settings section, and keeps **Ruffle optional and
-> explicit-only**. There is no silent system-default or Ruffle fallback.
-> Milestone 7.1 adds real `.nova`, `.fla`/XFL and `.swf` import paths, editable
-> reconstruction and compatibility reports. Native `.fla` export is refused; the
-> experimental XFL ZIP is explicitly unverified.
-> **Milestone 7.2 adds the integrated AI Agent Editor**, local/cloud provider
-> management with DPAPI-protected credentials, explicit cloud consent, bounded
-> user-selected context, diff-confirmed and project-root-confined file changes,
-> build diagnostics and `SymbolClass` reconstruction. **Milestone 7.3** adds
-> live local-Ollama provider and AI Agent backend validation, a security audit,
-> Ruffle visual playback of a document-class/SymbolClass/tween fixture, XFL
-> round-trip checks, installer/portable rc2 verification and performance
-> measurements. A local Adobe debug projector is configured and starts a window,
-> but the tested SWF area rendered blank and no trace log appeared; **visual
-> Adobe playback remains NOT VERIFIED**. Ruffle Desktop 0.7.1 visually played the
-> M7.3 fixture (marker, linked sprite, tween and labels). The rc2 Windows ZIP and
-> Setup.exe are produced and smoke-tested by the packaging scripts; the multi-frame
-> SymbolClass round-trip and XFL tween fidelity remain **PARTIAL**. macOS and
-> Linux packages are scripted and structurally checked but were not built on
-> their native hosts here. See
-> [Limitations](#limitations), [docs/AI_AGENT_EDITOR.md](docs/AI_AGENT_EDITOR.md),
+> **Status: Mega Milestone 8 release candidate `0.4.0-rc1`, not stable.**
+> The validated `0.3.0-rc2` artifacts remain archived under
+> `dist/archive/0.3.0-rc2`. M8 adds real text objects with a built-in vector
+> font (exported as shapes), layer folders, opt-in multi-scene export, four
+> project templates, object copy/paste/duplicate, align/distribute, grid
+> snapping, code find/replace and project search, AS3 array/object literals and
+> index access, and preview-confirmed structured AI project operations.
+> Existing M7.3 validation still applies: Ruffle 0.7.1 visually played the
+> document-class/SymbolClass/tween fixture; **Adobe visual playback remains NOT
+> VERIFIED**. Multi-frame SymbolClass execution and XFL tween fidelity remain
+> **PARTIAL**. Bitmaps, audio, system/OpenType fonts, editable runtime text,
+> nested symbol timelines, masks, shape tweens, the full Flash API and most
+> advanced AS3 syntax remain unimplemented or unverified, and are labelled as
+> such below. The Windows `0.4.0-rc1` ZIP and Setup.exe are produced from this
+> source and smoke-tested by the packaging scripts. macOS and Linux packages
+> are scripted and structurally checked but were not built on their native hosts
+> here. See [Limitations](#limitations),
+> [docs/MILESTONE_8_REPORT.md](docs/MILESTONE_8_REPORT.md),
+> [docs/AI_AGENT_EDITOR.md](docs/AI_AGENT_EDITOR.md),
 > [docs/AI_PROVIDER_GUIDE.md](docs/AI_PROVIDER_GUIDE.md),
 > [docs/FORMAT_COMPATIBILITY.md](docs/FORMAT_COMPATIBILITY.md),
 > [docs/PACKAGING.md](docs/PACKAGING.md),
-> [docs/FLASH_PLAYER_INTEGRATION.md](docs/FLASH_PLAYER_INTEGRATION.md),
-> [docs/MILESTONE_7_2_REPORT.md](docs/MILESTONE_7_2_REPORT.md), and
+> [docs/FLASH_PLAYER_INTEGRATION.md](docs/FLASH_PLAYER_INTEGRATION.md), and
 > [docs/MILESTONE_7_3_REPORT.md](docs/MILESTONE_7_3_REPORT.md).
 
 ---
@@ -92,7 +78,7 @@ Rust.
 
 | Platform | Package | Status in this repository |
 | --- | --- | --- |
-| Windows 10/11 x64 | `NOVA-Flash-Studio-<version>-windows-x64-Setup.exe` installer, or the portable `NØVA Flash Studio.exe` in the ZIP under `dist/windows/` | Rebuilt and smoke-tested after M7.2; headless install/uninstall verified in M5/M6 |
+| Windows 10/11 x64 | `NOVA-Flash-Studio-<version>-windows-x64-Setup.exe` installer, or the portable `NØVA Flash Studio.exe` in the ZIP under `dist/windows/` | Rebuilt and smoke-tested for `0.4.0-rc1`; headless install/uninstall previously verified in M5/M6 |
 | macOS 10.15+ | `NØVA Flash Studio.app` ZIP | Bundle script and metadata prepared; not built here |
 | Linux x86_64 | `NØVA-Flash-Studio.AppImage` | AppImage recipe prepared; not built here |
 
@@ -132,12 +118,13 @@ bash scripts/package-macos.sh
 bash scripts/package-linux.sh
 ```
 
-The current Windows artifacts are produced from workspace version `0.3.0-rc2`:
+The current Windows artifacts are produced from workspace version `0.4.0-rc1`:
 the portable ZIP, the staged `NØVA Flash Studio.exe`, and the self-contained
-`NOVA-Flash-Studio-0.3.0-rc2-windows-x64-Setup.exe`. Sizes and SHA-256 values are
+`NOVA-Flash-Studio-0.4.0-rc1-windows-x64-Setup.exe`. Sizes and SHA-256 values are
 listed in `dist/windows/SHA256SUMS.txt`, which is authoritative even if a
-documentation-only rebuild changes a ZIP or Setup hash. The artifacts are
-unsigned.
+documentation-only rebuild changes a ZIP or Setup hash. The validated
+`0.3.0-rc2` artifacts are preserved under `dist/archive/0.3.0-rc2`. The
+artifacts are unsigned.
 
 See [docs/PACKAGING.md](docs/PACKAGING.md) for prerequisites, signing,
 notarization, AppImage dependencies, CI and the exact artifact layout.
@@ -313,9 +300,10 @@ have context menus for keyframe operations.
 
 ## What works
 
-- **Project model** — scenes, layers, keyframed object placements, held frames,
-  motion tweens with easing, frame labels, graphic symbols, linked scripts,
-  assets metadata, export configuration.
+- **Project model** — multiple scenes, layers and layer folders, keyframed object
+  placements, held frames, motion tweens with easing, frame labels, graphic
+  symbols, static text objects, linked scripts, assets metadata, export
+  configuration.
 - **Versioned `.nova` format** — JSON envelope with a format tag and version,
   validation, future-version rejection, migration hook, atomic save.
 - **Stage editor** — fit/zoom/pan camera, grid, onion skin, hit-testing including
@@ -376,6 +364,16 @@ have context menus for keyframe operations.
   elsewhere), never provider JSON or logs. Cloud requests require explicit
   consent. File changes are root-confined, atomic, previewed as a diff and
   applied only after confirmation; preserved ABC cannot be replaced or deleted.
+  M8 adds structured project operations (project/stage, scenes, layers, objects,
+  keyframes, labels, tweens, symbols and scripts), previewed and applied
+  transactionally; update-only operations do not delete project content.
+- **M8 authoring additions** — static text objects with alignment, size and
+  colour using a built-in 5×7 vector font (baked to SWF/XFL shapes; no system
+  font or runtime text editing); layer folders with recursive visibility/lock;
+  multiple scenes with opt-in concatenated export and boundary labels; four
+  real templates (empty, animation, platformer, UI kit); object
+  copy/paste/duplicate; align/distribute; grid snapping; code find/replace with
+  case toggle and project-wide search.
 - **Packaging** — custom Windows icon/version resource embedding, Windows ZIP
   script, a self-contained branded setup wizard with per-user/all-users
   install, custom directory, optional file associations, uninstaller and
@@ -443,14 +441,22 @@ fallbacks:
   are emitted as dynamic multiname accesses. Only `trace`, `getTimer`, `isNaN`,
   `isFinite`, `parseInt` and `parseFloat` are recognized as built-in free
   functions. There is no complete `playerglobal` declaration set.
-- **Only the active scene is exported.** Other scenes are ignored with a warning.
-- **Graphics only.** No text, bitmaps, sounds, fonts, video or filters. Assets
-  exist in the model but are not embedded.
-- **Symbols are one-frame sprites.** Nested symbol timelines, symbol editing
-  modes, masks and guide layers are not implemented (the data model has layer
-  kinds, but the editor/exporter do not act on masks/guides).
-- **Layer management is incomplete.** Rename, visibility and lock exist, but
-  reordering/folder semantics are not a complete workflow.
+- **Multi-scene export is opt-in.** By default only the active scene is
+  exported and a warning names the ignored scenes. The “Alle Szenen
+  aneinanderhängen” export option concatenates scenes and adds boundary labels;
+  it is set by the bundled multi-scene templates.
+- **Text is static and font-limited.** The built-in 5×7 vector font covers ASCII
+  and common German characters and is exported as SWF/XFL shapes, not
+  `DefineText`. System/OpenType fonts, font embedding, selection, HTML text and
+  editable runtime text are not implemented.
+- **No bitmaps, sounds, video, filters or gradients.** Asset metadata exists in
+  the model but is not embedded or editable.
+- **Symbols are one-frame sprites.** Nested symbol timelines, a full symbol
+  editing mode, masks and guide layers are not implemented (the data model has
+  layer kinds, but the editor/exporter do not act on masks/guides).
+- **Layer folders are functional but not a complete layer workflow.** Folders,
+  rename, recursive visibility/lock and reordering exist; guide/mask layers and
+  advanced nesting rules are not implemented.
 - **No HTML5 export.** It is an optional later target, not implemented.
 - **Character-ID ceiling.** At most 65,535 SWF character IDs; export fails
   cleanly beyond that.
@@ -587,6 +593,9 @@ docs/
 - [Milestone 7.3 report](docs/MILESTONE_7_3_REPORT.md) — live Ollama validation,
   security audit, Ruffle visual playback, XFL/installer verification, performance
   and the rc2 release-candidate evidence.
+- [Mega Milestone 8 report](docs/MILESTONE_8_REPORT.md) — text, folders, scenes,
+  templates, AS3 collection support, structured AI operations, `0.4.0-rc1`
+  artifacts and the explicit PASS/PARTIAL/NOT VERIFIED boundary.
 - [Licensing](docs/LICENSING.md) — license texts, third-party notices, EULA
   draft status and the no-activation/no-telemetry policy.
 - [Roadmap](docs/ROADMAP.md) — what comes next and what "done" means.

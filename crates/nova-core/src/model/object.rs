@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::{Rgba, Transform};
+use super::{Rgba, TextObject, Transform};
 
 pub type SymbolId = Uuid;
 pub type ScriptId = Uuid;
@@ -44,12 +44,12 @@ impl PathShape {
     }
 }
 
-/// The primitive shapes the stage and the SWF exporter currently understand.
+/// The primitive shapes the stage and the SWF exporter understand.
 ///
-/// Text and bitmaps are intentionally absent: the exporter does not implement
-/// them yet, and the UI must not pretend otherwise. `Path` exists for imported
-/// geometry and preserves multiple filled sub-paths where the source format
-/// provides them.
+/// Text is baked into ordinary vector paths by the exporter; it is not
+/// `DefineText` and does not provide runtime text editing. Bitmaps and audio
+/// remain intentionally absent. `Path` exists for imported geometry and
+/// preserves multiple filled sub-paths where the source format provides them.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ObjectKind {
@@ -75,6 +75,8 @@ pub enum ObjectKind {
     Symbol {
         symbol: SymbolId,
     },
+    /// Editable text baked to vector paths on export.
+    Text(TextObject),
 }
 
 impl ObjectKind {
@@ -84,6 +86,7 @@ impl ObjectKind {
             Self::Ellipse { .. } => "Ellipse",
             Self::Path { .. } => "Importierte Vektorgrafik",
             Self::Symbol { .. } => "Symbol",
+            Self::Text(_) => "Text",
         }
     }
 
@@ -92,6 +95,7 @@ impl ObjectKind {
             Self::Rect { width, height, .. }
             | Self::Ellipse { width, height }
             | Self::Path { width, height, .. } => Some((*width, *height)),
+            Self::Text(text) => Some(text.metrics()),
             Self::Symbol { .. } => None,
         }
     }
@@ -184,6 +188,22 @@ impl ObjectInstance {
                 height,
                 paths,
             },
+            Transform::at(x, y),
+            fill,
+        )
+    }
+
+    pub fn text(
+        name: impl Into<String>,
+        x: f32,
+        y: f32,
+        text: impl Into<String>,
+        size: f32,
+        fill: Rgba,
+    ) -> Self {
+        Self::new(
+            name,
+            ObjectKind::Text(TextObject::new(text, size)),
             Transform::at(x, y),
             fill,
         )

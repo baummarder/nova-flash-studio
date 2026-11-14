@@ -12,6 +12,7 @@ pub mod diff;
 pub mod error;
 pub mod files;
 pub mod http;
+pub mod operations;
 pub mod provider;
 
 pub use agent::{
@@ -27,6 +28,10 @@ pub use diff::{DiffKind, DiffLine, DiffPreview, diff_text};
 pub use error::{AiError, AiResult};
 pub use files::{AppliedChange, ChangeKind, ChangePreview, ProposedChange, Workspace};
 pub use http::{HttpRequest, HttpResponse, HttpTransport, MockTransport, ReqwestTransport};
+pub use operations::{
+    MAX_OPERATIONS, ObjectShape, OperationError, OperationPlan, ProjectOperation, apply_operations,
+    preview_operations,
+};
 pub use provider::{
     ChatMessage, ChatResponse, ConnectionTest, ProviderConfig, ProviderKind, ProviderManager,
     ProviderSettings, SETTINGS_FILE, chat, default_config_dir, discover_models, load_settings,

@@ -57,19 +57,49 @@ struct CompiledScript {
     preserved: bool,
 }
 
-/// Builds the active scene of `project` as an SWF byte stream.
+/// Builds the active scene (or, when configured, all scenes) of `project` as an
+/// SWF byte stream.
 pub fn build_swf(project: &Project) -> Result<BuildOutput, BuildError> {
     project.validate()?;
     let scene = project.active_scene().ok_or(BuildError::NoScene)?;
     let export = &project.export;
 
     let mut warnings = Vec::new();
-    if project.scenes.len() > 1 {
+    let export_scenes: Vec<&Scene> = if export.export_all_scenes {
+        project.scenes.iter().collect()
+    } else {
+        vec![scene]
+    };
+    if project.scenes.len() > 1 && !export.export_all_scenes {
         warnings.push(format!(
-            "Es wird nur die aktive Szene '{}' exportiert ({} weitere Szenen ignoriert).",
+            "Es wird nur die aktive Szene '{}' exportiert ({} weitere Szenen ignoriert). Aktiviere 'Alle Szenen aneinanderhängen', um alle zu exportieren.",
             scene.name,
             project.scenes.len() - 1
         ));
+    }
+    if export.export_all_scenes {
+        for other in export_scenes.iter().skip(1) {
+            if (other.width - scene.width).abs() > 0.01
+                || (other.height - scene.height).abs() > 0.01
+            {
+                warnings.push(format!(
+                    "Szene '{}' hat andere Bühnenmaße als '{}'; der SWF-Export verwendet {}×{} px.",
+                    other.name, scene.name, scene.width, scene.height
+                ));
+            }
+            if (other.fps - scene.fps).abs() > 0.01 {
+                warnings.push(format!(
+                    "Szene '{}' hat {} fps statt {} fps; die SWF-Timeline verwendet die FPS der ersten Szene.",
+                    other.name, other.fps, scene.fps
+                ));
+            }
+            if other.background != scene.background {
+                warnings.push(format!(
+                    "Szene '{}' hat einen anderen Hintergrund; SWF kennt nur eine Bühnenfarbe pro Film.",
+                    other.name
+                ));
+            }
+        }
     }
 
     let scripts_enabled = export.include_scripts && export.target != TargetRuntime::Avm1;
@@ -174,9 +204,26 @@ pub fn build_swf(project: &Project) -> Result<BuildOutput, BuildError> {
     };
     movie.set_background(to_color(scene.background));
 
-    let resolved: Vec<_> = (0..scene.frame_count())
-        .map(|frame| resolve_scene(scene, frame))
-        .collect();
+    // Concatenate scenes when requested. Scene names become frame labels at
+    // their first frame unless that frame already has an explicit label.
+    let mut resolved: Vec<Vec<nova_core::ResolvedObject>> = Vec::new();
+    let mut frame_labels: Vec<Option<String>> = Vec::new();
+    for (scene_index, current) in export_scenes.iter().enumerate() {
+        for frame in 0..current.frame_count() {
+            resolved.push(resolve_scene(current, frame));
+            let explicit = current
+                .layers
+                .iter()
+                .filter_map(|layer| layer.frames.get(frame))
+                .find_map(|frame| frame.label.clone());
+            let label = if frame == 0 && scene_index > 0 {
+                Some(explicit.unwrap_or_else(|| current.name.clone()))
+            } else {
+                explicit
+            };
+            frame_labels.push(label);
+        }
+    }
 
     let mut next_id: u16 = 1;
     let mut stats = BuildStats {
@@ -255,6 +302,16 @@ pub fn build_swf(project: &Project) -> Result<BuildOutput, BuildError> {
                 movie.tags.push(Tag::DefineShape {
                     id,
                     shape: path_shape(*width, *height, paths),
+                });
+                instance_characters.insert(object.instance.id, id);
+                stats.defined_shapes += 1;
+            } else if let ObjectKind::Text(text) = &object.instance.kind {
+                let id = next_id;
+                next_id = next_character_id(next_id)?;
+                let (width, height) = text.metrics();
+                movie.tags.push(Tag::DefineShape {
+                    id,
+                    shape: path_shape(width, height, &text.paths(object.instance.fill)),
                 });
                 instance_characters.insert(object.instance.id, id);
                 stats.defined_shapes += 1;
@@ -408,7 +465,7 @@ pub fn build_swf(project: &Project) -> Result<BuildOutput, BuildError> {
                 }
                 let Some(&character) = instance_characters.get(&object_id) else {
                     warnings.push(format!(
-                        "{}: Das zugewiesene Objekt ist in der aktiven Szene nicht sichtbar und wurde nicht verknüpft.",
+                        "{}: Das zugewiesene Objekt ist in den exportierten Szenen nicht sichtbar und wurde nicht verknüpft.",
                         script.path
                     ));
                     continue;
@@ -540,13 +597,9 @@ pub fn build_swf(project: &Project) -> Result<BuildOutput, BuildError> {
             active_scripted.remove(&id);
         }
 
-        // Frame labels defined on any layer's keyframe at this position.
-        if let Some(label) = scene
-            .layers
-            .iter()
-            .filter_map(|layer| layer.frames.get(frame_index))
-            .find_map(|frame| frame.label.clone())
-        {
+        // Frame labels defined on any layer's keyframe at this position, plus
+        // scene boundaries for concatenated exports.
+        if let Some(label) = frame_labels.get(frame_index).cloned().flatten() {
             movie.tags.push(Tag::FrameLabel {
                 label,
                 named_anchor: true,
@@ -596,7 +649,7 @@ pub fn build_swf(project: &Project) -> Result<BuildOutput, BuildError> {
 
             let depth = next_depth;
             next_depth = next_depth.checked_add(1).ok_or_else(|| {
-                BuildError::Limit("SWF-Tiefe der aktiven Szene überschritten".into())
+                BuildError::Limit("SWF-Tiefe der exportierten Szene überschritten".into())
             })?;
             let name = unique_name(&object.instance.name, depth, &mut used_names);
             let transform = object.instance.transform;
@@ -818,7 +871,7 @@ fn shape_key(object: &nova_core::ObjectInstance) -> Option<ShapeKey> {
             height: quantize(*height),
             fill,
         }),
-        ObjectKind::Path { .. } | ObjectKind::Symbol { .. } => None,
+        ObjectKind::Path { .. } | ObjectKind::Symbol { .. } | ObjectKind::Text(_) => None,
     }
 }
 

@@ -7,7 +7,9 @@
 
 pub mod error;
 pub mod model;
+pub mod template;
 pub mod time;
 
 pub use error::{ProjectError, ProjectResult};
 pub use model::*;
+pub use template::{ProjectTemplate, template_by_id};

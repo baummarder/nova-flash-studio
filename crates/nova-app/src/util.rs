@@ -26,11 +26,22 @@ pub fn object_size(instance: &ObjectInstance, symbols: &[Symbol]) -> Option<(f32
         ObjectKind::Rect { width, height, .. }
         | ObjectKind::Ellipse { width, height }
         | ObjectKind::Path { width, height, .. } => Some((*width, *height)),
+        ObjectKind::Text(text) => Some(text.metrics()),
         ObjectKind::Symbol { symbol } => symbols
             .iter()
             .find(|candidate| candidate.id == *symbol)
             .map(|symbol| (symbol.width, symbol.height)),
     }
+}
+
+/// Maps a point from an object's local, unscaled space to the stage.
+pub fn stage_point(instance: &ObjectInstance, local: Vec2) -> Pos2 {
+    let x = local.x * instance.transform.scale_x;
+    let y = local.y * instance.transform.scale_y;
+    let radians = instance.transform.rotation.to_radians();
+    let (sin, cos) = radians.sin_cos();
+    Pos2::new(instance.transform.x, instance.transform.y)
+        + Vec2::new(x * cos - y * sin, x * sin + y * cos)
 }
 
 /// Converts a stage point into the object's local, unscaled space. The origin
@@ -277,6 +288,8 @@ mod tests {
             visible: true,
             locked: false,
             kind: Default::default(),
+            parent: None,
+            expanded: true,
             frames: vec![Frame::default()],
         };
         assert!(governing_object_mut(&mut scene, layer_id, 0, object.id).is_none());

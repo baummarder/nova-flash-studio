@@ -174,7 +174,11 @@ cargo run -p nova-cli -- ai-status
 - No streaming responses in this milestone.
 - No automatic retry loop and no background token accounting.
 - No image/audio input.
-- No provider-side tool execution. The only action the agent can request is a
-  local build, and file changes always require a user-confirmed diff.
+- No provider-side tool execution. The agent can request a local build, file
+  diffs and typed project operations; the provider never runs them. File changes
+  require a confirmed diff and project operations require a confirmed preview.
+- M8 adds structured project operations. Their tests use mocked HTTP and no live
+  provider; the local-Ollama results remain M7.3 evidence. Cloud providers were
+  not configured or exercised in M8.
 - Provider terms, data retention and model quality are outside NØVA's control.
   Choose a provider appropriate for the project data involved.

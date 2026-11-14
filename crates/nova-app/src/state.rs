@@ -5,7 +5,7 @@ use std::time::Instant;
 
 use egui::Vec2;
 use nova_as::Diagnostic;
-use nova_core::{Easing, Frame, Project, Rgba, ScriptId, Transform};
+use nova_core::{Easing, Frame, Project, ProjectTemplate, Rgba, ScriptId, Transform};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -121,6 +121,7 @@ pub enum Dialog {
     None,
     NewProject {
         name: String,
+        template: ProjectTemplate,
     },
     Unsaved {
         next: PendingAction,
@@ -165,6 +166,18 @@ pub enum Dialog {
     },
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AlignMode {
+    Left,
+    HorizontalCenter,
+    Right,
+    Top,
+    VerticalCenter,
+    Bottom,
+    DistributeHorizontal,
+    DistributeVertical,
+}
+
 #[derive(Debug, Clone)]
 pub enum UiAction {
     NewProjectPrompt,
@@ -187,21 +200,31 @@ pub enum UiAction {
     FirstFrame,
     LastFrame,
     AddLayer,
+    AddFolder,
     AddScript,
     AddSymbol,
     AddRect,
     AddEllipse,
+    AddText,
     AddSymbolInstance(Uuid),
+    AddScene,
+    DeleteScene,
     InsertKeyframe,
     InsertBlankKeyframe,
     RemoveKeyframe,
     DeleteSelection,
+    CopyObjects,
+    PasteObjects,
+    DuplicateObjects,
+    AlignSelection(AlignMode),
     CheckScript(ScriptId),
     OpenScript(ScriptId),
     FitStage,
     ZoomBy(f32),
     ToggleOnion,
     ToggleGrid,
+    ToggleSnap,
+    ToggleFind,
     SelectScene(Uuid),
     JumpToFrame(usize),
     Deselect,
@@ -231,6 +254,8 @@ pub struct AppState {
     pub loop_playback: bool,
     pub onion_skin: bool,
     pub show_grid: bool,
+    pub snap_to_grid: bool,
+    pub grid_size: f32,
     pub zoom: f32,
     pub camera_center: egui::Pos2,
     pub zoom_initialized: bool,
@@ -254,6 +279,13 @@ pub struct AppState {
     pub selected_keyframes: Vec<KeyframeRef>,
     pub frame_range: Option<(usize, usize)>,
     pub keyframe_clipboard: Option<KeyframeClipboard>,
+    pub object_clipboard: Vec<nova_core::ObjectInstance>,
+    pub find_open: bool,
+    pub find_project: bool,
+    pub find_query: String,
+    pub find_replace: String,
+    pub find_case_sensitive: bool,
+    pub find_offset: usize,
     pub autosave_enabled: bool,
     pub autosave_seconds: u64,
     pub last_autosave: Instant,
@@ -278,6 +310,8 @@ impl AppState {
             loop_playback: true,
             onion_skin: false,
             show_grid: true,
+            snap_to_grid: false,
+            grid_size: 20.0,
             zoom: 1.0,
             camera_center,
             zoom_initialized: false,
@@ -301,6 +335,13 @@ impl AppState {
             selected_keyframes: Vec::new(),
             frame_range: None,
             keyframe_clipboard: None,
+            object_clipboard: Vec::new(),
+            find_open: false,
+            find_project: false,
+            find_query: String::new(),
+            find_replace: String::new(),
+            find_case_sensitive: false,
+            find_offset: 0,
             autosave_enabled: true,
             autosave_seconds: 60,
             last_autosave: Instant::now(),

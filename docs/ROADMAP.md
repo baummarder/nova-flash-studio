@@ -32,13 +32,51 @@ for now**.
 | Adobe Flash Player Projector path and process launch | **done in this development environment; visual playback NOT VERIFIED** |
 | Adobe-default runtime setup, first launch, explicit Ruffle, persisted settings | **done** |
 | AI Agent Editor, provider manager, DPAPI credentials, safe edits | **done; mocked tests, no live provider required** |
-| Full Flash API declarations, interfaces, `super`, arrays, exceptions | **next** |
+| AS3 arrays, object literals, index access | **done structurally; runtime semantics NOT VERIFIED** |
+| AS3 interfaces, `super`, switch, try/catch/finally, full API declarations | **next** |
 | `.nova`, `.fla`/XFL and `.swf` import/export with compatibility reports | **done for documented subsets** |
 | `SymbolClass` character-link reconstruction for preserved ABC | **done where the character maps to a reconstructed object; unmappable links reported** |
 | Native `.fla` export validated in Adobe Animate/Flash | **blocked: no Adobe authoring app available** |
-| Layer reorder/project-tree editing, editor find/replace, diagnostics panel | **next** |
-| Text, bitmaps, sounds | **partial import/preserved-only; full authoring planned** |
+| Layer folders, reorder, project-tree editing, editor find/replace, project search | **done** |
+| Static text authoring (built-in vector font, shapes export) | **done** |
+| Bitmaps, sounds, system fonts, runtime text | **partial import/preserved-only or unimplemented; planned** |
+| Nested symbol timelines, masks, shape tweens | **planned** |
 | HTML5 export | **planned, secondary** |
+
+---
+
+## Mega Milestone 8 — Development platform (implemented subset, `0.4.0-rc1`)
+
+M8 broadened the editor without replacing the working M7.3 subsystems. The
+release candidate is buildable and tested, but it is not a complete Flash IDE.
+
+### Delivered
+
+- [x] Static text objects, alignment, size, colour and built-in vector font.
+- [x] Text baked to SWF/XFL shapes; no fake `DefineText`.
+- [x] Layer folders, recursive visibility/lock, cycle validation and repair.
+- [x] Multiple scenes, opt-in concatenated export and scene boundary labels.
+- [x] Four real templates shared by GUI and CLI.
+- [x] Object copy/paste/duplicate, align/distribute and grid snapping.
+- [x] Code find/replace, case toggle and project-wide text search.
+- [x] AS3 array literals, object literals and index access.
+- [x] Structured AI project operations with preview, validation, transaction and
+      undo.
+- [x] M8 regression tests and documentation.
+
+### Still next or unavailable
+
+- [ ] Inheritance, interfaces, `super`, switch, try/catch/finally, exception
+      semantics. These remain compiler errors.
+- [ ] Runtime verification of AS3 collection/index behavior in Ruffle/Adobe.
+- [ ] Nested MovieClip timelines, symbol editing mode, masks and shape tweens.
+- [ ] Bitmap, audio, font embedding and editable runtime text.
+- [ ] Full `flash.*` API and practical game-helper library.
+- [ ] Multi-frame `SymbolClass` execution after import/re-export.
+- [ ] XFL tween/keyframe round-trip fidelity; Adobe Animate compatibility.
+- [ ] Adobe visual playback.
+- [ ] Live cloud AI provider verification.
+- [ ] Native macOS/Linux build verification.
 
 ---
 

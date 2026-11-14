@@ -52,6 +52,9 @@ pub enum Multiname {
         namespace_set: u32,
         name: u32,
     },
+    /// `MultinameL` (0x1B): the property name is taken from the operand
+    /// stack. Used by `receiver[index]` reads and writes.
+    Late,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -84,6 +87,7 @@ pub struct ConstantPool {
     multiname_cache: HashMap<(u32, u32), u32>,
     namespace_set_cache: HashMap<Vec<u32>, u32>,
     multiname_set_cache: HashMap<(u32, u32), u32>,
+    multiname_l: Option<u32>,
 }
 
 impl Default for ConstantPool {
@@ -119,6 +123,7 @@ impl ConstantPool {
             multiname_cache: HashMap::new(),
             namespace_set_cache: HashMap::new(),
             multiname_set_cache: HashMap::new(),
+            multiname_l: None,
         }
     }
 
@@ -210,6 +215,17 @@ impl ConstantPool {
             name,
         });
         self.multiname_set_cache.insert(key, index);
+        index
+    }
+
+    /// Interns the single `MultinameL` entry used for dynamic index access.
+    pub fn add_multiname_l(&mut self) -> u32 {
+        if let Some(index) = self.multiname_l {
+            return index;
+        }
+        let index = self.multinames.len() as u32;
+        self.multinames.push(Multiname::Late);
+        self.multiname_l = Some(index);
         index
     }
 }
@@ -407,6 +423,12 @@ impl AbcFile {
                     // namespace-set index for kind 0x09.
                     write_u30(out, *name);
                     write_u30(out, *namespace_set);
+                }
+                Multiname::Late => {
+                    out.push(0x1b);
+                    // MultinameL carries a namespace-set operand. The empty
+                    // set (index zero) selects the public/dynamic namespace.
+                    write_u30(out, 0);
                 }
             }
         }

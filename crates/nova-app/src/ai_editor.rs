@@ -13,8 +13,8 @@ use std::time::{Duration, Instant};
 use eframe::egui::{self, Context, RichText, TextEdit, Ui};
 use nova_ai::{
     AgentOutcome, AgentSession, AppliedChange, BuildReport, ChangeKind, ChangePreview, DiffKind,
-    ProviderManager, ReqwestTransport, Workspace, build_project, default_config_dir, default_store,
-    execute_prepared, load_settings,
+    ProviderManager, ReqwestTransport, Workspace, apply_operations, build_project,
+    default_config_dir, default_store, execute_prepared, load_settings, preview_operations,
 };
 use nova_as::{Diagnostic, Severity, analyze};
 use nova_core::{CodeProvenance, Project, Script, ScriptId};
@@ -59,6 +59,8 @@ pub struct AiEditor {
     pub diagnostics: Vec<Diagnostic>,
     pub pending_previews: Vec<ChangePreview>,
     pub preview_errors: Vec<String>,
+    pub operation_previews: Vec<String>,
+    pub operation_errors: Vec<String>,
     pub applied: Vec<AppliedChange>,
     pub error: Option<String>,
     pub status: String,
@@ -118,6 +120,8 @@ impl AiEditor {
             diagnostics: Vec::new(),
             pending_previews: Vec::new(),
             preview_errors: Vec::new(),
+            operation_previews: Vec::new(),
+            operation_errors: Vec::new(),
             applied: Vec::new(),
             error: None,
             status: "Bereit".into(),
@@ -487,27 +491,37 @@ impl AiEditor {
                     outcome.reply.message.clone(),
                 ));
                 self.session.pending_changes = outcome.reply.changes.clone();
+                self.session.pending_operations = outcome.reply.operations.clone();
                 self.session.last_context = outcome.context.clone();
                 self.activity.push(ActivityLine {
                     text: format!(
-                        "Antwort von {} ({}, {} Kontextzeichen, {} Änderung(en))",
+                        "Antwort von {} ({}, {} Kontextzeichen, {} Dateiänderung(en), {} Projektoperation(en))",
                         outcome.provider_name,
                         outcome.model,
                         outcome.context_chars,
-                        outcome.reply.changes.len()
+                        outcome.reply.changes.len(),
+                        outcome.reply.operations.len()
                     ),
                     error: false,
                 });
+                for warning in &outcome.reply.operation_errors {
+                    self.activity.push(ActivityLine {
+                        text: warning.clone(),
+                        error: true,
+                    });
+                }
                 self.prepare_previews(project);
-                if !self.pending_previews.is_empty() {
+                if !self.pending_previews.is_empty() || !self.session.pending_operations.is_empty()
+                {
                     self.output_tab = OutputTab::Diff;
                 }
-                self.status = if outcome.reply.changes.is_empty() {
+                let total = outcome.reply.changes.len() + outcome.reply.operations.len();
+                self.status = if total == 0 {
                     "Antwort erhalten.".into()
                 } else {
                     format!(
-                        "{} Änderung(en) zur Prüfung. Nichts wurde automatisch geschrieben.",
-                        outcome.reply.changes.len()
+                        "{} Vorschlag/Vorschläge zur Prüfung. Nichts wurde automatisch angewendet.",
+                        total
                     )
                 };
                 state.log(
@@ -536,6 +550,14 @@ impl AiEditor {
     fn prepare_previews(&mut self, project: &Project) {
         self.pending_previews.clear();
         self.preview_errors.clear();
+        self.operation_previews.clear();
+        self.operation_errors.clear();
+        let plan = preview_operations(project, &self.session.pending_operations);
+        self.operation_previews = plan.summaries;
+        self.operation_errors = plan.errors;
+        if self.session.pending_changes.is_empty() {
+            return;
+        }
         let Some(workspace) = &self.workspace else {
             self.preview_errors
                 .push("Kein gültiger Projektordner ausgewählt.".into());
@@ -565,43 +587,46 @@ impl AiEditor {
     }
 
     fn accept_pending(&mut self, project: &mut Project, state: &mut AppState) {
-        if self.pending_previews.is_empty() {
+        if self.pending_previews.is_empty() && self.session.pending_operations.is_empty() {
             self.error = Some("Keine Änderungen zur Bestätigung.".into());
             return;
         }
-        if !self.preview_errors.is_empty() {
+        if !self.preview_errors.is_empty() || !self.operation_errors.is_empty() {
             self.error = Some(
-                "Mindestens eine Änderung ist blockiert. Entferne sie zuerst durch Verwerfen."
+                "Mindestens ein Vorschlag ist blockiert. Entferne ihn zuerst durch Verwerfen."
                     .into(),
             );
             return;
         }
-        let Some(workspace) = &self.workspace else {
+        if !self.pending_previews.is_empty() && self.workspace.is_none() {
             self.error = Some("Kein gültiger Projektordner ausgewählt.".into());
             return;
-        };
+        }
         let previews = self.pending_previews.clone();
+        let operations = self.session.pending_operations.clone();
         let project_before = project.clone();
         let active_script_before = state.active_script;
         let mut applied = Vec::new();
-        for preview in &previews {
-            let change = nova_ai::ProposedChange {
-                path: preview.path.clone(),
-                content: preview.new_content.clone().unwrap_or_default(),
-                reason: preview.reason.clone(),
-                delete: preview.kind == ChangeKind::Delete,
-                kind: Some(preview.kind),
-            };
-            match workspace.apply(&change) {
-                Ok(change) => applied.push(change),
-                Err(error) => {
-                    for applied_change in applied.iter().rev() {
-                        let _ = workspace.undo(applied_change);
+        if let Some(workspace) = &self.workspace {
+            for preview in &previews {
+                let change = nova_ai::ProposedChange {
+                    path: preview.path.clone(),
+                    content: preview.new_content.clone().unwrap_or_default(),
+                    reason: preview.reason.clone(),
+                    delete: preview.kind == ChangeKind::Delete,
+                    kind: Some(preview.kind),
+                };
+                match workspace.apply(&change) {
+                    Ok(change) => applied.push(change),
+                    Err(error) => {
+                        for applied_change in applied.iter().rev() {
+                            let _ = workspace.undo(applied_change);
+                        }
+                        self.error = Some(format!(
+                            "Änderungen wurden nicht übernommen: {error}. Bereits geschriebene Dateien wurden zurückgesetzt."
+                        ));
+                        return;
                     }
-                    self.error = Some(format!(
-                        "Änderungen wurden nicht übernommen: {error}. Bereits geschriebene Dateien wurden zurückgesetzt."
-                    ));
-                    return;
                 }
             }
         }
@@ -613,11 +638,18 @@ impl AiEditor {
                 break;
             }
         }
+        if model_error.is_none() && !operations.is_empty() {
+            if let Err(error) = apply_operations(project, &operations) {
+                model_error = Some(format!("Projektoperationen nicht angewendet: {error}"));
+            }
+        }
         if let Some(error) = model_error {
             *project = project_before;
             state.active_script = active_script_before;
-            for applied_change in applied.iter().rev() {
-                let _ = workspace.undo(applied_change);
+            if let Some(workspace) = &self.workspace {
+                for applied_change in applied.iter().rev() {
+                    let _ = workspace.undo(applied_change);
+                }
             }
             self.error = Some(error);
             return;
@@ -626,27 +658,41 @@ impl AiEditor {
         self.applied.extend(applied);
         state.dirty = true;
         self.session.pending_changes.clear();
+        self.session.pending_operations.clear();
         self.pending_previews.clear();
         self.preview_errors.clear();
+        self.operation_previews.clear();
+        self.operation_errors.clear();
         self.output_tab = OutputTab::Activity;
-        self.status = "Änderungen bestätigt und geschrieben.".into();
+        self.status = "Änderungen bestätigt und übernommen.".into();
         self.activity.push(ActivityLine {
-            text: format!("{} Dateiänderung(en) bestätigt.", previews.len()),
+            text: format!(
+                "{} Dateiänderung(en) und {} Projektoperation(en) bestätigt.",
+                previews.len(),
+                operations.len()
+            ),
             error: false,
         });
         state.log(
             LogLevel::Info,
-            format!("KI-Änderungen bestätigt: {} Datei(en).", previews.len()),
+            format!(
+                "KI-Änderungen bestätigt: {} Datei(en), {} Projektoperation(en).",
+                previews.len(),
+                operations.len()
+            ),
         );
         self.refresh_diagnostics(project);
         self.refresh_workspace();
     }
 
     fn reject_pending(&mut self, state: &mut AppState) {
-        let count = self.session.pending_changes.len();
+        let count = self.session.pending_changes.len() + self.session.pending_operations.len();
         self.session.pending_changes.clear();
+        self.session.pending_operations.clear();
         self.pending_previews.clear();
         self.preview_errors.clear();
+        self.operation_previews.clear();
+        self.operation_errors.clear();
         self.status = "Änderungen verworfen.".into();
         self.activity.push(ActivityLine {
             text: format!("{count} vorgeschlagene Änderung(en) verworfen."),
@@ -1228,20 +1274,20 @@ impl AiEditor {
                 self.session.clear();
                 self.pending_previews.clear();
                 self.preview_errors.clear();
+                self.operation_previews.clear();
+                self.operation_errors.clear();
                 self.status = "Chat geleert.".into();
             }
         });
         if let Some(error) = &self.error {
             ui.label(RichText::new(error).small().color(theme::RED));
         }
-        if !self.preview_errors.is_empty() {
+        let blocked = self.preview_errors.len() + self.operation_errors.len();
+        if blocked > 0 {
             ui.label(
-                RichText::new(format!(
-                    "{} blockierte Änderung(en) – siehe Diff.",
-                    self.preview_errors.len()
-                ))
-                .small()
-                .color(theme::AMBER),
+                RichText::new(format!("{blocked} blockierte Änderung(en) – siehe Diff."))
+                    .small()
+                    .color(theme::AMBER),
             );
         }
         if self.session.context.selected_code.chars().count() > 0 {
@@ -1285,7 +1331,10 @@ impl AiEditor {
                 ui.separator();
                 if ui
                     .add_enabled(
-                        !self.pending_previews.is_empty() && self.preview_errors.is_empty(),
+                        (!self.pending_previews.is_empty()
+                            || !self.session.pending_operations.is_empty())
+                            && self.preview_errors.is_empty()
+                            && self.operation_errors.is_empty(),
                         egui::Button::new("Alle bestätigen"),
                     )
                     .clicked()
@@ -1294,7 +1343,8 @@ impl AiEditor {
                 }
                 if ui
                     .add_enabled(
-                        !self.session.pending_changes.is_empty(),
+                        !self.session.pending_changes.is_empty()
+                            || !self.session.pending_operations.is_empty(),
                         egui::Button::new("Verwerfen"),
                     )
                     .clicked()
@@ -1361,9 +1411,34 @@ impl AiEditor {
                             ui.label(RichText::new(error).color(theme::RED));
                         }
                     }
-                    if self.pending_previews.is_empty() {
+                    if !self.operation_errors.is_empty() {
+                        for error in &self.operation_errors {
+                            ui.label(RichText::new(error).color(theme::RED));
+                        }
+                    }
+                    if !self.operation_previews.is_empty() {
                         ui.label(
-                            RichText::new("Kein Diff zur Prüfung. Der Agent schreibt nie automatisch.")
+                            RichText::new("Projektoperationen (Dokumentmodell)")
+                                .strong()
+                                .color(theme::TEXT),
+                        );
+                        for summary in &self.operation_previews {
+                            ui.label(
+                                RichText::new(format!("• {summary}"))
+                                    .small()
+                                    .color(theme::TEXT_DIM),
+                            );
+                        }
+                        ui.label(
+                            RichText::new("Die Operationen werden transaktional angewendet und können mit Undo zurückgenommen werden.")
+                                .small()
+                                .color(theme::TEXT_FAINT),
+                        );
+                        ui.separator();
+                    }
+                    if self.pending_previews.is_empty() && self.operation_previews.is_empty() {
+                        ui.label(
+                            RichText::new("Keine Änderung zur Prüfung. Der Agent wendet nie automatisch etwas an.")
                                 .color(theme::TEXT_DIM),
                         );
                     }
@@ -1489,8 +1564,8 @@ fn apply_preview_to_project(
 mod tests {
     use super::*;
     use nova_ai::{
-        ContextSelection, DiffPreview, MemoryCredentialStore, ProviderConfig, ProviderKind,
-        ProviderSettings,
+        ContextSelection, DiffPreview, MemoryCredentialStore, ObjectShape, ProjectOperation,
+        ProviderConfig, ProviderKind, ProviderSettings,
     };
 
     fn preview(kind: ChangeKind, path: &str, content: &str) -> ChangePreview {
@@ -1507,6 +1582,51 @@ mod tests {
             },
             reason: "test".into(),
         }
+    }
+
+    #[test]
+    fn structured_operations_apply_without_a_workspace_and_clear_pending() {
+        let mut project = Project::new_empty("Operationen");
+        let mut state = AppState::new(&project);
+        let mut editor = AiEditor::new();
+        editor.session.pending_operations = vec![
+            ProjectOperation::AddLayer {
+                name: "Game".into(),
+                scene: None,
+                frames: Some(3),
+            },
+            ProjectOperation::AddObject {
+                name: "Boden".into(),
+                scene: None,
+                layer: Some("Game".into()),
+                shape: ObjectShape::Rect,
+                x: 0.0,
+                y: 300.0,
+                width: 550.0,
+                height: 80.0,
+                fill: Some("#334455".into()),
+                text: String::new(),
+                font_size: None,
+            },
+        ];
+        editor.prepare_previews(&project);
+        assert!(
+            editor.operation_errors.is_empty(),
+            "{:?}",
+            editor.operation_errors
+        );
+        assert_eq!(editor.operation_previews.len(), 2);
+        editor.accept_pending(&mut project, &mut state);
+        assert!(editor.error.is_none(), "{:?}", editor.error);
+        assert!(editor.session.pending_operations.is_empty());
+        let scene = project.active_scene().unwrap();
+        let layer = scene
+            .layers
+            .iter()
+            .find(|layer| layer.name == "Game")
+            .expect("operation-created layer");
+        assert_eq!(layer.frames.len(), 3);
+        assert_eq!(layer.frames[0].objects[0].name, "Boden");
     }
 
     #[test]

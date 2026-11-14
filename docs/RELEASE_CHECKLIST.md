@@ -1,9 +1,83 @@
-# Release Candidate Checklist — v0.3.0-rc2
+# Release Candidate Checklist — v0.4.0-rc1
+
+This checklist produced `v0.4.0-rc1` (Mega Milestone 8). It is a **release
+candidate**, not a stable release. Every item records what was actually done;
+nothing below is claimed without evidence. Status categories: **PASS**,
+**FAIL**, **PARTIAL**, **NOT VERIFIED**, **NOT AVAILABLE**. The historical
+`v0.3.0-rc2` checklist follows the M8 section unchanged.
+
+## M8 verification (v0.4.0-rc1)
+
+### Version and preservation
+
+- [x] `[workspace.package] version = "0.4.0-rc1"` in `Cargo.toml`
+- [x] `Cargo.lock` updated by the rc1 build
+- [x] Installer `AssemblyVersion`/`FileVersion` = `0.4.0.0`
+- [x] Package filenames carry `0.4.0-rc1`
+- [x] `NØVA Flash Studio.exe --version` prints `NØVA Flash Studio 0.4.0-rc1`
+- [x] `Setup.exe --version` prints `NØVA Flash Studio Setup 0.4.0-rc1`
+- [x] Validated rc2 artifacts preserved in `dist/archive/0.3.0-rc2/`
+- [x] `.nova` format version remains `1`; old projects load with serde defaults
+
+### Build and tests
+
+- [x] `cargo fmt --all -- --check` — clean
+- [x] `cargo check --workspace` — clean, no warnings
+- [x] `cargo test --workspace` — **PASS**, 281 passed, 0 failed, 4 ignored
+- [x] M8 focused tests for text, scenes, folders, templates, AS3 collections and
+      AI operations — **PASS**
+- [x] Release build through `scripts/build-release.ps1 -Target windows` — **PASS**
+
+### Artifacts and installer
+
+- [x] Portable ZIP and embedded `NØVA Flash Studio.exe` — **PASS**
+- [x] `Setup.exe --smoke-test` — **PASS**, 46 payload entries, ZIP hash match
+- [x] Headless per-user install — **PASS**, installed exe version verified
+- [x] HKCU uninstall entry created — **PASS**, `DisplayVersion 0.4.0-rc1`
+- [x] Headless quiet uninstall — **PASS**, directory and registry entry removed
+- [x] `python scripts/verify-packaging.py` — **PASS**
+- [x] `dist/windows/SHA256SUMS.txt` generated — **PASS**
+- [x] Binaries unsigned; no signing claim
+- [ ] macOS/Linux native builds — **NOT VERIFIED** (scripts only)
+
+### Feature gates
+
+- [x] Static text objects, vector font and shapes export — **PASS** (structural)
+- [x] Layer folders, visibility/lock, validation and repair — **PASS**
+- [x] Multi-scene export and boundary labels — **PASS** (structural, opt-in)
+- [x] Four real templates — **PASS**
+- [x] Object clipboard/duplicate/align/distribute/grid snap — **PASS**
+- [x] Code find/replace/project search — **PASS**
+- [x] AS3 arrays/objects/indexing ABC — **PASS** (structural)
+- [x] Structured AI project operations, preview and transaction — **PASS**
+- [ ] Bitmaps, audio, fonts, runtime text — **NOT AVAILABLE**
+- [ ] Nested symbol timelines, masks, shape tweens — **NOT AVAILABLE**
+- [ ] Full AS3 control flow/API and Flash API layer — **NOT AVAILABLE**
+- [ ] Plugin/extension permission system — **NOT AVAILABLE**
+
+### Runtime and format honesty
+
+- [x] Ruffle M7.3 visual playback retained as historical **PASS**
+- [ ] M8 text/scene visual playback — **NOT VERIFIED**
+- [ ] Adobe visual playback — **NOT VERIFIED**
+- [ ] AS3 collection/index runtime semantics — **NOT VERIFIED**
+- [ ] Multi-frame `SymbolClass` execution after rebuild — **PARTIAL**
+- [ ] XFL tween/keyframe round-trip — **PARTIAL**
+- [ ] Adobe Animate/XFL authoring compatibility — **NOT AVAILABLE**
+- [ ] Native `.fla` export — **NOT AVAILABLE**
+- [ ] Live cloud AI providers in M8 — **NOT VERIFIED**
+- [ ] Full interactive GUI/AI workflow in M8 — **NOT VERIFIED**
+
+### Repository
+
+- [x] M8 source changes committed on local `main`
+- [ ] Remote repository — **NOT AVAILABLE**; no remote configured
+
+## Historical v0.3.0-rc2 checklist
 
 This checklist produced `v0.3.0-rc2`. It is a **release candidate**, not a stable
 release. Every item records what was actually done; nothing below is claimed
-without evidence. Status categories: **PASS**, **FAIL**, **PARTIAL**,
-**NOT VERIFIED**, **NOT AVAILABLE**.
+without evidence.
 
 ## Version consistency
 

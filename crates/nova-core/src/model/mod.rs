@@ -4,6 +4,7 @@ mod color;
 mod object;
 mod project;
 mod scene;
+mod text;
 mod timeline;
 mod transform;
 
@@ -15,5 +16,6 @@ pub use project::{
     TargetRuntime,
 };
 pub use scene::{Layer, LayerKind, Scene};
+pub use text::{TextAlign, TextFont, TextObject};
 pub use timeline::{Easing, Frame, ResolvedObject, Tween, resolve_scene};
 pub use transform::Transform;

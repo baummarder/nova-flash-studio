@@ -172,6 +172,52 @@ credential storage, endpoint behavior and privacy details.
 - A successful build is not the same as verified playback. Runtime status is
   documented separately.
 
+## Structured project operations (M8)
+
+M8 adds a second, typed change channel beside file diffs. The agent can return a
+JSON `operations` array. Each entry is tagged with `op` and changes the in-memory
+`.nova` document, not a workspace file.
+
+Supported operations (maximum 32 per batch):
+
+| Operation | Effect |
+| --- | --- |
+| `rename_project` | Project name |
+| `set_stage` | Stage width/height, optional fps/background, optional scene |
+| `add_scene` | New scene |
+| `add_layer` | New layer with optional frame count |
+| `add_object` | Rect, ellipse or static text on a scene/layer |
+| `update_object` | x/y, rotation, scale, fill, text, font size; requires an unambiguous name (+ optional layer/scene) |
+| `add_keyframe` | 1-based frame; optional label and `duplicate_previous` |
+| `set_frame_label` | 1-based frame and non-empty label |
+| `add_tween` | Motion tween with easing; requires a later keyframe containing the same object IDs |
+| `add_symbol` | Rect/rounded-rect symbol |
+| `place_symbol` | Symbol instance in a scene/layer |
+| `add_script` | Original AS3 source file under the project workspace |
+
+The UI shows a human-readable preview of every operation and every validation
+error. Nothing is applied until the user presses **Alle bestätigen**. The whole
+batch is transactional: a failure leaves the project untouched. Successful
+application records one undo snapshot. Operations never delete project content
+and cannot replace preserved ABC.
+
+One important interaction: `add_tween` does not invent a destination keyframe.
+It fails unless a later keyframe already contains objects with the same IDs.
+Use `add_keyframe` with `duplicate_previous: true`, then move the duplicated
+objects with `update_object` at the later frame (or author those edits in the
+timeline).
+
+File diffs and structured operations can be confirmed together. If either side
+fails, the app rolls back the model and reports the error; file changes already
+written are restored where the workspace undo path supports it.
+
+### Preview text and errors
+
+Operation previews are shown in the Diff tab under “Projektoperationen
+(Dokumentmodell)”. Validation errors block the apply button. `operation_errors`
+from a malformed model reply are shown separately, so a bad operation is not
+silently dropped.
+
 ## Known limits
 
 - One request runs at a time.

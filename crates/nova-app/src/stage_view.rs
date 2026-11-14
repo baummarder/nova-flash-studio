@@ -4,7 +4,7 @@
 //! `nova_core::resolve_scene`, with the same centre-based transform origin.
 
 use egui::{Align2, Color32, FontId, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, Ui, Vec2};
-use nova_core::{Project, ResolvedObject, Symbol};
+use nova_core::{ObjectKind, PathCommand, PathShape, Project, ResolvedObject, Symbol};
 use uuid::Uuid;
 
 use crate::state::{AppState, Selection, UiAction};
@@ -302,8 +302,14 @@ fn move_objects(
     };
     for (id, layer_id, start) in targets {
         if let Some(object) = util::governing_object_mut(scene, layer_id, drag.frame, id) {
-            object.transform.x = start.x + delta.x;
-            object.transform.y = start.y + delta.y;
+            let mut x = start.x + delta.x;
+            let mut y = start.y + delta.y;
+            if state.snap_to_grid && state.grid_size > 0.0 {
+                x = (x / state.grid_size).round() * state.grid_size;
+                y = (y / state.grid_size).round() * state.grid_size;
+            }
+            object.transform.x = x;
+            object.transform.y = y;
         }
     }
 }
@@ -434,18 +440,93 @@ fn draw_object(
     let Some(size) = util::object_size(&object.instance, symbols) else {
         return;
     };
-    let fill = util::to_color32(object.instance.fill);
-    let stroke = if fill.a() < 20 {
-        Stroke::new(1.0, Color32::from_white_alpha(80))
-    } else {
-        Stroke::new(1.0, fill.gamma_multiply(0.55))
-    };
-    let points = outline_points(view, &object.instance, size);
-    painter.add(Shape::convex_polygon(points, fill, stroke));
+    match &object.instance.kind {
+        ObjectKind::Path { paths, .. } => {
+            draw_paths(painter, view, &object.instance, paths);
+        }
+        ObjectKind::Text(text) => {
+            draw_paths(
+                painter,
+                view,
+                &object.instance,
+                &text.paths(object.instance.fill),
+            );
+        }
+        _ => {
+            let fill = util::to_color32(object.instance.fill);
+            let stroke = if fill.a() < 20 {
+                Stroke::new(1.0, Color32::from_white_alpha(80))
+            } else {
+                Stroke::new(1.0, fill.gamma_multiply(0.55))
+            };
+            let points = outline_points(view, &object.instance, size);
+            painter.add(Shape::convex_polygon(points, fill, stroke));
+        }
+    }
 
     if selection.contains_object(object.instance.id) {
         draw_selection(painter, view, &object.instance, size);
     }
+}
+
+/// Draws imported or generated vector sub-paths with the same transforms the
+/// exporter uses. Quadratic curves are tessellated for the screen only; the
+/// stored/exported geometry remains untouched.
+fn draw_paths(
+    painter: &egui::Painter,
+    view: &View,
+    instance: &nova_core::ObjectInstance,
+    paths: &[PathShape],
+) {
+    for path in paths {
+        let points = path_points(instance, path)
+            .into_iter()
+            .map(|point| view.to_screen(point))
+            .collect::<Vec<_>>();
+        if points.len() < 3 {
+            continue;
+        }
+        let fill = util::to_color32(path.fill);
+        if fill.a() == 0 {
+            continue;
+        }
+        painter.add(Shape::convex_polygon(points, fill, Stroke::NONE));
+    }
+}
+
+fn path_points(instance: &nova_core::ObjectInstance, path: &PathShape) -> Vec<Pos2> {
+    let mut points = Vec::new();
+    let mut cursor = egui::Vec2::ZERO;
+    for command in &path.commands {
+        match *command {
+            PathCommand::MoveTo { x, y } => {
+                cursor = egui::vec2(x, y);
+                points.push(util::stage_point(instance, cursor));
+            }
+            PathCommand::LineTo { x, y } => {
+                cursor = egui::vec2(x, y);
+                points.push(util::stage_point(instance, cursor));
+            }
+            PathCommand::CurveTo {
+                control_x,
+                control_y,
+                x,
+                y,
+            } => {
+                let start = cursor;
+                let control = egui::vec2(control_x, control_y);
+                let end = egui::vec2(x, y);
+                for step in 1..=8 {
+                    let t = step as f32 / 8.0;
+                    let one = 1.0 - t;
+                    let local = start * (one * one) + control * (2.0 * one * t) + end * (t * t);
+                    points.push(util::stage_point(instance, local));
+                }
+                cursor = end;
+            }
+        }
+    }
+    points
 }
 
 fn outline_points(

@@ -5,7 +5,7 @@ the compiled executable or bundle plus the branding assets and documentation;
 target machines do **not** need a Rust toolchain.
 
 The source version is the single release version. It lives in
-`[workspace.package] version` in `Cargo.toml` (currently `0.3.0-rc2`). The Windows
+`[workspace.package] version` in `Cargo.toml` (currently `0.4.0-rc1`). The Windows
 resource, splash screen, macOS `Info.plist` and package scripts read that value.
 
 ## Artifact layout
@@ -561,6 +561,40 @@ smoke-tested on the Windows development machine; macOS and Linux artifacts are
 scripted and structurally validated but were **not built on those platforms in
 this session**. Do not describe them as tested native builds until the
 corresponding CI or host run succeeds.
+
+### Milestone 8 / 0.4.0-rc1 verification (Windows)
+
+The validated rc2 artifacts were copied to `dist/archive/0.3.0-rc2/` before the
+packager deleted `dist/windows`. The M8 build then ran:
+
+| Check | Result |
+| --- | --- |
+| `cargo fmt --all -- --check` | **PASS** |
+| `cargo check --workspace` | **PASS** (no warnings) |
+| `cargo test --workspace` during packaging | **PASS** — 281 passed, 0 failed, 4 ignored |
+| `powershell scripts/build-release.ps1 -Target windows` | **PASS** |
+| Release executable version/resource check | **PASS** — `0.4.0-rc1` |
+| `NØVA Flash Studio.exe --version` | **PASS** — `NØVA Flash Studio 0.4.0-rc1` |
+| `--startup-check` | **PASS** (packager gate) |
+| ZIP creation | **PASS** |
+| `Setup.exe --version` | **PASS** — `NØVA Flash Studio Setup 0.4.0-rc1` |
+| `Setup.exe --smoke-test` | **PASS** — 46 payload entries, payload hash matches ZIP |
+| Headless per-user install to a temp directory | **PASS** |
+| Installed exe version | **PASS** — `0.4.0-rc1` |
+| HKCU uninstall entry | **PASS** — `DisplayVersion 0.4.0-rc1` |
+| Headless quiet uninstall | **PASS** — install directory and HKCU entry removed |
+| `python scripts/verify-packaging.py` | **PASS** |
+
+Artifacts:
+
+- `NØVA Flash Studio.exe` (portable payload)
+- `NOVA-Flash-Studio-0.4.0-rc1-windows-x64.zip`
+- `NOVA-Flash-Studio-0.4.0-rc1-windows-x64-Setup.exe`
+
+`dist/windows/SHA256SUMS.txt` is authoritative for the final sizes and
+SHA-256 values; it is generated after the documentation is packaged so this
+page does not go stale. The binaries are unsigned. macOS/Linux artifacts were
+not built on their native hosts.
 
 ## Release checklist
 

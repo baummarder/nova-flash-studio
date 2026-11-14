@@ -5,7 +5,7 @@ use nova_as::Severity;
 use nova_core::{Project, ScriptId};
 
 use crate::highlight;
-use crate::state::{AppState, BottomTab, UiAction};
+use crate::state::{AppState, BottomTab, Mode, UiAction};
 use crate::theme;
 
 const FONT_SIZE: f32 = 13.0;
@@ -123,6 +123,172 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
 
     let mut source = script.source.clone();
     let editor_id = egui::Id::unique(("as3_editor", script_id));
+    let mut source_changed = false;
+
+    if state.find_open {
+        ui.horizontal_wrapped(|ui| {
+            ui.label(RichText::new("Suchen").small());
+            let query_changed = ui
+                .add(
+                    TextEdit::singleline(&mut state.find_query)
+                        .hint_text("Suchtext")
+                        .desired_width(170.0),
+                )
+                .changed();
+            if query_changed {
+                state.find_offset = 0;
+            }
+            if ui
+                .add_enabled(!state.find_query.is_empty(), egui::Button::new("Weiter"))
+                .clicked()
+            {
+                match find_match(
+                    &source,
+                    &state.find_query,
+                    state.find_offset,
+                    state.find_case_sensitive,
+                ) {
+                    Some((start, length)) => {
+                        let (line, column) = line_column(&source, start);
+                        state.pending_jump = Some((line, column));
+                        state.find_offset = start + length;
+                        state.set_status(format!("Treffer in Zeile {line}, Spalte {column}"));
+                    }
+                    None if state.find_offset > 0 => {
+                        state.find_offset = 0;
+                        if let Some((start, _)) =
+                            find_match(&source, &state.find_query, 0, state.find_case_sensitive)
+                        {
+                            let (line, column) = line_column(&source, start);
+                            state.pending_jump = Some((line, column));
+                            state.set_status(format!("Am Anfang: Zeile {line}, Spalte {column}"));
+                        }
+                    }
+                    None => state.set_status("Kein Treffer"),
+                }
+            }
+            ui.add_space(8.0);
+            ui.label(RichText::new("Ersetzen").small());
+            ui.add(
+                TextEdit::singleline(&mut state.find_replace)
+                    .hint_text("Ersatztext")
+                    .desired_width(170.0),
+            );
+            if ui
+                .add_enabled(!state.find_query.is_empty(), egui::Button::new("Ersetzen"))
+                .clicked()
+            {
+                if let Some((start, length)) = find_match(
+                    &source,
+                    &state.find_query,
+                    state.find_offset,
+                    state.find_case_sensitive,
+                ) {
+                    replace_chars(&mut source, start, length, &state.find_replace);
+                    state.find_offset = start + state.find_replace.chars().count();
+                    source_changed = true;
+                    state.set_status("Treffer ersetzt");
+                } else {
+                    state.set_status("Kein Treffer zum Ersetzen");
+                }
+            }
+            if ui
+                .add_enabled(
+                    !state.find_query.is_empty(),
+                    egui::Button::new("Alle ersetzen"),
+                )
+                .clicked()
+            {
+                let (updated, count) = replace_all(
+                    &source,
+                    &state.find_query,
+                    &state.find_replace,
+                    state.find_case_sensitive,
+                );
+                source = updated;
+                source_changed = true;
+                state.find_offset = 0;
+                state.set_status(format!("{count} Treffer ersetzt"));
+            }
+            ui.checkbox(&mut state.find_case_sensitive, "Aa");
+            ui.checkbox(&mut state.find_project, "Projekt");
+            if ui
+                .small_button("×")
+                .on_hover_text("Suchleiste schließen")
+                .clicked()
+            {
+                state.find_open = false;
+            }
+        });
+
+        if state.find_project && !state.find_query.is_empty() {
+            let mut results: Vec<(ScriptId, String, usize, usize, String)> = Vec::new();
+            for candidate in &project.scripts {
+                for (line_index, line) in candidate.source.lines().enumerate() {
+                    if let Some(column) =
+                        line_find(line, &state.find_query, state.find_case_sensitive)
+                    {
+                        results.push((
+                            candidate.id,
+                            candidate.path.clone(),
+                            line_index + 1,
+                            column + 1,
+                            line.trim().chars().take(120).collect(),
+                        ));
+                        if results.len() >= 80 {
+                            break;
+                        }
+                    }
+                }
+                if results.len() >= 80 {
+                    break;
+                }
+            }
+            if results.is_empty() {
+                ui.label(
+                    RichText::new("Keine Treffer im Projekt.")
+                        .small()
+                        .color(theme::TEXT_FAINT),
+                );
+            } else {
+                ui.label(
+                    RichText::new(format!("{} Treffer im Projekt", results.len()))
+                        .small()
+                        .color(theme::TEXT_DIM),
+                );
+                ScrollArea::vertical()
+                    .id_salt("project_search_results")
+                    .max_height(130.0)
+                    .show(ui, |ui| {
+                        for (id, path, line, column, preview) in results {
+                            let label = format!("{path}:{line}:{column}  {preview}");
+                            if ui
+                                .selectable_label(false, RichText::new(label).monospace().small())
+                                .clicked()
+                            {
+                                state.active_script = Some(id);
+                                state.pending_jump = Some((line, column));
+                                state.mode = Mode::Code;
+                                actions.push(UiAction::OpenScript(id));
+                            }
+                        }
+                    });
+            }
+        }
+        theme::hairline(ui);
+
+        if source_changed {
+            if let Some(script) = project.script_mut(script_id) {
+                script.source = source.clone();
+            }
+            project.touch();
+            state.dirty = true;
+            if state.auto_check {
+                let (_, diagnostics) = nova_as::analyze(&source);
+                report_diagnostics(state, script_id, diagnostics, false);
+            }
+        }
+    }
 
     if let Some((line, column)) = state.pending_jump.take() {
         let offset = highlight::offset_of(&source, line, column);
@@ -211,6 +377,76 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
     actions
 }
 
+fn chars_equal(left: char, right: char, case_sensitive: bool) -> bool {
+    if case_sensitive {
+        left == right
+    } else {
+        left.eq_ignore_ascii_case(&right)
+    }
+}
+
+/// Returns `(char_start, char_length)` for the next match at or after `from`.
+fn find_match(
+    source: &str,
+    query: &str,
+    from: usize,
+    case_sensitive: bool,
+) -> Option<(usize, usize)> {
+    let haystack: Vec<char> = source.chars().collect();
+    let needle: Vec<char> = query.chars().collect();
+    if needle.is_empty() || needle.len() > haystack.len() {
+        return None;
+    }
+    for start in from.min(haystack.len())..=haystack.len() - needle.len() {
+        if haystack[start..start + needle.len()]
+            .iter()
+            .zip(&needle)
+            .all(|(left, right)| chars_equal(*left, *right, case_sensitive))
+        {
+            return Some((start, needle.len()));
+        }
+    }
+    None
+}
+
+fn replace_chars(source: &mut String, start: usize, length: usize, replacement: &str) {
+    let start_byte = source
+        .char_indices()
+        .nth(start)
+        .map(|(index, _)| index)
+        .unwrap_or(source.len());
+    let end_byte = source
+        .char_indices()
+        .nth(start + length)
+        .map(|(index, _)| index)
+        .unwrap_or(source.len());
+    source.replace_range(start_byte..end_byte, replacement);
+}
+
+fn replace_all(
+    source: &str,
+    query: &str,
+    replacement: &str,
+    case_sensitive: bool,
+) -> (String, usize) {
+    let mut result = source.to_string();
+    let mut offset = 0usize;
+    let mut count = 0usize;
+    while let Some((start, length)) = find_match(&result, query, offset, case_sensitive) {
+        replace_chars(&mut result, start, length, replacement);
+        offset = start + replacement.chars().count();
+        count += 1;
+        if count > 100_000 {
+            break;
+        }
+    }
+    (result, count)
+}
+
+fn line_find(line: &str, query: &str, case_sensitive: bool) -> Option<usize> {
+    find_match(line, query, 0, case_sensitive).map(|(start, _)| start)
+}
+
 pub(crate) fn report_diagnostics(
     state: &mut AppState,
     script_id: ScriptId,
@@ -260,6 +496,36 @@ pub(crate) fn report_diagnostics(
 
     state.diagnostics = diagnostics;
     state.diagnostics_for = Some(script_id);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn finds_and_replaces_unicode_safely() {
+        let source = "trace(\"NØVA\");\nvar nøva = 1;";
+        let (start, length) = find_match(source, "nøva", 0, false).expect("match");
+        assert_eq!(length, 4);
+        let mut replaced = source.to_string();
+        replace_chars(&mut replaced, start, length, "NOVA");
+        assert_eq!(replaced, "trace(\"NØVA\");\nvar NOVA = 1;");
+    }
+
+    #[test]
+    fn replace_all_reports_count() {
+        let (result, count) = replace_all("a A a", "a", "x", false);
+        assert_eq!(count, 3);
+        assert_eq!(result, "x x x");
+    }
+
+    #[test]
+    fn search_can_start_after_a_match() {
+        let source = "one one one";
+        let first = find_match(source, "one", 0, true).unwrap();
+        let second = find_match(source, "one", first.0 + first.1, true).unwrap();
+        assert_eq!(second.0, 4);
+    }
 }
 
 fn line_column(source: &str, char_index: usize) -> (usize, usize) {

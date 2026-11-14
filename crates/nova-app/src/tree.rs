@@ -32,6 +32,25 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
 
     // Scene selector ------------------------------------------------------
     theme::section(ui, "Szene");
+    ui.horizontal(|ui| {
+        if ui
+            .small_button("+ Szene")
+            .on_hover_text("Neue Szene")
+            .clicked()
+        {
+            actions.push(UiAction::AddScene);
+        }
+        if ui
+            .add_enabled(
+                project.scenes.len() > 1,
+                egui::Button::new(RichText::new("Szene löschen").small()),
+            )
+            .on_hover_text("Löscht die aktive Szene")
+            .clicked()
+        {
+            actions.push(UiAction::DeleteScene);
+        }
+    });
     if project.scenes.len() > 1 {
         let current = project
             .active_scene()
@@ -87,6 +106,13 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
             if ui.small_button("+").on_hover_text("Neue Ebene").clicked() {
                 actions.push(UiAction::AddLayer);
             }
+            if ui
+                .small_button("▣")
+                .on_hover_text("Neue Ordnerebene")
+                .clicked()
+            {
+                actions.push(UiAction::AddFolder);
+            }
         });
     });
 
@@ -97,16 +123,30 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
         visible: bool,
         locked: bool,
         kind: String,
+        depth: usize,
+        folder: bool,
+        expanded: bool,
     }
 
     let layers: Vec<LayerInfo> = project
         .active_scene()
         .map(|scene| {
+            let collapsed: Vec<Uuid> = scene
+                .layers
+                .iter()
+                .filter(|layer| layer.kind == nova_core::LayerKind::Folder && !layer.expanded)
+                .map(|layer| layer.id)
+                .collect();
             scene
                 .layers
                 .iter()
                 .enumerate()
                 .rev()
+                .filter(|(_, layer)| {
+                    !collapsed.iter().any(|folder| {
+                        *folder != layer.id && scene.layer_is_descendant_of(layer.id, *folder)
+                    })
+                })
                 .map(|(index, layer)| LayerInfo {
                     index,
                     id: layer.id,
@@ -114,6 +154,9 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
                     visible: layer.visible,
                     locked: layer.locked,
                     kind: layer.kind.label().to_string(),
+                    depth: scene.layer_depth(layer.id),
+                    folder: layer.kind == nova_core::LayerKind::Folder,
+                    expanded: layer.expanded,
                 })
                 .collect()
         })
@@ -121,6 +164,24 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
 
     for layer in layers {
         ui.horizontal(|ui| {
+            if layer.depth > 0 {
+                ui.add_space(layer.depth as f32 * 12.0);
+            }
+            if layer.folder {
+                let glyph = if layer.expanded { "▾" } else { "▸" };
+                if ui
+                    .small_button(glyph)
+                    .on_hover_text("Ordner auf-/zuklappen")
+                    .clicked()
+                {
+                    if let Some(scene) = project.active_scene_mut() {
+                        if let Some(folder) = scene.layers.get_mut(layer.index) {
+                            folder.expanded = !folder.expanded;
+                        }
+                    }
+                    state.dirty = true;
+                }
+            }
             let mut visible = layer.visible;
             let eye = if visible { "●" } else { "○" };
             if ui
@@ -161,7 +222,11 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
             }
 
             let selected = state.selection == Selection::Layer(layer.id);
-            let mut text = RichText::new(&layer.name);
+            let mut text = RichText::new(if layer.folder {
+                format!("▣ {}", layer.name)
+            } else {
+                layer.name.clone()
+            });
             if !layer.visible {
                 text = text.color(theme::TEXT_FAINT);
             }

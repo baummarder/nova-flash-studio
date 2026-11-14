@@ -5,7 +5,9 @@ use std::time::Instant;
 
 use eframe::egui::{self, Context, Key, RichText, Ui};
 use nova_build::build_swf;
-use nova_core::{Frame, ObjectInstance, ObjectKind, Project, Rgba, Symbol};
+use nova_core::{
+    Frame, Layer, LayerKind, ObjectInstance, ObjectKind, Project, ProjectTemplate, Rgba, Symbol,
+};
 use nova_script::ScriptEngine;
 use uuid::Uuid;
 
@@ -13,11 +15,12 @@ use crate::ai_editor::AiEditor;
 use crate::history::History;
 use crate::splash::Splash;
 use crate::state::{
-    AppState, BottomTab, Dialog, KeyframeRef, LogLevel, Mode, PendingAction, Selection, UiAction,
+    AlignMode, AppState, BottomTab, Dialog, KeyframeRef, LogLevel, Mode, PendingAction, Selection,
+    UiAction,
 };
 use crate::{
     autosave, branding, code_view, console, flash, properties, stage_view, theme, timeline_view,
-    tree,
+    tree, util,
 };
 
 pub struct NovaApp {
@@ -223,6 +226,19 @@ impl NovaApp {
                     ui.close();
                 }
                 ui.separator();
+                if ui.button("Objekte kopieren    Strg+C").clicked() {
+                    actions.push(UiAction::CopyObjects);
+                    ui.close();
+                }
+                if ui.button("Objekte einfügen    Strg+V").clicked() {
+                    actions.push(UiAction::PasteObjects);
+                    ui.close();
+                }
+                if ui.button("Objekte duplizieren    Strg+D").clicked() {
+                    actions.push(UiAction::DuplicateObjects);
+                    ui.close();
+                }
+                ui.separator();
                 if ui.button("Schlüsselbilder kopieren    Strg+C").clicked() {
                     actions.push(UiAction::CopyKeyframes);
                     ui.close();
@@ -266,6 +282,10 @@ impl NovaApp {
                     actions.push(UiAction::AddEllipse);
                     ui.close();
                 }
+                if ui.button("Text").clicked() {
+                    actions.push(UiAction::AddText);
+                    ui.close();
+                }
                 let symbol = self
                     .state
                     .selected_symbol
@@ -282,6 +302,18 @@ impl NovaApp {
                 ui.separator();
                 if ui.button("Neue Ebene").clicked() {
                     actions.push(UiAction::AddLayer);
+                    ui.close();
+                }
+                if ui.button("Neue Ordnerebene").clicked() {
+                    actions.push(UiAction::AddFolder);
+                    ui.close();
+                }
+                if ui.button("Neue Szene").clicked() {
+                    actions.push(UiAction::AddScene);
+                    ui.close();
+                }
+                if ui.button("Aktive Szene löschen").clicked() {
+                    actions.push(UiAction::DeleteScene);
                     ui.close();
                 }
                 if ui.button("Neues Skript").clicked() {
@@ -348,6 +380,13 @@ impl NovaApp {
                     .clicked()
                 {
                     actions.push(UiAction::ToggleGrid);
+                    ui.close();
+                }
+                if ui
+                    .selectable_label(self.state.snap_to_grid, "Am Raster einrasten")
+                    .clicked()
+                {
+                    actions.push(UiAction::ToggleSnap);
                     ui.close();
                 }
                 ui.separator();
@@ -633,6 +672,9 @@ impl NovaApp {
             if command && input.key_pressed(Key::E) {
                 actions.push(UiAction::Export);
             }
+            if command && input.key_pressed(Key::F) {
+                actions.push(UiAction::ToggleFind);
+            }
 
             if !typing {
                 if command && shift && input.key_pressed(Key::A) {
@@ -649,14 +691,27 @@ impl NovaApp {
                     actions.push(UiAction::Redo);
                 }
                 if self.state.mode == Mode::Animation {
+                    let has_objects = !self.state.selection.object_ids().is_empty();
                     if command && input.key_pressed(Key::C) {
-                        actions.push(UiAction::CopyKeyframes);
+                        actions.push(if has_objects {
+                            UiAction::CopyObjects
+                        } else {
+                            UiAction::CopyKeyframes
+                        });
                     }
                     if command && input.key_pressed(Key::V) {
-                        actions.push(UiAction::PasteKeyframes);
+                        actions.push(if self.state.object_clipboard.is_empty() {
+                            UiAction::PasteKeyframes
+                        } else {
+                            UiAction::PasteObjects
+                        });
                     }
                     if command && input.key_pressed(Key::D) {
-                        actions.push(UiAction::DuplicateKeyframes);
+                        actions.push(if has_objects {
+                            UiAction::DuplicateObjects
+                        } else {
+                            UiAction::DuplicateKeyframes
+                        });
                     }
                 }
                 if input.key_pressed(Key::Space) && self.state.mode == Mode::Animation {
@@ -754,15 +809,23 @@ impl NovaApp {
                     self.jump_to_frame(last);
                 }
                 UiAction::AddLayer => self.add_layer(),
+                UiAction::AddFolder => self.add_folder(),
                 UiAction::AddScript => self.add_script(),
                 UiAction::AddSymbol => self.add_symbol(),
                 UiAction::AddRect => self.add_shape(false),
                 UiAction::AddEllipse => self.add_shape(true),
+                UiAction::AddText => self.add_text(),
                 UiAction::AddSymbolInstance(id) => self.add_symbol_instance(id),
+                UiAction::AddScene => self.add_scene(),
+                UiAction::DeleteScene => self.delete_scene(),
                 UiAction::InsertKeyframe => self.insert_keyframe(false),
                 UiAction::InsertBlankKeyframe => self.insert_keyframe(true),
                 UiAction::RemoveKeyframe => self.remove_keyframe(),
                 UiAction::DeleteSelection => self.delete_selection(),
+                UiAction::CopyObjects => self.copy_objects(),
+                UiAction::PasteObjects => self.paste_objects(),
+                UiAction::DuplicateObjects => self.duplicate_objects(),
+                UiAction::AlignSelection(mode) => self.align_selection(mode),
                 UiAction::CheckScript(id) => self.check_script(id),
                 UiAction::OpenScript(id) => self.open_script(id),
                 UiAction::FitStage => {
@@ -785,6 +848,18 @@ impl NovaApp {
                 }
                 UiAction::ToggleGrid => {
                     self.state.show_grid = !self.state.show_grid;
+                }
+                UiAction::ToggleSnap => {
+                    self.state.snap_to_grid = !self.state.snap_to_grid;
+                    self.state.set_status(if self.state.snap_to_grid {
+                        "Am Raster einrasten an"
+                    } else {
+                        "Am Raster einrasten aus"
+                    });
+                }
+                UiAction::ToggleFind => {
+                    self.state.find_open = !self.state.find_open;
+                    self.state.find_offset = 0;
                 }
                 UiAction::SelectScene(id) => {
                     if let Some(scene) = self.project.scenes.iter().find(|scene| scene.id == id) {
@@ -1002,6 +1077,7 @@ impl NovaApp {
             frames: copied,
             source_layer: Some(refs[0].layer),
         });
+        self.state.object_clipboard.clear();
         self.state
             .set_status(format!("{count} Schlüsselbild(er) kopiert"));
     }
@@ -1361,6 +1437,7 @@ impl NovaApp {
         } else {
             self.state.dialog = Dialog::NewProject {
                 name: "Mein Projekt".into(),
+                template: ProjectTemplate::Empty,
             };
         }
     }
@@ -1391,6 +1468,7 @@ impl NovaApp {
             PendingAction::New => {
                 self.state.dialog = Dialog::NewProject {
                     name: "Mein Projekt".into(),
+                    template: ProjectTemplate::Empty,
                 };
             }
             PendingAction::OpenPrompt => self.open_picker(),
@@ -1470,9 +1548,9 @@ impl NovaApp {
         }
     }
 
-    fn new_project(&mut self, name: String) {
+    fn new_project(&mut self, name: String, template: ProjectTemplate) {
         autosave::discard(None);
-        let project = Project::new_empty(name);
+        let project = template.create(name);
         self.project = project;
         self.state = AppState::new(&self.project);
         self.state.console.clear();
@@ -1817,6 +1895,70 @@ impl NovaApp {
         }
     }
 
+    fn add_folder(&mut self) {
+        let (count, name) = self
+            .project
+            .active_scene()
+            .map(|scene| {
+                let folders = scene
+                    .layers
+                    .iter()
+                    .filter(|layer| layer.kind == LayerKind::Folder)
+                    .count();
+                (
+                    scene.frame_count().max(1),
+                    format!("Ordner {}", folders + 1),
+                )
+            })
+            .unwrap_or((1, "Ordner 1".to_string()));
+        let mut layer = Layer::new(name.clone(), count);
+        layer.kind = LayerKind::Folder;
+        let id = layer.id;
+        if let Some(scene) = self.project.active_scene_mut() {
+            scene.layers.push(layer);
+        } else {
+            return;
+        }
+        self.project.touch();
+        self.state.selection = Selection::Layer(id);
+        self.state.mode = Mode::Animation;
+        self.state.dirty = true;
+        self.state
+            .log(LogLevel::Info, format!("Ordnerebene '{name}' angelegt."));
+    }
+
+    fn add_scene(&mut self) {
+        let name = format!("Szene {}", self.project.scenes.len() + 1);
+        self.project.add_scene(name.clone());
+        self.state.reset_view(&self.project);
+        self.state.selection = Selection::Scene;
+        self.state.dirty = true;
+        self.state
+            .log(LogLevel::Info, format!("Szene '{name}' angelegt."));
+    }
+
+    fn delete_scene(&mut self) {
+        if self.project.scenes.len() <= 1 {
+            self.state.log(
+                LogLevel::Warn,
+                "Die letzte Szene kann nicht gelöscht werden.",
+            );
+            return;
+        }
+        let index = self.project.active_scene_index();
+        let removed = self.project.scenes.remove(index);
+        let next = index.min(self.project.scenes.len().saturating_sub(1));
+        self.project.active_scene = self.project.scenes.get(next).map(|scene| scene.id);
+        self.state.reset_view(&self.project);
+        self.state.selection = Selection::Scene;
+        self.project.touch();
+        self.state.dirty = true;
+        self.state.log(
+            LogLevel::Info,
+            format!("Szene '{}' gelöscht.", removed.name),
+        );
+    }
+
     fn add_script(&mut self) {
         let id = self.project.add_script("Script");
         self.state.active_script = Some(id);
@@ -1904,6 +2046,52 @@ impl NovaApp {
         self.state.selection = Selection::object(id);
         self.state.mode = Mode::Animation;
         self.state.set_status(format!("{name} eingefügt"));
+    }
+
+    fn add_text(&mut self) {
+        let frame = self.state.frame;
+        let Some(target) = self.target_layer() else {
+            self.state
+                .log(LogLevel::Error, "Keine Ebene zum Einfügen vorhanden.");
+            return;
+        };
+        let color = self.state.new_object_color;
+        let Some(scene) = self.project.active_scene_mut() else {
+            return;
+        };
+        let (stage_width, stage_height) = (scene.width, scene.height);
+        scene.ensure_frame_count(frame + 1);
+        let Some(layer) = scene.layers.iter_mut().find(|layer| layer.id == target) else {
+            return;
+        };
+        if !layer.frames[frame].keyframe {
+            let previous = if frame > 0 {
+                layer.last_keyframe_at_or_before(frame - 1)
+            } else {
+                None
+            };
+            let carried = previous
+                .and_then(|index| layer.frames.get(index))
+                .map(|key| key.objects.clone())
+                .unwrap_or_default();
+            layer.frames[frame].keyframe = true;
+            layer.frames[frame].objects = carried;
+        }
+        let object = ObjectInstance::text(
+            "Text",
+            stage_width / 2.0,
+            stage_height / 2.0,
+            "Text",
+            48.0,
+            color,
+        );
+        let id = object.id;
+        layer.frames[frame].objects.push(object);
+        self.project.touch();
+        self.state.dirty = true;
+        self.state.selection = Selection::object(id);
+        self.state.mode = Mode::Animation;
+        self.state.set_status("Text eingefügt");
     }
 
     fn add_symbol_instance(&mut self, symbol_id: Uuid) {
@@ -2043,6 +2231,250 @@ impl NovaApp {
         self.state.set_status("Schlüsselbild entfernt");
     }
 
+    fn copy_objects(&mut self) {
+        let ids = self.state.selection.object_ids().to_vec();
+        if ids.is_empty() {
+            self.state.log(
+                LogLevel::Warn,
+                "Keine Objekte für die Zwischenablage ausgewählt.",
+            );
+            return;
+        }
+        let Some(scene) = self.project.active_scene() else {
+            return;
+        };
+        let objects: Vec<ObjectInstance> = nova_core::resolve_scene(scene, self.state.frame)
+            .into_iter()
+            .filter(|object| ids.contains(&object.instance.id))
+            .map(|object| object.instance)
+            .collect();
+        if objects.is_empty() {
+            self.state.log(
+                LogLevel::Warn,
+                "Die Auswahl ist in diesem Frame nicht sichtbar.",
+            );
+            return;
+        }
+        let count = objects.len();
+        self.state.object_clipboard = objects;
+        self.state.keyframe_clipboard = None;
+        self.state.set_status(format!("{count} Objekt(e) kopiert"));
+    }
+
+    fn insert_objects(&mut self, mut objects: Vec<ObjectInstance>, label: &'static str) {
+        if objects.is_empty() {
+            return;
+        }
+        let frame = self.state.frame;
+        let Some(target) = self.target_layer() else {
+            self.state
+                .log(LogLevel::Error, "Keine Ebene zum Einfügen vorhanden.");
+            return;
+        };
+        let Some(scene) = self.project.active_scene_mut() else {
+            return;
+        };
+        scene.ensure_frame_count(frame + 1);
+        let Some(layer) = scene.layers.iter_mut().find(|layer| layer.id == target) else {
+            return;
+        };
+        if !layer.frames[frame].keyframe {
+            let previous = if frame > 0 {
+                layer.last_keyframe_at_or_before(frame - 1)
+            } else {
+                None
+            };
+            let carried = previous
+                .and_then(|index| layer.frames.get(index))
+                .map(|key| key.objects.clone())
+                .unwrap_or_default();
+            layer.frames[frame].keyframe = true;
+            layer.frames[frame].objects = carried;
+        }
+        let mut ids = Vec::with_capacity(objects.len());
+        for object in &mut objects {
+            object.id = Uuid::new_v4();
+            object.script = None;
+            object.source_character = None;
+            ids.push(object.id);
+        }
+        let count = objects.len();
+        layer.frames[frame].objects.extend(objects);
+        self.project.touch();
+        self.state.dirty = true;
+        self.state.selection = Selection::Objects(ids);
+        self.state.mode = Mode::Animation;
+        self.last_history_label = label;
+        self.state
+            .set_status(format!("{count} Objekt(e) eingefügt"));
+    }
+
+    fn paste_objects(&mut self) {
+        if self.state.object_clipboard.is_empty() {
+            self.state
+                .log(LogLevel::Warn, "Die Objekt-Zwischenablage ist leer.");
+            return;
+        }
+        let offset = 20.0;
+        let mut objects = self.state.object_clipboard.clone();
+        for object in &mut objects {
+            object.name = format!("{} Kopie", object.name);
+            object.transform.x += offset;
+            object.transform.y += offset;
+        }
+        self.insert_objects(objects, "Objekte einfügen");
+        for source in &mut self.state.object_clipboard {
+            source.transform.x += offset;
+            source.transform.y += offset;
+        }
+    }
+
+    fn duplicate_objects(&mut self) {
+        let ids = self.state.selection.object_ids().to_vec();
+        if ids.is_empty() {
+            return;
+        }
+        let Some(scene) = self.project.active_scene() else {
+            return;
+        };
+        let mut objects: Vec<ObjectInstance> = nova_core::resolve_scene(scene, self.state.frame)
+            .into_iter()
+            .filter(|object| ids.contains(&object.instance.id))
+            .map(|object| object.instance)
+            .collect();
+        for object in &mut objects {
+            object.name = format!("{} Kopie", object.name);
+            object.transform.x += 20.0;
+            object.transform.y += 20.0;
+        }
+        self.insert_objects(objects, "Objekte duplizieren");
+    }
+
+    fn align_selection(&mut self, mode: AlignMode) {
+        let ids = self.state.selection.object_ids().to_vec();
+        if ids.is_empty() {
+            return;
+        }
+        let mut targets = Vec::new();
+        for id in ids {
+            let Some(resolved) = self.state.resolved_object(&self.project, id) else {
+                continue;
+            };
+            let Some((width, height)) =
+                util::object_size(&resolved.instance, &self.project.symbols)
+            else {
+                continue;
+            };
+            targets.push((
+                id,
+                resolved.layer_id,
+                resolved.instance.transform,
+                width * resolved.instance.transform.scale_x.abs(),
+                height * resolved.instance.transform.scale_y.abs(),
+            ));
+        }
+        if targets.is_empty() {
+            return;
+        }
+
+        let min_left = targets
+            .iter()
+            .map(|(_, _, transform, width, _)| transform.x - width / 2.0)
+            .fold(f32::INFINITY, f32::min);
+        let max_right = targets
+            .iter()
+            .map(|(_, _, transform, width, _)| transform.x + width / 2.0)
+            .fold(f32::NEG_INFINITY, f32::max);
+        let min_top = targets
+            .iter()
+            .map(|(_, _, transform, _, height)| transform.y - height / 2.0)
+            .fold(f32::INFINITY, f32::min);
+        let max_bottom = targets
+            .iter()
+            .map(|(_, _, transform, _, height)| transform.y + height / 2.0)
+            .fold(f32::NEG_INFINITY, f32::max);
+        let center_x = (min_left + max_right) / 2.0;
+        let center_y = (min_top + max_bottom) / 2.0;
+
+        let mut positions: Vec<(Uuid, Uuid, f32, f32)> = Vec::new();
+        if matches!(
+            mode,
+            AlignMode::DistributeHorizontal | AlignMode::DistributeVertical
+        ) {
+            if targets.len() < 3 {
+                self.state.log(
+                    LogLevel::Warn,
+                    "Verteilen benötigt mindestens drei Objekte.",
+                );
+                return;
+            }
+            let horizontal = mode == AlignMode::DistributeHorizontal;
+            let mut sorted = targets;
+            sorted.sort_by(|a, b| {
+                let a_start = if horizontal {
+                    a.2.x - a.3 / 2.0
+                } else {
+                    a.2.y - a.4 / 2.0
+                };
+                let b_start = if horizontal {
+                    b.2.x - b.3 / 2.0
+                } else {
+                    b.2.y - b.4 / 2.0
+                };
+                a_start
+                    .partial_cmp(&b_start)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+            let group_start = if horizontal { min_left } else { min_top };
+            let group_end = if horizontal { max_right } else { max_bottom };
+            let total: f32 = sorted
+                .iter()
+                .map(|(_, _, _, width, height)| if horizontal { *width } else { *height })
+                .sum();
+            let gap = ((group_end - group_start - total) / (sorted.len() - 1) as f32).max(0.0);
+            let mut cursor = group_start;
+            for (id, layer, transform, width, height) in sorted {
+                if horizontal {
+                    positions.push((id, layer, cursor + width / 2.0, transform.y));
+                    cursor += width + gap;
+                } else {
+                    positions.push((id, layer, transform.x, cursor + height / 2.0));
+                    cursor += height + gap;
+                }
+            }
+        } else {
+            for (id, layer, transform, width, height) in targets {
+                let (x, y) = match mode {
+                    AlignMode::Left => (min_left + width / 2.0, transform.y),
+                    AlignMode::HorizontalCenter => (center_x, transform.y),
+                    AlignMode::Right => (max_right - width / 2.0, transform.y),
+                    AlignMode::Top => (transform.x, min_top + height / 2.0),
+                    AlignMode::VerticalCenter => (transform.x, center_y),
+                    AlignMode::Bottom => (transform.x, max_bottom - height / 2.0),
+                    AlignMode::DistributeHorizontal | AlignMode::DistributeVertical => {
+                        unreachable!()
+                    }
+                };
+                positions.push((id, layer, x, y));
+            }
+        }
+
+        let frame = self.state.frame;
+        let Some(scene) = self.project.active_scene_mut() else {
+            return;
+        };
+        for (id, layer_id, x, y) in positions {
+            if let Some(object) = util::governing_object_mut(scene, layer_id, frame, id) {
+                object.transform.x = x;
+                object.transform.y = y;
+            }
+        }
+        self.project.touch();
+        self.state.dirty = true;
+        self.last_history_label = "Objekte ausrichten";
+        self.state.set_status(format!("{mode:?} ausgeführt"));
+    }
+
     fn delete_selection(&mut self) {
         match self.state.selection.clone() {
             Selection::Objects(ids) => {
@@ -2080,14 +2512,13 @@ impl NovaApp {
                 let Some(scene) = self.project.active_scene_mut() else {
                     return;
                 };
-                if scene.layers.len() <= 1 {
+                if !scene.remove_layer(id) {
                     self.state.log(
                         LogLevel::Warn,
                         "Die letzte Ebene kann nicht gelöscht werden.",
                     );
                     return;
                 }
-                scene.layers.retain(|layer| layer.id != id);
                 self.project.touch();
                 self.state.dirty = true;
                 self.state.selection = Selection::None;
@@ -2248,18 +2679,19 @@ impl NovaApp {
         match self.state.dialog.clone() {
             Dialog::None => {}
             Dialog::AiProviders => self.ai.show_provider_dialog(ctx, &mut self.state),
-            Dialog::NewProject { mut name } => {
+            Dialog::NewProject {
+                mut name,
+                mut template,
+            } => {
                 let mut create = false;
                 let mut cancel = false;
                 egui::Modal::new(egui::Id::unique("new_project_dialog")).show(ctx, |ui| {
-                    ui.set_min_width(360.0);
+                    ui.set_min_width(430.0);
                     ui.heading("Neues Projekt");
                     ui.label(
-                        RichText::new(
-                            "Erstellt ein leeres Projekt mit einer Szene und einer Ebene.",
-                        )
-                        .small()
-                        .color(theme::TEXT_DIM),
+                        RichText::new("Vorlage wählen und Projektnamen festlegen.")
+                            .small()
+                            .color(theme::TEXT_DIM),
                     );
                     ui.add_space(6.0);
                     let response = ui.add(
@@ -2270,6 +2702,21 @@ impl NovaApp {
                     if !response.has_focus() {
                         response.request_focus();
                     }
+                    ui.add_space(8.0);
+                    egui::Grid::new("template_grid")
+                        .num_columns(2)
+                        .spacing(egui::vec2(12.0, 8.0))
+                        .show(ui, |ui| {
+                            for candidate in ProjectTemplate::ALL {
+                                ui.radio_value(&mut template, candidate, candidate.label());
+                                ui.label(
+                                    RichText::new(candidate.description())
+                                        .small()
+                                        .color(theme::TEXT_DIM),
+                                );
+                                ui.end_row();
+                            }
+                        });
                     ui.add_space(8.0);
                     ui.horizontal(|ui| {
                         if ui
@@ -2285,11 +2732,11 @@ impl NovaApp {
                 });
 
                 if create && !name.trim().is_empty() {
-                    self.new_project(name.trim().to_string());
+                    self.new_project(name.trim().to_string(), template);
                 } else if cancel {
                     self.state.dialog = Dialog::None;
                 } else {
-                    self.state.dialog = Dialog::NewProject { name };
+                    self.state.dialog = Dialog::NewProject { name, template };
                 }
             }
             Dialog::Unsaved { next } => {
@@ -2355,7 +2802,7 @@ impl NovaApp {
                     ui.label(RichText::new("Was bereits funktioniert").strong());
                     ui.label(
                         RichText::new(
-                            "• Bühne, Ebenen, Frames, Schlüsselbilder, Motion-Tweens und Onion Skin\n• Mehrfachauswahl, gemeinsames Verschieben/Skalieren/Drehen, Undo/Redo\n• Schlüsselbild-Workflow mit Kopieren, Einfügen, Duplizieren und Ebenenwechsel\n• Autosave mit Crash-Recovery\n• SWF-Export mit DefineShape3, DefineSprite und Frame-für-Frame-Backen\n• AS3-Teilmenge als echter AVM2-ABC-Bytecode (DoABC2 + SymbolClass)\n• JavaScript-Konsole über QuickJS\n• Branded Splash, natives App-Icon und plattformspezifische Packaging-Skripte\n• „Open in Flash Player“ mit Adobe-Projector als Standard und optionalem Ruffle",
+                            "• Bühne, Ebenen, Ebenenordner, Frames, Schlüsselbilder, Motion-Tweens und Onion Skin\n• Mehrfachauswahl, Ausrichten/Verteilen, Raster-Snapping, Undo/Redo\n• Objekt- und Schlüsselbild-Workflow mit Kopieren, Einfügen, Duplizieren und Ebenenwechsel\n• Textobjekte mit eingebauter Vektor-Schrift (Export als Shapes)\n• Mehrere Szenen, vier echte Projektvorlagen und Symbolbibliothek\n• Suchen/Ersetzen im Code und projektweite Textsuche\n• Autosave mit Crash-Recovery\n• SWF-Export mit DefineShape3, DefineSprite und Frame-für-Frame-Backen\n• AS3-Teilmenge als echter AVM2-ABC-Bytecode (DoABC2 + SymbolClass)\n• JavaScript-Konsole über QuickJS\n• Branded Splash, natives App-Icon und plattformspezifische Packaging-Skripte\n• „Open in Flash Player“ mit Adobe-Projector als Standard und optionalem Ruffle",
                         )
                         .small(),
                     );
@@ -2363,7 +2810,7 @@ impl NovaApp {
                     ui.label(RichText::new("Bewusste Grenzen").strong());
                     ui.label(
                         RichText::new(
-                            "• Nur eine dokumentierte AS3-Teilmenge; nicht unterstützte Konstrukte sind Compilerfehler\n• Script-Objekte werden einmal platziert und danach von ActionScript gesteuert\n• Keine Bitmaps, Sounds, Fonts oder Textwerkzeuge\n• Keine verschachtelten Symbol-Timelines\n• ABC/SWF strukturell validiert; keine automatische Runtime-/Playback-Prüfung",
+                            "• Nur eine dokumentierte AS3-Teilmenge; nicht unterstützte Konstrukte sind Compilerfehler\n• Script-Objekte werden einmal platziert und danach von ActionScript gesteuert\n• Keine Bitmaps, Sounds, System-/OpenType-Fonts oder editierbaren Laufzeittext\n• Keine verschachtelten Symbol-Timelines und keine Masken/Shape-Tweens\n• ABC/SWF strukturell validiert; keine automatische Runtime-/Playback-Prüfung",
                         )
                         .small()
                         .color(theme::TEXT_DIM),
@@ -2410,8 +2857,12 @@ impl NovaApp {
                                         ("Strg+N / Strg+O", "Neu / Öffnen"),
                                         ("Strg+S / Strg+Shift+S", "Speichern / Speichern unter"),
                                         ("Strg+E", "SWF exportieren"),
+                                        ("Strg+F", "Suchen/Ersetzen bzw. Projekt-Suche"),
                                         ("Strg+Z / Strg+Y", "Rückgängig / Wiederholen"),
-                                        ("Strg+C / Strg+V / Strg+D", "Schlüsselbild kopieren/einfügen/duplizieren"),
+                                        (
+                                            "Strg+C / Strg+V / Strg+D",
+                                            "Objekt oder Schlüsselbild kopieren/einfügen/duplizieren",
+                                        ),
                                         ("Entf / Esc", "Auswahl löschen / Auswahl aufheben"),
                                         ("Leertaste", "Wiedergabe an/aus"),
                                         ("F5 / Shift+F5", "Frame einfügen / entfernen"),
@@ -2438,7 +2889,7 @@ impl NovaApp {
                             ui.label(RichText::new("Ehrliche Grenzen").strong());
                             ui.label(
                                 RichText::new(
-                                    "• ActionScript wird für eine dokumentierte Teilmenge zu echtem AVM2-ABC kompiliert. Nicht unterstützte Syntax ist ein Compilerfehler mit Datei/Zeile.\n• Die ABC- und SWF-Struktur wird mit einem unabhängigen Parser validiert. „Open in Flash Player“ startet die konfigurierte Runtime (Adobe-Projector als Standard, Ruffle nur nach ausdrücklicher Auswahl); eine automatische Playback-Prüfung oder eingebettete Runtime gibt es nicht.\n• Skript-Objekte werden einmal platziert und danach von ActionScript gesteuert; ihre Timeline-Tweens werden nicht zusätzlich gebacken.\n• Nicht-Skript-Objekte werden weiterhin Frame für Frame gebacken.\n• Bitmaps, Sounds, Fonts, Text, verschachtelte Symbol-Timelines und die vollständige Flash-API fehlen.",
+                                    "• ActionScript wird für eine dokumentierte Teilmenge zu echtem AVM2-ABC kompiliert. Nicht unterstützte Syntax ist ein Compilerfehler mit Datei/Zeile.\n• Die ABC- und SWF-Struktur wird mit einem unabhängigen Parser validiert. „Open in Flash Player“ startet die konfigurierte Runtime (Adobe-Projector als Standard, Ruffle nur nach ausdrücklicher Auswahl); eine automatische Playback-Prüfung oder eingebettete Runtime gibt es nicht.\n• Skript-Objekte werden einmal platziert und danach von ActionScript gesteuert; ihre Timeline-Tweens werden nicht zusätzlich gebacken.\n• Nicht-Skript-Objekte werden weiterhin Frame für Frame gebacken.\n• Text ist statisch: die eingebaute 5×7-Vektorschrift wird als Shapes exportiert. System-/OpenType-Fonts, editierbarer Laufzeittext, Bitmaps, Sounds, verschachtelte Symbol-Timelines, Masken und Shape-Tweens fehlen.\n• Array-, Objekt- und Index-Zugriffe in AS3 sind strukturell geprüft, aber nicht gegen eine echte Runtime getestet.",
                                 )
                                 .small()
                                 .color(theme::TEXT_DIM),

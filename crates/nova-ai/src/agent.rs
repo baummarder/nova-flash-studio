@@ -10,6 +10,7 @@ use uuid::Uuid;
 
 use crate::error::{AiError, AiResult};
 use crate::files::ProposedChange;
+use crate::operations::{MAX_OPERATIONS, ProjectOperation};
 use crate::provider::{ChatMessage, ChatResponse, ProviderManager};
 
 pub const MAX_CONTEXT_CHARS: usize = 48_000;
@@ -357,14 +358,15 @@ pub fn build_context(
     out
 }
 
-pub const SYSTEM_PROMPT: &str = r#"Du bist der integrierte Entwicklungsagent von NØVA Flash Studio.
+pub const SYSTEM_PROMPT: &str = r##"Du bist der integrierte Entwicklungsagent von NØVA Flash Studio.
 Du hilfst bei ActionScript 3, dem NØVA-Projektmodell, Timeline/Animation und dem bestehenden Compiler/Exporter.
 
 Regeln:
 - Erfinde keine Funktionen, die NØVA nicht hat. Shell-Befehle, beliebige Prozesse und Dateizugriffe außerhalb des Projektordners sind nicht erlaubt.
 - Preserved ABC ist Bytecode, kein Originalquelltext. Bezeichne rekonstruierten oder dekompilierten Code niemals als Original.
 - Bevorzuge Änderungen an vorhandenen ActionScript-Dateien. Für jede Dateiänderung muss der Benutzer einen Diff sehen und ausdrücklich zustimmen.
-- Lösche keine Dateien ohne ausdrückliche Bestätigung.
+- Projektoperationen ändern Szenen, Ebenen, Objekte, Symbole und Skripte im Dokument. Der Benutzer sieht vorher eine Vorschau und muss zustimmen. Nichts wird automatisch angewendet.
+- Lösche keine Dateien, Szenen, Ebenen, Objekte oder Symbole ohne ausdrückliche Bestätigung. Die unterstützten Operationen legen Inhalte an, aktualisieren Objekt-/Timeline-Eigenschaften und ändern Bühnen-/Projektmaße; sie löschen nichts.
 - Wenn du einen Build benötigst, setze "actions":["build"].
 - Antworte auf Deutsch, knapp und konkret.
 
@@ -374,14 +376,33 @@ Antworte ausschließlich mit einem JSON-Objekt:
   "changes": [
     {"path": "scripts/Main.as", "content": "vollständiger neuer Dateiinhalt", "reason": "kurze Begründung", "delete": false}
   ],
+  "operations": [],
   "actions": []
 }
-Wenn keine Dateiänderung nötig ist, lass "changes" leer. "content" ist immer der vollständige Dateiinhalt, nicht nur ein Patch."#;
+Wenn keine Dateiänderung nötig ist, lass "changes" leer. "content" ist immer der vollständige Dateiinhalt, nicht nur ein Patch.
+Unterstützte Projektoperationen (nur diese, jeweils mit "op"):
+- {"op":"rename_project","name":"Neuer Name"}
+- {"op":"set_stage","width":800,"height":600,"fps":30,"background":"#101018","scene":"optionaler Szenenname"}
+- {"op":"add_scene","name":"Szene 2"}
+- {"op":"add_layer","name":"Hintergrund","scene":"optional","frames":10}
+- {"op":"add_object","name":"Boden","scene":"optional","layer":"optional","shape":"rect|ellipse|text","x":0,"y":320,"width":550,"height":80,"fill":"#334455","text":"nur bei text","font_size":24}
+- {"op":"update_object","name":"Boden","scene":"optional","layer":"optional","x":10,"y":320,"rotation":0,"scale_x":1,"scale_y":1,"fill":"#445566","text":"optional nur bei Text","font_size":24}
+- {"op":"add_keyframe","layer":"Hintergrund","frame":10,"scene":"optional","label":"optional","duplicate_previous":true}
+- {"op":"set_frame_label","layer":"Hintergrund","frame":1,"label":"start","scene":"optional"}
+- {"op":"add_tween","layer":"Hintergrund","frame":1,"scene":"optional","easing":"linear|ease_in|ease_out|ease_in_out"}
+- {"op":"add_symbol","name":"Kreis","width":40,"height":40,"fill":"#00c8ff","corner_radius":20}
+- {"op":"place_symbol","symbol":"Kreis","name":"Kreis 1","x":100,"y":80,"scene":"optional","layer":"optional","fill":"optional"}
+- {"op":"add_script","path":"scripts/Neu.as","source":"vollständiger ActionScript-3-Quelltext"}
+Szenen und Ebenen werden über Namen ausgewählt; ohne Szene gilt die aktive Szene. Neue Skripte müssen unter scripts/ liegen und auf .as enden. Keine Lösch-, Umbenennungs- oder Überschreiboperationen für bestehende Inhalte erfinden. Die Operationen werden erst nach ausdrücklicher Bestätigung transaktional angewendet."##;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct AgentReply {
     pub message: String,
     pub changes: Vec<ProposedChange>,
+    pub operations: Vec<ProjectOperation>,
+    /// Entries that looked like operations but could not be parsed. They are
+    /// surfaced in the UI instead of being silently dropped.
+    pub operation_errors: Vec<String>,
     pub actions: Vec<String>,
     pub raw: String,
 }
@@ -421,6 +442,7 @@ pub struct AgentSession {
     pub messages: Vec<ChatMessage>,
     pub context: ContextSelection,
     pub pending_changes: Vec<ProposedChange>,
+    pub pending_operations: Vec<ProjectOperation>,
     pub last_context: String,
 }
 
@@ -428,6 +450,7 @@ impl AgentSession {
     pub fn clear(&mut self) {
         self.messages.clear();
         self.pending_changes.clear();
+        self.pending_operations.clear();
         self.last_context.clear();
     }
 
@@ -521,6 +544,8 @@ pub fn parse_agent_reply(text: &str) -> AgentReply {
         return AgentReply {
             message: text.trim().to_string(),
             changes: Vec::new(),
+            operations: Vec::new(),
+            operation_errors: Vec::new(),
             actions: Vec::new(),
             raw,
         };
@@ -529,6 +554,8 @@ pub fn parse_agent_reply(text: &str) -> AgentReply {
         return AgentReply {
             message: text.trim().to_string(),
             changes: Vec::new(),
+            operations: Vec::new(),
+            operation_errors: Vec::new(),
             actions: Vec::new(),
             raw,
         };
@@ -593,9 +620,34 @@ pub fn parse_agent_reply(text: &str) -> AgentReply {
             });
         }
     }
+    let mut operations = Vec::new();
+    let mut operation_errors = Vec::new();
+    for key in ["operations", "project_operations", "projectOperations"] {
+        let Some(entries) = value.get(key).and_then(|entries| entries.as_array()) else {
+            continue;
+        };
+        for (index, entry) in entries.iter().enumerate() {
+            if operations.len() >= MAX_OPERATIONS {
+                operation_errors.push(format!(
+                    "Projektoperation {} ignoriert: Maximum {MAX_OPERATIONS} pro Antwort.",
+                    index + 1
+                ));
+                continue;
+            }
+            match serde_json::from_value::<ProjectOperation>(entry.clone()) {
+                Ok(operation) => operations.push(operation),
+                Err(error) => operation_errors.push(format!(
+                    "Projektoperation {} konnte nicht gelesen werden: {error}",
+                    index + 1
+                )),
+            }
+        }
+    }
     AgentReply {
         message,
         changes,
+        operations,
+        operation_errors,
         actions,
         raw,
     }
@@ -701,6 +753,26 @@ mod tests {
         assert_eq!(reply.changes[0].path, "scripts/Main.as");
         assert!(reply.wants_build());
         assert!(!reply.actions.iter().any(|action| action == "shell"));
+    }
+
+    #[test]
+    fn parses_structured_operations_and_reports_bad_entries() {
+        let reply = parse_agent_reply(
+            r##"```json
+            {"message":"Bauen","changes":[],"operations":[
+              {"op":"add_layer","name":"Hintergrund","frames":8},
+              {"op":"add_object","name":"Boden","layer":"Hintergrund","shape":"rect","x":0,"y":300,"width":550,"height":80,"fill":"#334455"},
+              {"op":"does_not_exist","name":"x"}
+            ],"actions":["build"]}
+            ```"##,
+        );
+        assert_eq!(reply.operations.len(), 2);
+        assert!(matches!(
+            reply.operations[0],
+            ProjectOperation::AddLayer { .. }
+        ));
+        assert_eq!(reply.operation_errors.len(), 1);
+        assert!(reply.operation_errors[0].contains("Projektoperation 3"));
     }
 
     #[test]

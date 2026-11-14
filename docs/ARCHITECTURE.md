@@ -610,3 +610,74 @@ crates/nova-app/src/
   console.rs            QuickJS console
   theme.rs util.rs      styling and geometry helpers
 ```
+
+## 12. Mega Milestone 8 additions (0.4.0-rc1)
+
+M8 keeps the existing crate boundaries. The document model remains the single
+source of truth; UI, build, format and AI layers only mutate it through explicit
+operations and validation.
+
+### Document model
+
+- `ObjectKind::Text(TextObject)` stores text, font size, alignment and colour.
+  `text.rs` owns the built-in ASCII/German 5×7 vector glyph table, metrics and
+  outline/path generation. Text is rendered by the stage and baked into SWF and
+  XFL as ordinary shapes. There is no `DefineText` and no system-font path.
+- `Layer` gained `parent` and `expanded`. Folder layers have no exported
+  content; `resolve_scene` skips them and descendants of hidden folders.
+  Validation rejects missing parents and cycles, and `repair_folder_links`
+  repairs imported/broken hierarchies without discarding layers.
+- `Project::scenes` and `ExportConfig::export_all_scenes` support multiple
+  scenes. The default remains active-scene-only. When enabled, the build layer
+  concatenates scene timelines and emits a scene boundary label before each
+  non-first scene. Scene names and frame labels are not unique identifiers.
+- `template.rs` defines four constructors (`Empty`, `AnimationShort`,
+  `Platformer`, `UiKit`). Templates create real scenes, layers, objects,
+  tweens, symbols and scripts; they are shared by the GUI wizard and
+  `nova new --template`.
+- New serialized fields use `#[serde(default)]`; the `.nova` format version
+  stays `1`. Older projects load unchanged, and unknown future versions are
+  still rejected.
+
+### UI and editing
+
+- `AppState` owns an object clipboard, snap-to-grid state, alignment/distribution
+  helpers and the code-search state. `UiAction` remains the intent vocabulary;
+  app methods perform edits and snapshot history exactly once per user action.
+- Stage dragging honours grid snapping. Multi-selection can be aligned
+  (left/centre/right/top/middle/bottom) or distributed horizontally/vertically.
+  Copy/paste/duplicate works on selected objects and preserves object identity
+  rules; keyframe copy/paste/duplicate remains a separate path.
+- The code view supports incremental find, case-sensitive toggle, replace and
+  project-wide search results. Search does not rewrite files automatically.
+- The New Project dialog lists the four templates and validates the project
+  name before creating a real project.
+
+### AS3 compiler
+
+The checker now accepts array literals, object literals and index access
+(`a[i]`, nested index assignment and increment/decrement). The emitter adds a
+late-bound multiname (`MultinameL`) and uses `newarray`, `newobject`,
+`getproperty`/`setproperty` and `getproperty`/`setproperty` with dynamic names.
+This is structurally validated ABC, not a runtime-verified collection
+implementation.
+
+### AI structured operations
+
+`nova-ai::operations` is UI-independent and network-free. The agent can propose
+up to 32 operations tagged with `op`: rename project, set stage, add scene,
+add layer, add/update object, add keyframe, set frame label, add tween, add
+symbol, place symbol and add script. A plan is validated against the current
+project and shown as human-readable summaries before application. Application
+is transactional: any error rolls back the whole model, and the app records a
+single undo snapshot. Operations never delete content. File diffs and project
+operations share the same confirmation boundary but remain different data
+types.
+
+### Verification boundary
+
+`cargo test --workspace` covers model validation, text export, multi-scene and
+folder export, template builds, AS3 ABC structure and AI operation transactions.
+Ruffle 0.7.1 remains the only visually verified external runtime. Multi-frame
+`SymbolClass` execution, XFL tween fidelity, Adobe playback, bitmap/audio,
+nested symbol timelines and the full Flash API remain partial or unverified.

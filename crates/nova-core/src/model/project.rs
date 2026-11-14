@@ -182,6 +182,10 @@ pub struct ExportConfig {
     /// when this is set but no bytecode exists.
     #[serde(default)]
     pub include_scripts: bool,
+    /// Concatenate all scenes into one SWF timeline. When false the active
+    /// scene is exported and the exporter reports the ignored scenes.
+    #[serde(default)]
+    pub export_all_scenes: bool,
 }
 
 impl Default for ExportConfig {
@@ -191,6 +195,7 @@ impl Default for ExportConfig {
             swf_version: 10,
             compression: SwfCompression::Zlib,
             include_scripts: true,
+            export_all_scenes: false,
         }
     }
 }
@@ -437,7 +442,16 @@ impl Project {
     }
 
     pub fn add_scene(&mut self, name: impl Into<String>) -> Uuid {
-        let scene = Scene::new(name, 550.0, 400.0);
+        let template = self.active_scene();
+        let width = template.map(|scene| scene.width).unwrap_or(550.0);
+        let height = template.map(|scene| scene.height).unwrap_or(400.0);
+        let background = template
+            .map(|scene| scene.background)
+            .unwrap_or(Rgba::rgb(18, 20, 26));
+        let fps = template.map(|scene| scene.fps).unwrap_or(24.0);
+        let mut scene = Scene::new(name, width, height);
+        scene.background = background;
+        scene.fps = fps;
         let id = scene.id;
         self.scenes.push(scene);
         self.active_scene = Some(id);
@@ -551,6 +565,14 @@ impl Project {
                             if !self.symbols.iter().any(|s| s.id == symbol) {
                                 return Err(ProjectError::Validation(format!(
                                     "Objekt '{}' verweist auf unbekanntes Symbol",
+                                    object.name
+                                )));
+                            }
+                        }
+                        if let ObjectKind::Text(text) = &object.kind {
+                            if text.size < 1.0 || text.size > 4096.0 || !text.size.is_finite() {
+                                return Err(ProjectError::Validation(format!(
+                                    "Textobjekt '{}' hat eine ungültige Schriftgröße",
                                     object.name
                                 )));
                             }

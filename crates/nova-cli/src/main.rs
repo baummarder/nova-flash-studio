@@ -8,7 +8,7 @@ use std::error::Error;
 use std::path::{Path, PathBuf};
 
 use nova_build::build_swf;
-use nova_core::Project;
+use nova_core::{Project, ProjectTemplate, template_by_id};
 use nova_formats::{FormatKind, analyze_path, export_xfl, load_path};
 use nova_swf::inspect_file;
 
@@ -154,17 +154,56 @@ fn run() -> Result<(), Box<dyn Error>> {
             Ok(())
         }
         "new" => {
-            let Some(path) = args.get(1) else {
-                return Err("Aufruf: nova new <projekt.nova>".into());
+            let mut path: Option<PathBuf> = None;
+            let mut template = ProjectTemplate::Empty;
+            let mut index = 1;
+            while index < args.len() {
+                if args[index] == "--template" {
+                    let Some(id) = args.get(index + 1) else {
+                        return Err(
+                            "Aufruf: nova new <projekt.nova> [--template empty|animation|platformer|ui]"
+                                .into(),
+                        );
+                    };
+                    template = template_by_id(id).ok_or_else(|| {
+                        format!(
+                            "Unbekannte Vorlage '{id}'. Verfügbar: empty, animation, platformer, ui"
+                        )
+                    })?;
+                    index += 2;
+                    continue;
+                }
+                if args[index].starts_with("--") {
+                    return Err(format!("Unbekannte Option '{}'", args[index]).into());
+                }
+                if path.is_some() {
+                    return Err(
+                        "Aufruf: nova new <projekt.nova> [--template empty|animation|platformer|ui]"
+                            .into(),
+                    );
+                }
+                path = Some(PathBuf::from(&args[index]));
+                index += 1;
+            }
+            let Some(path) = path else {
+                return Err(
+                    "Aufruf: nova new <projekt.nova> [--template empty|animation|platformer|ui]"
+                        .into(),
+                );
             };
-            let path = PathBuf::from(path);
             let name = path
                 .file_stem()
                 .and_then(|s| s.to_str())
                 .unwrap_or("Unbenannt");
-            let project = Project::new_empty(name);
+            let project = template.create(name);
+            project.validate()?;
             project.save(&path)?;
-            println!("Projekt erstellt: {}", path.display());
+            println!(
+                "Projekt erstellt: {} · Vorlage: {} · {} Szene(n)",
+                path.display(),
+                template.label(),
+                project.scenes.len()
+            );
             Ok(())
         }
         "check" => {
@@ -367,7 +406,9 @@ Aufrufe:
   nova analyze <datei>               Formatanalyse, Code-Herkunft und Kompatibilitätsbericht ausgeben
   nova export <datei> [out]          Als SWF, XFL-Paket (.zip) oder .nova exportieren
   nova probe <datei.swf>             SWF-Header und Tags prüfen
-  nova new <projekt.nova>            Leeres Projekt anlegen
+  nova new <projekt.nova> [--template <id>]
+                                     Projekt aus Vorlage anlegen
+                                     (empty, animation, platformer, ui)
   nova check <datei>                 NØVA/FLA/SWF-Projekt validieren
   nova build <datei> [ausgabe.swf]   Projekt mit Compiler-/Build-Diagnostik bauen
   nova as-check <datei.as>           AS3-Teilmenge prüfen und ABC kompilieren

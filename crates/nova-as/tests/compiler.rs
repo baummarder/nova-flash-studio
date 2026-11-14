@@ -580,7 +580,23 @@ fn rejects_unsupported_statements_with_a_line() {
 }
 
 #[test]
-fn rejects_for_in_and_index_access() {
+fn emits_parsable_array_object_and_index_abc() {
+    let unit = compile(
+        "class A { public function f():void { \
+         var a = [1, 2]; var d = {x: 3}; a[0] = d[\"x\"]; trace(a[0]); } }",
+    );
+    let abc = parse_abc(&unit);
+    assert!(
+        abc.constant_pool
+            .multinames
+            .iter()
+            .any(|multiname| matches!(multiname, Multiname::MultinameL { .. })),
+        "generated ABC must contain a late-bound multiname"
+    );
+}
+
+#[test]
+fn rejects_for_in_but_accepts_index_access() {
     let unit = compile(
         "class A { public function f(o:Object):void { for (var key in o) { trace(key); } } }",
     );
@@ -591,13 +607,11 @@ fn rejects_for_in_and_index_access() {
             .any(|d| d.message.contains("for-in"))
     );
 
-    let unit = compile("class A { public function f(o:Object):void { trace(o[0]); } }");
-    assert!(unit.has_errors());
-    assert!(
-        unit.diagnostics
-            .iter()
-            .any(|d| d.message.contains("Indexzugriff"))
+    let unit = compile(
+        "class A { public function f(o:Object):void { \
+         var a = [1, 2]; var d = {x: 3}; a[0] = d[\"x\"]; trace(a[0]); } }",
     );
+    assert!(!unit.has_errors(), "{:?}", unit.diagnostics);
 }
 
 #[test]

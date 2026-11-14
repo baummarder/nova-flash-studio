@@ -1040,10 +1040,6 @@ impl Checker {
             ExprKind::Index { target, index } => {
                 self.infer_expr(target);
                 self.infer_expr(index);
-                self.error(
-                    "Indexzugriff (a[b]) wird vom ABC-Compiler nicht unterstützt",
-                    expr.span,
-                );
                 ExprInfo::default()
             }
             ExprKind::Call { callee, args } => self.infer_call(callee, args, expr.span),
@@ -1091,20 +1087,12 @@ impl Checker {
                 for item in items {
                     self.infer_expr(item);
                 }
-                self.error(
-                    "Array-Literale werden vom ABC-Compiler nicht unterstützt",
-                    expr.span,
-                );
                 ExprInfo::default()
             }
             ExprKind::Object(fields) => {
                 for (_, value) in fields {
                     self.infer_expr(value);
                 }
-                self.error(
-                    "Objekt-Literale werden vom ABC-Compiler nicht unterstützt",
-                    expr.span,
-                );
                 ExprInfo::default()
             }
             ExprKind::Paren(inner) => {
@@ -1682,6 +1670,7 @@ impl Checker {
             | Some(RefKind::InstanceField { .. })
             | Some(RefKind::StaticField { .. })
             | Some(RefKind::Dynamic) => {}
+            _ if matches!(&target.kind, ExprKind::Index { .. }) => {}
             _ => {
                 self.error("Ungültiges Zuweisungsziel", target.span);
                 return ExprInfo {
@@ -1923,10 +1912,19 @@ mod tests {
     }
 
     #[test]
-    fn rejects_array_literal_index_and_switch() {
-        let outcome = run("class T { function f():void { var a = [1]; a[0] = 2; } }");
-        assert!(has_error(&outcome, "Array-Literale"));
-        assert!(has_error(&outcome, "Indexzugriff"));
+    fn accepts_array_object_and_index_access() {
+        let outcome = run("class T { function f():void { \
+             var a = [1, 2, 3]; \
+             var o = {name: \"NOVA\", count: 3}; \
+             a[0] = o[\"count\"]; \
+             a[1] += 2; \
+             } }");
+        let errors = outcome
+            .diagnostics
+            .iter()
+            .filter(|d| d.severity == crate::diagnostic::Severity::Error)
+            .count();
+        assert_eq!(errors, 0, "{:?}", outcome.diagnostics);
     }
 
     #[test]

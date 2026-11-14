@@ -681,6 +681,36 @@ fn write_xfl_object(
             let mut points = ellipse_points(*width, *height);
             write_xfl_shape(document, object, &mut points, report);
         }
+        ObjectKind::Text(text) => {
+            let paths = text.paths(object.fill);
+            document.push_str("                <DOMShape>\n                  <fills>\n");
+            for (index, path) in paths.iter().enumerate() {
+                document.push_str(&format!(
+                    "                    <FillStyle index=\"{}\"><SolidColor color=\"{}\"/></FillStyle>\n",
+                    index + 1,
+                    color_hex(path.fill)
+                ));
+            }
+            document.push_str("                  </fills>\n                  <edges>\n");
+            for (index, path) in paths.iter().enumerate() {
+                let points = flatten_path(path);
+                if points.len() >= 2 {
+                    document.push_str(&format!(
+                        "                    <Edge fillStyle0=\"{}\" edges=\"{}\"/>\n",
+                        index + 1,
+                        edge_string(&points)
+                    ));
+                }
+            }
+            document.push_str("                  </edges>\n                </DOMShape>\n");
+            report.warning(
+                IssueCategory::Export,
+                format!(
+                    "Textobjekt '{}' wird im XFL-Paket als eingebrannte Vektorform exportiert, nicht als bearbeitbarer Text.",
+                    object.name
+                ),
+            );
+        }
         ObjectKind::Path { paths, .. } => {
             document.push_str("                <DOMShape>\n                  <fills>\n");
             for (index, path) in paths.iter().enumerate() {

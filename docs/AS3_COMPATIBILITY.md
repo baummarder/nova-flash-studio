@@ -1,6 +1,7 @@
 # ActionScript 3 Compatibility Matrix
 
-Status of the `nova-as` compiler as of `v0.3.0-rc1`. This document describes
+Status of the `nova-as` compiler as of `v0.4.0-rc1` (Mega Milestone 8). This
+document describes
 the **implemented subset**, not full AS3. Every unsupported construct produces
 a source-located diagnostic and aborts compilation — nothing is silently
 dropped or approximated, and a failed compile never embeds partial ABC into a
@@ -44,7 +45,7 @@ Verification levels used below:
 | `*` (untyped) parameters/returns | Supported | Mapped to multiname index 0 (`*`). |
 | Primitive types `int uint Number Boolean String Object void` | Supported | Coercion opcodes emitted. |
 | Class-typed references | Supported | `Type::Class` multinames; external Flash classes treated as opaque. |
-| `Array`, `Vector`, `Function` types | Partial | `Array`/`Function` resolve to `None` in `resolve_type_name`; array/vector literals and APIs are unsupported. |
+| `Array`, `Vector`, `Function` type annotations | Unsupported | Explicit `Array`/`Vector`/`Function` annotations are rejected. Untyped array/object literals work (see below); there is no `Vector` implementation. |
 
 ## Statements
 
@@ -71,13 +72,13 @@ Verification levels used below:
 | Bitwise `& | ^ << >> >>>` | Supported | Structurally verified. |
 | Assignment `= += -= *= /= %= ...` | Supported | Runtime-verified incl. compound member assignment. |
 | Ternary `?:` | Supported | Structurally verified. |
-| Member access `a.b`, indexing `a[i]` | Partial | Static/dynamic member multinames emitted; `a[i]` runtime behavior unverified. |
+| Member access `a.b`, indexing `a[i]` | Partial | Static/dynamic member multinames emitted; M8 adds late-bound `MultinameL` get/set plus index assignment and increment/decrement. ABC is structurally verified; runtime behavior is **NOT VERIFIED**. |
 | Calls `f(...)`, `new X(...)` | Supported | Runtime-verified for `trace`, `addEventListener`, constructors. |
 | Method values (`this.update`, `obj.method`) | Runtime-verified | See private-method row above. |
 | `is`, `as`, `instanceof` | Supported | Structurally verified; runtime check partial. |
 | Closures / function expressions / nested functions | Unsupported | Only package-level functions are emitted as script traits. |
 | `delete`, `in`, `typeof`, `void` | Unsupported / limited | Not part of the emitted subset. |
-| Array/object literals | Unsupported | Diagnostic (parsed, rejected in check). |
+| Array/object literals | Partial (M8) | `[a,b]`, `{key:value}` and nested literals are accepted and emitted with `newarray`/`newobject`; object keys are string constants. Runtime semantics are **NOT VERIFIED**. |
 | XML/E4X | Unsupported | — |
 
 ## Flash runtime API surface
@@ -128,6 +129,25 @@ now covered by tests or documented behavior:
    function resolution now precedes the dynamic fallback.
 4. `pushdouble` emitted 8 inline bytes; AVM2 expects a u30 double-pool index →
    `VerifyError #1032`. Fixed: values are interned in the double pool.
+
+## Mega Milestone 8 status
+
+M8 added parser/checker/emitter support for array literals, object literals and
+indexed reads/writes. The ABC writer now emits `MultinameL` entries and uses
+`newarray`, `newobject`, dynamic `getproperty`/`setproperty`, and the
+corresponding assignment/increment paths. Tests parse the resulting ABC with
+the independent `swf` crate AVM2 reader.
+
+No M8 collection fixture was executed in Ruffle or Adobe. In particular, the
+following are unproven: array length/indexing, object key enumeration, missing
+keys, prototype lookup, coercion of index expressions, and interaction between
+compound index assignment and AVM2 stack order. Treat “structurally verified”
+as a build check, not a runtime guarantee.
+
+Still unsupported in AS3: interfaces, `super.method()`, `switch`,
+`try`/`catch`/`finally`, exceptions, getters/setters, `for-in`/`for-each`,
+closures/function expressions, custom namespaces, `vector`, and most of the
+`flash.*` API surface.
 
 ## Honest limitations
 

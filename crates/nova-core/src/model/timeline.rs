@@ -85,6 +85,7 @@ impl ResolvedObject {
             super::ObjectKind::Rect { width, height, .. }
             | super::ObjectKind::Ellipse { width, height }
             | super::ObjectKind::Path { width, height, .. } => Some((*width, *height)),
+            super::ObjectKind::Text(text) => Some(text.metrics()),
             super::ObjectKind::Symbol { symbol } => symbols
                 .iter()
                 .find(|s| s.id == *symbol)
@@ -99,7 +100,7 @@ impl ResolvedObject {
 pub fn resolve_scene(scene: &Scene, frame: usize) -> Vec<ResolvedObject> {
     let mut out = Vec::new();
     for (layer_index, layer) in scene.layers.iter().enumerate() {
-        if !layer.visible || layer.kind == super::LayerKind::Folder {
+        if !scene.layer_effectively_visible(layer) || layer.kind == super::LayerKind::Folder {
             continue;
         }
         let Some(key_index) = layer.last_keyframe_at_or_before(frame) else {

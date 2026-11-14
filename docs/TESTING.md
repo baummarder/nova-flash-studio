@@ -1,10 +1,64 @@
-# Testing & QA Report — v0.3.0-rc2 (Milestones 7, 7.1, 7.2 and 7.3)
+# Testing & QA Report — v0.4.0-rc1 (Mega Milestone 8)
 
 What was actually executed for this release candidate, with commands and
 results. Statuses: **PASS** / **FAIL** / **PARTIAL** / **NOT VERIFIED** /
-**NOT AVAILABLE**. This report keeps the Milestone 6 CLI/installer results, the
-Milestone 7 runtime evidence, the Milestone 7.1 format-conversion evidence, the
-Milestone 7.2 AI/safe-edit evidence and the Milestone 7.3 real-world validation.
+**NOT AVAILABLE**. This report leads with the M8 results and retains the
+Milestone 6 CLI/installer results, the Milestone 7 runtime evidence, the
+Milestone 7.1 format-conversion evidence, the Milestone 7.2 AI/safe-edit evidence
+and the Milestone 7.3 real-world validation as historical evidence.
+
+## Mega Milestone 8 — v0.4.0-rc1
+
+M8 was validated on the same Windows host against the unmodified M7.3 runtime
+evidence. It adds tests but does not replace the M7.3 live-provider or visual
+runtime results.
+
+| Command | Result |
+| --- | --- |
+| `cargo fmt --all` | **PASS** |
+| `cargo check -p nova-app` | **PASS** after removing an unused import |
+| `cargo test --workspace` | **PASS** — 281 passed, 0 failed, 4 ignored live tests |
+| `cargo test -p nova-ai` | **PASS** — 41 tests, including structured-operation apply/rollback |
+| `cargo test -p nova-app --bin nova-flash-studio` | **PASS** — 78 tests, 1 ignored live test |
+| `cargo test -p nova-as` | **PASS** — 34 library tests and 30 compiler integration tests |
+| `cargo test -p nova-build --test m8_features` | **PASS** — 4 tests (text, scenes, folders, templates) |
+| `cargo test -p nova-core` | **PASS** — 27 tests, including text metrics and templates |
+| `cargo test -p nova-formats` | **PASS** — 20 import/export tests |
+| `powershell scripts/build-release.ps1 -Target windows` | **PASS** — release build, ZIP, Setup.exe, payload/checksum smoke tests |
+| `Setup.exe --smoke-test` | **PASS** — 46 payload entries, payload hash matches ZIP |
+| Headless per-user install/uninstall | **PASS** — installed exe `0.4.0-rc1`, HKCU entry created and removed |
+| `python scripts/verify-packaging.py` | **PASS** |
+
+### New M8 coverage
+
+- Text object metrics, alignment, validation and vector path generation.
+- SWF export of text as `DefineShape3` shapes with no `DefineText` tag.
+- Multi-scene export frame counts and scene boundary labels.
+- Hidden folder layers and their descendants are excluded from export.
+- Every template creates, validates, serializes and builds a real SWF.
+- Layer folder hierarchy validation, cycle rejection and repair.
+- Object clipboard/duplicate/align/distribute behavior in app actions.
+- Code find/replace, case sensitivity and project search.
+- AS3 array/object literals, index access and `MultinameL`/`newarray`/
+  `newobject` ABC structure.
+- AI operation previews, transactional rollback, operation limits, update,
+  keyframe duplication, frame labels and tween validation.
+- An operation-only AI apply works without a workspace and clears pending
+  operations.
+
+### Status boundary
+
+- PASS means the named automated test or command passed. It does not upgrade
+  structural ABC checks or SWF parsing to runtime playback evidence.
+- Ruffle 0.7.1 visual playback remains **PASS for the M7.3 fixtures only**;
+  M8 text/scene fixtures were structurally validated, not visually inspected.
+- Adobe playback: **NOT VERIFIED**.
+- AS3 array/object/index runtime semantics: **NOT VERIFIED**.
+- Multi-frame `SymbolClass` execution after rebuild: **PARTIAL**.
+- XFL tween/empty-frame round-trip fidelity: **PARTIAL**.
+- Live cloud AI providers: **NOT VERIFIED** (not configured).
+- Bitmaps, audio, system fonts, nested symbol timelines, masks, shape tweens:
+  **NOT AVAILABLE**.
 
 ## Automated tests
 
