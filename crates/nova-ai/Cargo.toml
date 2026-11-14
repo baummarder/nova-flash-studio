@@ -24,3 +24,6 @@ windows-sys = { version = "0.61", features = [
     "Win32_Security_Cryptography",
     "Win32_System_Memory",
 ] }
+
+[dev-dependencies]
+swf = "0.4"

@@ -553,8 +553,9 @@ crates/nova-core/src/
   model/timeline.rs     Frame, Tween, Easing, resolve_scene
   model/object.rs       ObjectInstance, ObjectKind, Symbol (incl. skeleton,
                         bone_clips, active_clip)
-  model/bones.rs        M15 rig model: Bone/Skeleton/BoneClip/BoneTrack,
-                        FK+IK pose evaluation, bind_transform, two-bone IK
+  model/bones.rs        M15/M16 rig model: Bone/Skeleton/BoneClip/BoneTrack,
+                        FK+IK pose evaluation, bind_transform, two-bone IK,
+                        FABRIK chain solver + pole mirroring
   model/transform.rs    center-origin transform + matrix/lerp
   model/color.rs        RGBA, hex, lerp
   model/game.rs         game metadata (collision, physics, camera, input,

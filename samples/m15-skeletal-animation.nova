@@ -2,7 +2,7 @@
  "format": "nova-flash-studio",
  "formatVersion": 4,
  "project": {
-  "id": "9e80da7b-f293-4486-8198-75384ee2a9a3",
+  "id": "aab06d44-6369-407b-9355-25547b0f9ce1",
   "metadata": {
    "name": "M15 Skeletal Animation",
    "author": "",
@@ -12,7 +12,7 @@
   },
   "scenes": [
    {
-    "id": "b4ed18cf-4ebc-420b-b427-c15d10f72f13",
+    "id": "5ca9df1d-53d3-45c8-b0f0-681a8fec5120",
     "name": "Szene 1",
     "width": 640.0,
     "height": 360.0,
@@ -25,7 +25,7 @@
     "fps": 24.0,
     "layers": [
      {
-      "id": "75cae73e-ed9c-4a1b-9048-0e504126c302",
+      "id": "963c4226-dd11-4a96-b021-713408d78227",
       "name": "Ebene 1",
       "visible": true,
       "locked": false,
@@ -35,11 +35,11 @@
         "keyframe": true,
         "objects": [
          {
-          "id": "168079c1-d709-4af0-8d06-62a079b61e55",
+          "id": "9285edb5-b875-4ce8-8a01-6f0e20b74ebb",
           "name": "Held",
           "kind": {
            "kind": "symbol",
-           "symbol": "c383bf32-295a-4a2f-badd-dee06cb61b30"
+           "symbol": "97dd8c42-fc05-48f9-b1dc-ffe326b2b23d"
           },
           "transform": {
            "x": 320.0,
@@ -65,7 +65,7 @@
   ],
   "symbols": [
    {
-    "id": "c383bf32-295a-4a2f-badd-dee06cb61b30",
+    "id": "97dd8c42-fc05-48f9-b1dc-ffe326b2b23d",
     "name": "Held",
     "kind": "movie_clip",
     "width": 200.0,
@@ -78,7 +78,7 @@
     },
     "corner_radius": 0.0,
     "timeline": {
-     "id": "9fce7e6f-1b37-4e7a-accd-a036db575612",
+     "id": "a976ee51-8899-4252-8246-b998baeb1e37",
      "name": "Held",
      "width": 200.0,
      "height": 200.0,
@@ -91,7 +91,7 @@
      "fps": 24.0,
      "layers": [
       {
-       "id": "43857a71-f66f-4b6c-95a2-e7f85f9283c7",
+       "id": "1bf8ceb3-7d67-4885-8ea6-a5abc20947bc",
        "name": "Teile",
        "visible": true,
        "locked": false,
@@ -101,7 +101,7 @@
          "keyframe": true,
          "objects": [
           {
-           "id": "0f6177d5-a477-4f50-a5bb-831baba55cc0",
+           "id": "1b4e8fa0-e016-4bde-83aa-0fc811b790bb",
            "name": "TorsoSegment",
            "kind": {
             "kind": "rect",
@@ -122,10 +122,10 @@
             "b": 220,
             "a": 255
            },
-           "bone": "f38c45ed-3348-4ae3-b2a4-b4a338e6b0b9"
+           "bone": "be80535d-9810-4f86-8f56-8b29bef0b899"
           },
           {
-           "id": "543a3086-fa0f-48a5-9479-34ac594844bb",
+           "id": "b4d582d5-1adf-4839-8b7c-e727825ddde4",
            "name": "OberarmSegment",
            "kind": {
             "kind": "rect",
@@ -146,10 +146,10 @@
             "b": 60,
             "a": 255
            },
-           "bone": "d726cd29-f58e-4a29-a774-8f287cbfd980"
+           "bone": "6a426f13-837d-4945-8161-cdbc9e3db027"
           },
           {
-           "id": "233c4e73-6fe7-4b52-8d68-832bee941644",
+           "id": "cce2caeb-d4e4-4690-8f00-bde3c932bf52",
            "name": "UnterarmSegment",
            "kind": {
             "kind": "rect",
@@ -170,7 +170,7 @@
             "b": 120,
             "a": 255
            },
-           "bone": "72c27a15-21ee-4162-8b36-09aadd2dc016"
+           "bone": "039e7206-e78a-4610-a2c0-dafe489db89f"
           }
          ]
         },
@@ -204,7 +204,7 @@
     "skeleton": {
      "bones": [
       {
-       "id": "f38c45ed-3348-4ae3-b2a4-b4a338e6b0b9",
+       "id": "be80535d-9810-4f86-8f56-8b29bef0b899",
        "name": "Torso",
        "parent": null,
        "x": 0.0,
@@ -213,18 +213,18 @@
        "rotation": 0.0
       },
       {
-       "id": "d726cd29-f58e-4a29-a774-8f287cbfd980",
+       "id": "6a426f13-837d-4945-8161-cdbc9e3db027",
        "name": "Oberarm",
-       "parent": "f38c45ed-3348-4ae3-b2a4-b4a338e6b0b9",
+       "parent": "be80535d-9810-4f86-8f56-8b29bef0b899",
        "x": 30.0,
        "y": 0.0,
        "length": 40.0,
        "rotation": 0.0
       },
       {
-       "id": "72c27a15-21ee-4162-8b36-09aadd2dc016",
+       "id": "039e7206-e78a-4610-a2c0-dafe489db89f",
        "name": "Unterarm",
-       "parent": "d726cd29-f58e-4a29-a774-8f287cbfd980",
+       "parent": "6a426f13-837d-4945-8161-cdbc9e3db027",
        "x": 40.0,
        "y": 0.0,
        "length": 40.0,
@@ -239,7 +239,7 @@
       "looping": true,
       "tracks": [
        {
-        "bone": "d726cd29-f58e-4a29-a774-8f287cbfd980",
+        "bone": "6a426f13-837d-4945-8161-cdbc9e3db027",
         "keys": [
          {
           "frame": 0,
@@ -256,7 +256,7 @@
         ]
        },
        {
-        "bone": "72c27a15-21ee-4162-8b36-09aadd2dc016",
+        "bone": "039e7206-e78a-4610-a2c0-dafe489db89f",
         "keys": [
          {
           "frame": 0,
@@ -280,22 +280,28 @@
       "looping": true,
       "tracks": [
        {
-        "bone": "72c27a15-21ee-4162-8b36-09aadd2dc016",
+        "bone": "039e7206-e78a-4610-a2c0-dafe489db89f",
         "ik": [
          {
           "frame": 0,
           "x": 80.0,
-          "y": 30.0
+          "y": 30.0,
+          "poleX": 0.0,
+          "poleY": 120.0
          },
          {
           "frame": 12,
           "x": 60.0,
-          "y": -50.0
+          "y": -50.0,
+          "poleX": 0.0,
+          "poleY": -120.0
          },
          {
           "frame": 24,
           "x": 80.0,
-          "y": 30.0
+          "y": 30.0,
+          "poleX": 0.0,
+          "poleY": 120.0
          }
         ]
        }
@@ -309,7 +315,7 @@
   "tilesets": [],
   "scripts": [
    {
-    "id": "29b057c9-885d-488f-8e9c-9660ac4e8fc4",
+    "id": "31dc51b6-9a6c-421e-82d7-580377e7acb1",
     "name": "Main.as",
     "path": "scripts/Main.as",
     "source": "package {\n    import flash.display.MovieClip;\n    import flash.display.Sprite;\n    import flash.events.Event;\n\n    public dynamic class Main extends MovieClip {\n        private var frame:int = 0;\n        private var hero:Sprite;\n\n        public function Main() {\n            addEventListener(\"enterFrame\", onTick);\n        }\n\n        private function onTick(e:Event):void {\n            frame++;\n            if (hero == null && numChildren > 0) {\n                hero = getChildAt(numChildren - 1) as Sprite;\n            }\n            var probe:Boolean = (frame == 2 || frame == 8 || frame == 14 || frame == 20);\n            if (probe) {\n                if (hero != null) {\n                var upper = hero.getChildByName(\"OberarmSegment\");\n                var fore = hero.getChildByName(\"UnterarmSegment\");\n                var torso = hero.getChildByName(\"TorsoSegment\");\n                trace(\"M15 f\" + frame\n                    + \" torso=\" + torso.x.toFixed(1) + \",\" + torso.y.toFixed(1) + \":\" + torso.rotation.toFixed(1)\n                    + \" upper=\" + upper.x.toFixed(1) + \",\" + upper.y.toFixed(1) + \":\" + upper.rotation.toFixed(1)\n                    + \" fore=\" + fore.x.toFixed(1) + \",\" + fore.y.toFixed(1) + \":\" + fore.rotation.toFixed(1));\n                }\n            }\n            if (frame == 21) {\n                trace(\"M15DONE\");\n            }\n        }\n    }\n}\n",
@@ -323,6 +329,6 @@
    "includeScripts": true,
    "exportAllScenes": false
   },
-  "activeScene": "b4ed18cf-4ebc-420b-b427-c15d10f72f13"
+  "activeScene": "5ca9df1d-53d3-45c8-b0f0-681a8fec5120"
  }
 }

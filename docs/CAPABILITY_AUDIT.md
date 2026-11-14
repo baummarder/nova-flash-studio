@@ -35,6 +35,9 @@ is claimed from documentation alone.
 - **M15**: skeletal animation — bone hierarchies, FK clips, two-bone IK,
   rigid part binding, per-frame baked matrices in the exported sprite,
   editor skeleton panel, AI bone ops. No mesh skinning/weight painting.
+- **M16**: multi-bone FABRIK chain IK + pole targets (`IkKey.poleX/Y`),
+  `add_ik_key` AI op; visual pen tool, path node insert/delete,
+  bone overlay with draggable joints in the stage view.
 
 ## 4. Scenes & MovieClips — ✅
 

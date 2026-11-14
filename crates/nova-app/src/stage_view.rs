@@ -9,7 +9,7 @@ use nova_core::{
 };
 use uuid::Uuid;
 
-use crate::state::{AppState, Selection, UiAction};
+use crate::state::{AppState, PenAnchor, PenDraft, Selection, UiAction};
 use crate::theme;
 use crate::util;
 
@@ -123,10 +123,15 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
     let shift = ui.input(|input| input.modifiers.shift);
     match state.tool {
         crate::state::Tool::Select => {
-            select_input(ui, project, state, &view, &response, shift, &mut actions);
+            if !bone_joint_input(project, state, &view, &response) {
+                select_input(ui, project, state, &view, &response, shift, &mut actions);
+            }
         }
         crate::state::Tool::PathEdit => {
             path_edit_input(project, state, &view, &response);
+        }
+        crate::state::Tool::Pen => {
+            pen_input(ui, project, state, &view, &response);
         }
         _ => {
             draw_tool_input(ui, project, state, &view, &response, shift);
@@ -266,12 +271,14 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
     if let Some(draft) = &state.draft {
         draw_draft(&painter, &view, draft, state.new_object_color);
     }
+    draw_pen_preview(&painter, &view, state);
     if state.tool == crate::state::Tool::Select {
         draw_transform_handles(&painter, &view, project, state);
     }
     if state.tool == crate::state::Tool::PathEdit {
         draw_node_handles(&painter, &view, project, state);
     }
+    draw_bone_overlay(&painter, &view, project, state);
 
     draw_playhead_hint(&painter, &stage_rect, state, &scene_name, fps);
 
@@ -818,6 +825,7 @@ fn tool_strip(ui: &mut Ui, state: &mut AppState, actions: &mut Vec<UiAction>) {
             crate::state::Tool::Eraser,
             crate::state::Tool::Fill,
             crate::state::Tool::PathEdit,
+            crate::state::Tool::Pen,
         ] {
             let selected = state.tool == tool;
             if ui
@@ -1249,6 +1257,228 @@ fn path_edit_input(
     if response.drag_stopped() {
         state.node_drag = None;
     }
+    // Right-click a node deletes it (a MoveTo removes its whole sub-path).
+    if response.secondary_clicked()
+        && let Some(pointer) = response.interact_pointer_pos()
+        && let Some(node) = node_at(project, state, view, pointer)
+    {
+        delete_node(project, state, node);
+        return;
+    }
+    // Double-click on a straight segment inserts a new anchor.
+    if response.double_clicked()
+        && let Some(pointer) = response.interact_pointer_pos()
+        && let Some(hit) = segment_at(project, state, view, pointer)
+    {
+        insert_node(project, state, hit);
+    }
+}
+
+// ------------------------------------------------------------------ pen
+
+/// Pen tool input: click adds corner anchors, press-drag adds curve
+/// anchors (drag position becomes the quadratic control point), clicking
+/// the first anchor closes the path, Enter/double-click finishes.
+fn pen_input(
+    ui: &mut Ui,
+    project: &mut Project,
+    state: &mut AppState,
+    view: &View,
+    response: &egui::Response,
+) {
+    let escape = ui.input(|input| input.key_pressed(egui::Key::Escape));
+    let enter = ui.input(|input| input.key_pressed(egui::Key::Enter));
+    if escape {
+        state.pen = None;
+        state.set_status("Stift-Pfad verworfen");
+        return;
+    }
+    if state.pen.is_none() {
+        if response.drag_started_by(egui::PointerButton::Primary)
+            && let Some(pointer) = response.interact_pointer_pos()
+        {
+            state.pen = Some(PenDraft {
+                anchors: vec![PenAnchor {
+                    pos: view.to_stage(pointer),
+                    handle: None,
+                }],
+                press: Some(view.to_stage(pointer)),
+            });
+        }
+        return;
+    }
+    if enter || response.double_clicked() {
+        commit_pen(project, state, false);
+        return;
+    }
+    if response.drag_started_by(egui::PointerButton::Primary) {
+        if let Some(pointer) = response.interact_pointer_pos() {
+            let stage = view.to_stage(pointer);
+            let draft = state.pen.as_mut().expect("draft checked above");
+            if draft.press.is_none() {
+                draft.anchors.push(PenAnchor {
+                    pos: stage,
+                    handle: None,
+                });
+                draft.press = Some(stage);
+            }
+        }
+        return;
+    }
+    if response.clicked() {
+        if let Some(pointer) = response.interact_pointer_pos() {
+            let stage = view.to_stage(pointer);
+            let draft = state.pen.as_mut().expect("draft checked above");
+            if draft.press.is_some() {
+                // This press already created its anchor at drag_started.
+                draft.press = None;
+                return;
+            }
+            if draft.anchors.len() >= 3
+                && view.to_screen(draft.anchors[0].pos).distance(pointer) < 10.0
+            {
+                commit_pen(project, state, true);
+                return;
+            }
+            draft.anchors.push(PenAnchor {
+                pos: stage,
+                handle: None,
+            });
+        }
+        return;
+    }
+    if response.drag_stopped() {
+        let draft = state.pen.as_mut().expect("draft checked above");
+        if let (Some(start), Some(end)) = (
+            draft.press,
+            response.interact_pointer_pos().map(|p| view.to_stage(p)),
+        ) {
+            if start.distance(end) > 6.0
+                && let Some(last) = draft.anchors.last_mut()
+            {
+                last.handle = Some(end);
+            }
+        }
+        draft.press = None;
+    }
+}
+
+/// Converts the pen draft into a Path object. Anchor positions and handles
+/// are stage coordinates; the stored commands are local to the object
+/// centre (matching the node editor and the SWF exporter).
+fn commit_pen(project: &mut Project, state: &mut AppState, closed: bool) {
+    let Some(draft) = state.pen.take() else {
+        return;
+    };
+    let mut anchors = draft.anchors;
+    if anchors.len() < 2 {
+        state.set_status("Stift: mindestens zwei Anker nötig");
+        return;
+    }
+    if closed && anchors.len() < 3 {
+        state.set_status("Stift: geschlossene Pfade brauchen drei Anker");
+        return;
+    }
+    // Bounds over anchors and control points (curve extremes stay inside
+    // the anchor/handle hull for quadratic segments).
+    let mut min = Pos2::new(f32::INFINITY, f32::INFINITY);
+    let mut max = Pos2::new(f32::NEG_INFINITY, f32::NEG_INFINITY);
+    for anchor in &anchors {
+        for p in [anchor.pos].into_iter().chain(anchor.handle) {
+            min = Pos2::new(min.x.min(p.x), min.y.min(p.y));
+            max = Pos2::new(max.x.max(p.x), max.y.max(p.y));
+        }
+    }
+    let center = Pos2::new((min.x + max.x) / 2.0, (min.y + max.y) / 2.0);
+    let local = |p: Pos2| p - center.to_vec2();
+    let mut commands = Vec::with_capacity(anchors.len() + 1);
+    for (index, anchor) in anchors.iter().enumerate() {
+        let (x, y) = {
+            let l = local(anchor.pos);
+            (l.x, l.y)
+        };
+        if index == 0 {
+            commands.push(PathCommand::MoveTo { x, y });
+            continue;
+        }
+        match anchor.handle {
+            Some(handle) => {
+                let c = local(handle);
+                commands.push(PathCommand::CurveTo {
+                    control_x: c.x,
+                    control_y: c.y,
+                    x,
+                    y,
+                });
+            }
+            None => commands.push(PathCommand::LineTo { x, y }),
+        }
+    }
+    if closed {
+        let first = anchors[0];
+        let l = local(first.pos);
+        match first.handle {
+            Some(handle) => {
+                let c = local(handle);
+                commands.push(PathCommand::CurveTo {
+                    control_x: c.x,
+                    control_y: c.y,
+                    x: l.x,
+                    y: l.y,
+                });
+            }
+            None => commands.push(PathCommand::LineTo { x: l.x, y: l.y }),
+        }
+    }
+    let object = ObjectInstance::path(
+        "Stift",
+        center.x,
+        center.y,
+        (max.x - min.x).max(1.0),
+        (max.y - min.y).max(1.0),
+        vec![PathShape {
+            fill: state.new_object_color,
+            commands,
+        }],
+        state.new_object_color,
+    );
+    commit_object(project, state, object);
+    state.set_status(if closed {
+        "Geschlossener Stift-Pfad erstellt".to_string()
+    } else {
+        "Stift-Pfad erstellt".to_string()
+    });
+}
+
+/// Draws the in-progress pen path: anchor polyline plus handle hints.
+fn draw_pen_preview(painter: &egui::Painter, view: &View, state: &AppState) {
+    let Some(draft) = &state.pen else {
+        return;
+    };
+    if draft.anchors.is_empty() {
+        return;
+    }
+    let screen = |p: Pos2| view.to_screen(p);
+    let color = theme::ACCENT;
+    let mut prev = draft.anchors[0].pos;
+    for anchor in draft.anchors.iter().skip(1) {
+        painter.line_segment([screen(prev), screen(anchor.pos)], Stroke::new(1.5, color));
+        prev = anchor.pos;
+    }
+    for (index, anchor) in draft.anchors.iter().enumerate() {
+        let center = screen(anchor.pos);
+        painter.circle_filled(center, 3.5, color);
+        if index == 0 {
+            painter.circle_stroke(center, 6.0, Stroke::new(1.0, color));
+        }
+        if let Some(handle) = anchor.handle {
+            painter.line_segment(
+                [center, screen(handle)],
+                Stroke::new(1.0, theme::TEXT_FAINT),
+            );
+            painter.circle_stroke(screen(handle), 3.0, Stroke::new(1.0, theme::TEXT_FAINT));
+        }
+    }
 }
 
 // ------------------------------------------------------------- commits
@@ -1337,10 +1567,6 @@ fn commit_draft(project: &mut Project, state: &mut AppState) {
             } else {
                 2.0
             };
-            let commands = stroke_polygon(&draft.points, width);
-            if commands.len() < 3 {
-                return;
-            }
             let (min, max) = draft.points.iter().fold(
                 (
                     Pos2::new(f32::INFINITY, f32::INFINITY),
@@ -1353,6 +1579,15 @@ fn commit_draft(project: &mut Project, state: &mut AppState) {
                     )
                 },
             );
+            // Path commands are stored in object-local space (centred on
+            // the transform origin); draft points are stage coordinates.
+            let center = Pos2::new((min.x + max.x) / 2.0, (min.y + max.y) / 2.0);
+            let local_points: Vec<Pos2> =
+                draft.points.iter().map(|p| *p - center.to_vec2()).collect();
+            let commands = stroke_polygon(&local_points, width);
+            if commands.len() < 3 {
+                return;
+            }
             let object = ObjectInstance::path(
                 if draft.tool == crate::state::Tool::Brush {
                     "Pinsel"
@@ -1486,6 +1721,141 @@ fn fill_object(project: &mut Project, state: &mut AppState, object: &nova_core::
     state.set_status(format!("{name} gefüllt"));
 }
 
+// ------------------------------------------------------------ bone overlay
+
+/// World pose of the edited symbol's skeleton at the current frame, or
+/// `None` when no rigged symbol is being edited.
+fn bone_pose<'a>(
+    project: &'a Project,
+    state: &AppState,
+) -> Option<(&'a nova_core::Skeleton, Vec<(Uuid, nova_core::BonePose)>)> {
+    let symbol = project.symbol(state.edit_symbol?)?;
+    let skeleton = symbol.skeleton.as_ref()?;
+    let clip = symbol
+        .bone_clips
+        .iter()
+        .find(|c| Some(c.name.as_str()) == symbol.active_clip.as_deref());
+    Some((skeleton, skeleton.pose_at(clip, state.frame as u32)))
+}
+
+/// Draws bones as joint→tip lines plus parent links while a rigged symbol
+/// timeline is edited. Skeleton space equals stage space here because the
+/// symbol timeline is shown unscaled.
+fn draw_bone_overlay(painter: &egui::Painter, view: &View, project: &Project, state: &AppState) {
+    let Some((skeleton, pose)) = bone_pose(project, state) else {
+        return;
+    };
+    let pos_of = |id: Uuid| pose.iter().find(|(bid, _)| *bid == id).map(|(_, p)| *p);
+    for bone in &skeleton.bones {
+        let Some(p) = pos_of(bone.id) else {
+            continue;
+        };
+        let joint = view.to_screen(Pos2::new(p.x, p.y));
+        let rad = p.rotation.to_radians();
+        let tip = view.to_screen(Pos2::new(
+            p.x + rad.cos() * bone.length,
+            p.y + rad.sin() * bone.length,
+        ));
+        let color = if state.bone_drag == Some(bone.id) {
+            theme::RED
+        } else {
+            theme::ACCENT
+        };
+        painter.line_segment([joint, tip], Stroke::new(3.0, color.gamma_multiply(0.5)));
+        if let Some(parent) = bone.parent.and_then(|pid| pos_of(pid)) {
+            painter.line_segment(
+                [view.to_screen(Pos2::new(parent.x, parent.y)), joint],
+                Stroke::new(1.0, theme::TEXT_FAINT),
+            );
+        }
+        painter.circle_filled(joint, 4.0, color);
+        painter.text(
+            joint + Vec2::new(6.0, -6.0),
+            Align2::LEFT_BOTTOM,
+            &bone.name,
+            FontId::proportional(10.0),
+            theme::TEXT_DIM,
+        );
+    }
+}
+
+/// Drag a bone joint to move it (updates `bone.x`/`bone.y` in skeleton
+/// space). Returns `true` when the pointer is over a joint so the select
+/// tool does not also hit-test objects.
+fn bone_joint_input(
+    project: &mut Project,
+    state: &mut AppState,
+    view: &View,
+    response: &egui::Response,
+) -> bool {
+    if state.edit_symbol.is_none() || bone_pose(project, state).is_none() {
+        return false;
+    }
+    if response.drag_started_by(egui::PointerButton::Primary)
+        && let Some(pointer) = response.interact_pointer_pos()
+    {
+        let Some((skeleton, pose)) = bone_pose(project, state) else {
+            return false;
+        };
+        let mut best: Option<(f32, Uuid)> = None;
+        for (id, p) in &pose {
+            let screen = view.to_screen(Pos2::new(p.x, p.y));
+            let dist = screen.distance(pointer);
+            if dist <= 9.0 && best.as_ref().is_none_or(|(d, _)| dist < *d) {
+                best = Some((dist, *id));
+            }
+        }
+        if let Some((_, id)) = best {
+            let _ = skeleton;
+            state.bone_drag = Some(id);
+            return true;
+        }
+    }
+    if state.bone_drag.is_some() {
+        if response.dragged_by(egui::PointerButton::Primary)
+            && let (Some(pointer), Some(id)) = (response.interact_pointer_pos(), state.bone_drag)
+        {
+            let stage = view.to_stage(pointer);
+            // bone.x/y is the joint offset in parent space; convert the
+            // stage-space joint target back through the parent world pose.
+            let parent_frame = bone_pose(project, state).and_then(|(skel, pose)| {
+                let bone = skel.bones.iter().find(|b| b.id == id)?;
+                bone.parent
+                    .and_then(|pid| pose.iter().find(|(bid, _)| *bid == pid).map(|(_, p)| *p))
+            });
+            if let Some(symbol) = project
+                .symbols
+                .iter_mut()
+                .find(|s| Some(s.id) == state.edit_symbol)
+                && let Some(skeleton) = symbol.skeleton.as_mut()
+                && let Some(bone) = skeleton.bones.iter_mut().find(|b| b.id == id)
+            {
+                match parent_frame {
+                    Some(parent) => {
+                        let dx = stage.x - parent.x;
+                        let dy = stage.y - parent.y;
+                        let rad = (-parent.rotation).to_radians();
+                        let (s, c) = rad.sin_cos();
+                        bone.x = dx * c - dy * s;
+                        bone.y = dx * s + dy * c;
+                    }
+                    None => {
+                        bone.x = stage.x;
+                        bone.y = stage.y;
+                    }
+                }
+                project.touch();
+                state.dirty = true;
+            }
+        }
+        if response.drag_stopped() {
+            state.bone_drag = None;
+        }
+        return true;
+    }
+    false
+}
+
 // ------------------------------------------------------------- node edit
 
 /// Collects editable path nodes of the single selected Path object.
@@ -1608,6 +1978,177 @@ fn move_node(project: &mut Project, state: &AppState, node: crate::state::NodeDr
             }
         }
     }
+}
+
+/// A straight segment hit for node insertion: path/command indices plus the
+/// local-space insertion point.
+#[derive(Debug, Clone, Copy)]
+struct SegmentHit {
+    object: Uuid,
+    layer: Uuid,
+    path: usize,
+    /// Index of the command that ends the segment; the new node is
+    /// inserted directly before it.
+    command: usize,
+    point: egui::Vec2,
+}
+
+/// Finds the nearest straight (LineTo) segment of the selected path object
+/// within ~8 screen px of the pointer. CurveTo segments are skipped —
+/// splitting a quadratic needs de Casteljau and is left to the node drag.
+fn segment_at(
+    project: &Project,
+    state: &AppState,
+    view: &View,
+    pointer: Pos2,
+) -> Option<SegmentHit> {
+    let ids = state.selection.object_ids();
+    if ids.len() != 1 {
+        return None;
+    }
+    let resolved = state.resolved_object(project, ids[0])?;
+    let ObjectKind::Path { paths, .. } = &resolved.instance.kind else {
+        return None;
+    };
+    let mut best: Option<(f32, SegmentHit)> = None;
+    for (path_index, path) in paths.iter().enumerate() {
+        let mut cursor = egui::Vec2::ZERO;
+        for (command_index, command) in path.commands.iter().enumerate() {
+            let end = match *command {
+                PathCommand::MoveTo { x, y } | PathCommand::LineTo { x, y } => egui::vec2(x, y),
+                PathCommand::CurveTo { x, y, .. } => egui::vec2(x, y),
+            };
+            let is_line = matches!(command, PathCommand::LineTo { .. });
+            if is_line {
+                // Distance from pointer (in local space) to the segment.
+                let a = util::stage_point(&resolved.instance, cursor);
+                let b = util::stage_point(&resolved.instance, end);
+                let ab = b - a;
+                let len_sq = ab.length_sq().max(1e-6);
+                let t = (((pointer - a).dot(ab)) / len_sq).clamp(0.0, 1.0);
+                let closest = a + ab * t;
+                let dist = view.to_screen(closest).distance(pointer);
+                if dist <= 8.0 && best.as_ref().is_none_or(|(d, _)| dist < *d) {
+                    // Insertion point in local space.
+                    let local = util::local_point(&resolved.instance, closest);
+                    best = Some((
+                        dist,
+                        SegmentHit {
+                            object: resolved.instance.id,
+                            layer: resolved.layer_id,
+                            path: path_index,
+                            command: command_index,
+                            point: local,
+                        },
+                    ));
+                }
+            }
+            cursor = end;
+        }
+    }
+    best.map(|(_, hit)| hit)
+}
+
+/// Inserts a LineTo node before `hit.command`, splitting the segment.
+fn insert_node(project: &mut Project, state: &mut AppState, hit: SegmentHit) {
+    let frame = state.frame;
+    let Some(scene) = project.edit_scene_mut(state.edit_symbol) else {
+        return;
+    };
+    let Some(layer) = scene.layers.iter_mut().find(|layer| layer.id == hit.layer) else {
+        return;
+    };
+    let Some(key_index) = layer.last_keyframe_at_or_before(frame) else {
+        return;
+    };
+    let Some(object) = layer.frames[key_index]
+        .objects
+        .iter_mut()
+        .find(|object| object.id == hit.object)
+    else {
+        return;
+    };
+    let ObjectKind::Path { paths, .. } = &mut object.kind else {
+        return;
+    };
+    let Some(path) = paths.get_mut(hit.path) else {
+        return;
+    };
+    path.commands.insert(
+        hit.command,
+        PathCommand::LineTo {
+            x: hit.point.x,
+            y: hit.point.y,
+        },
+    );
+    project.touch();
+    state.dirty = true;
+    state.set_status("Pfadknoten eingefügt".to_string());
+}
+
+/// Deletes the command at `node`. Deleting a MoveTo removes its whole
+/// sub-path (all commands up to the next MoveTo). Empty paths/objects are
+/// cleaned up so validation stays green.
+fn delete_node(project: &mut Project, state: &mut AppState, node: crate::state::NodeDrag) {
+    let frame = state.frame;
+    let Some(scene) = project.edit_scene_mut(state.edit_symbol) else {
+        return;
+    };
+    let Some(layer) = scene.layers.iter_mut().find(|layer| layer.id == node.layer) else {
+        return;
+    };
+    let Some(key_index) = layer.last_keyframe_at_or_before(frame) else {
+        return;
+    };
+    let Some(object) = layer.frames[key_index]
+        .objects
+        .iter_mut()
+        .find(|object| object.id == node.object)
+    else {
+        return;
+    };
+    let ObjectKind::Path { paths, .. } = &mut object.kind else {
+        return;
+    };
+    let Some(path) = paths.get_mut(node.path) else {
+        return;
+    };
+    let is_moveto = matches!(
+        path.commands.get(node.command),
+        Some(PathCommand::MoveTo { .. })
+    );
+    if is_moveto {
+        // Drop this MoveTo and everything until the next MoveTo.
+        let mut end = node.command + 1;
+        while end < path.commands.len() && !matches!(path.commands[end], PathCommand::MoveTo { .. })
+        {
+            end += 1;
+        }
+        path.commands.drain(node.command..end);
+    } else if node.command < path.commands.len() {
+        path.commands.remove(node.command);
+    }
+    // A path with no MoveTo cannot render; drop it, and drop the object
+    // when no paths remain.
+    let has_moveto = path
+        .commands
+        .iter()
+        .any(|c| matches!(c, PathCommand::MoveTo { .. }));
+    if !has_moveto {
+        paths.remove(node.path);
+    }
+    let object_empty = paths.is_empty();
+    if object_empty {
+        layer.frames[key_index]
+            .objects
+            .retain(|o| o.id != node.object);
+        if state.selection.contains_object(node.object) {
+            state.selection = Selection::None;
+        }
+    }
+    project.touch();
+    state.dirty = true;
+    state.set_status("Pfadknoten gelöscht".to_string());
 }
 
 fn draw_node_handles(painter: &egui::Painter, view: &View, project: &Project, state: &AppState) {

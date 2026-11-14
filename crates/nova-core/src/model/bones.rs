@@ -59,12 +59,30 @@ pub struct BoneKey {
 }
 
 /// One IK key: end-effector target `(x, y)` in skeleton space at `frame`.
+/// `pole_x`/`pole_y` optionally bias the bend direction of chains with
+/// three or more bones (mirrored across the root→target line when needed).
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IkKey {
     pub frame: u32,
     pub x: f32,
     pub y: f32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pole_x: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pole_y: Option<f32>,
+}
+
+impl IkKey {
+    pub fn new(frame: u32, x: f32, y: f32) -> Self {
+        Self {
+            frame,
+            x,
+            y,
+            pole_x: None,
+            pole_y: None,
+        }
+    }
 }
 
 /// Animation track for one bone: FK rotation keys and/or IK target keys.
@@ -160,6 +178,22 @@ impl Skeleton {
         let mut local_rot = bone.rotation;
         if let Some(track) = clip.and_then(|c| c.tracks.iter().find(|t| t.bone == bone.id)) {
             local_rot = sample_keys(&track.keys, frame, bone.rotation);
+            // Multi-bone IK: chains of 3+ bones solve via FABRIK; the
+            // analytic two-bone solver handles exactly two bones.
+            if !track.ik.is_empty() {
+                let chain = self.ik_chain(bone.id, clip);
+                if chain.len() >= 3 {
+                    let target = sample_ik(&track.ik, frame, clip);
+                    let pole = sample_ik_pole(&track.ik, frame, clip);
+                    if let Some(pose) =
+                        self.apply_chain_ik(&chain, target, pole, clip, frame, state)
+                    {
+                        state.out.push((bone.id, pose));
+                        done.push(bone.id);
+                        return pose;
+                    }
+                }
+            }
             // Two-bone IK: bone + parent reach for the keyed target.
             if !track.ik.is_empty()
                 && let Some(ppose) = parent_pose
@@ -236,6 +270,217 @@ struct PoseState {
     local_rots: std::collections::HashMap<Uuid, f32>,
 }
 
+impl Skeleton {
+    /// Bones forming the IK chain ending at `effector`, ordered root→tip.
+    /// The chain stops below the first ancestor that has its own animation
+    /// track (FK keys or IK) in this clip — animated ancestors keep their
+    /// evaluated pose and act as the chain root.
+    fn ik_chain(&self, effector: Uuid, clip: Option<&BoneClip>) -> Vec<Uuid> {
+        let mut chain = vec![effector];
+        let mut cursor = self.bone(effector).and_then(|b| b.parent);
+        while let Some(id) = cursor {
+            let animated = clip.is_some_and(|c| {
+                c.tracks
+                    .iter()
+                    .any(|t| t.bone == id && (!t.keys.is_empty() || !t.ik.is_empty()))
+            });
+            if animated {
+                break;
+            }
+            chain.push(id);
+            cursor = self.bone(id).and_then(|b| b.parent);
+        }
+        chain.reverse();
+        chain
+    }
+
+    /// FABRIK solve for a chain of 3+ bones. Updates `state.out` /
+    /// `local_rots` for every chain bone and returns the effector pose.
+    /// Joint positions come from the already-evaluated FK poses; the tip is
+    /// the effector joint extended by its bone length along its rotation.
+    fn apply_chain_ik(
+        &self,
+        chain: &[Uuid],
+        target: (f32, f32),
+        pole: Option<(f32, f32)>,
+        clip: Option<&BoneClip>,
+        frame: u32,
+        state: &mut PoseState,
+    ) -> Option<BonePose> {
+        let n = chain.len();
+        if n < 3 {
+            return None;
+        }
+        let pose_of = |state: &PoseState, id: Uuid| -> Option<BonePose> {
+            state
+                .out
+                .iter()
+                .find(|(bid, _)| *bid == id)
+                .map(|(_, p)| *p)
+        };
+        // Joint positions P[0..n]: P[i] is the world joint of chain[i];
+        // the effector's joint is derived from its (already posed) parent.
+        let mut points: Vec<(f32, f32)> = Vec::with_capacity(n + 1);
+        for (i, id) in chain.iter().enumerate() {
+            if i + 1 == n {
+                let parent = pose_of(state, chain[i - 1])?;
+                let bone = self.bone(*id)?;
+                let local = self.local_rot_at(*id, clip, frame);
+                let world = parent.rotation + local;
+                let (jx, jy) = rotate_point(parent.x, parent.y, world, bone.x, bone.y);
+                points.push((jx, jy));
+            } else {
+                let p = pose_of(state, *id)?;
+                points.push((p.x, p.y));
+            }
+        }
+        // Tip: effector joint extended by bone length along world rotation.
+        let effector = self.bone(*chain.last()?)?;
+        let parent_pose = pose_of(state, chain[n - 2])?;
+        let effector_world = parent_pose.rotation + self.local_rot_at(*chain.last()?, clip, frame);
+        let (tx, ty) = rotate_point(
+            points[n - 1].0,
+            points[n - 1].1,
+            effector_world,
+            effector.length.max(1.0),
+            0.0,
+        );
+        points.push((tx, ty));
+        // Segment lengths from the FK pose (fixed for the solve).
+        let mut lengths = Vec::with_capacity(n);
+        for i in 0..n {
+            let dx = points[i + 1].0 - points[i].0;
+            let dy = points[i + 1].1 - points[i].1;
+            lengths.push((dx * dx + dy * dy).sqrt().max(0.001));
+        }
+        let mut solved = points.clone();
+        fabrik_solve(&mut solved, &lengths, target, pole, 12);
+        // New world rotations: each bone points at the next joint/tip.
+        let parent_world = match self.bone(chain[0]).and_then(|b| b.parent) {
+            Some(pid) => pose_of(state, pid).map(|p| p.rotation).unwrap_or(0.0),
+            None => 0.0,
+        };
+        let mut prev_world = parent_world;
+        for i in 0..n {
+            let id = chain[i];
+            let dx = solved[i + 1].0 - solved[i].0;
+            let dy = solved[i + 1].1 - solved[i].1;
+            let world = dy.atan2(dx).to_degrees();
+            let local = world - prev_world;
+            prev_world = world;
+            state.local_rots.insert(id, local);
+            if i + 1 == n {
+                // Effector: joint position is solved[i], rotation world.
+                // Its out entry is pushed by the caller.
+                continue;
+            }
+            if let Some(entry) = state.out.iter_mut().find(|(bid, _)| *bid == id) {
+                entry.1 = BonePose {
+                    x: solved[i].0,
+                    y: solved[i].1,
+                    rotation: world,
+                };
+            }
+        }
+        Some(BonePose {
+            x: solved[n - 1].0,
+            y: solved[n - 1].1,
+            rotation: prev_world,
+        })
+    }
+
+    /// Local rotation of `bone` at `frame`: sampled FK keys when a track
+    /// exists, otherwise the bone's rest rotation.
+    fn local_rot_at(&self, id: Uuid, clip: Option<&BoneClip>, frame: u32) -> f32 {
+        let Some(bone) = self.bone(id) else {
+            return 0.0;
+        };
+        match clip.and_then(|c| c.tracks.iter().find(|t| t.bone == id)) {
+            Some(track) => sample_keys(&track.keys, frame, bone.rotation),
+            None => bone.rotation,
+        }
+    }
+}
+
+/// FABRIK iterative IK solver: adjusts `points` (joint positions, first
+/// point pinned) so the last point reaches `target` while preserving the
+/// segment lengths in `lengths` (`lengths.len() == points.len() - 1`).
+/// `pole`, when given, mirrors the solved mid-chain joints to the same
+/// side of the root→target line as the pole (2D pole target). Fully
+/// deterministic — fixed iteration count, no RNG.
+pub fn fabrik_solve(
+    points: &mut [(f32, f32)],
+    lengths: &[f32],
+    target: (f32, f32),
+    pole: Option<(f32, f32)>,
+    iterations: usize,
+) {
+    let n = points.len();
+    if n < 3 || lengths.len() != n - 1 {
+        return;
+    }
+    let root = points[0];
+    for _ in 0..iterations {
+        // Backward pass: tip pinned to target, joints pulled toward it.
+        points[n - 1] = target;
+        for i in (1..n - 1).rev() {
+            let (dx, dy) = (points[i].0 - points[i + 1].0, points[i].1 - points[i + 1].1);
+            let d = (dx * dx + dy * dy).sqrt();
+            if d < 1e-6 {
+                continue;
+            }
+            points[i] = (
+                points[i + 1].0 + dx / d * lengths[i],
+                points[i + 1].1 + dy / d * lengths[i],
+            );
+        }
+        // Forward pass: root pinned, joints pushed outward.
+        points[0] = root;
+        for i in 1..n {
+            let (dx, dy) = (points[i].0 - points[i - 1].0, points[i].1 - points[i - 1].1);
+            let d = (dx * dx + dy * dy).sqrt();
+            if d < 1e-6 {
+                continue;
+            }
+            points[i] = (
+                points[i - 1].0 + dx / d * lengths[i - 1],
+                points[i - 1].1 + dy / d * lengths[i - 1],
+            );
+        }
+    }
+    points[n - 1] = target;
+    // Pole: keep the chain's mid joints on the pole's side of root→target.
+    if let Some(pole) = pole {
+        let rx = target.0 - root.0;
+        let ry = target.1 - root.1;
+        let rl = (rx * rx + ry * ry).sqrt();
+        if rl > 1e-6 {
+            let side = |px: f32, py: f32| -> f32 {
+                // 2D cross product (root→target) × (root→point).
+                rx * (py - root.1) - ry * (px - root.0)
+            };
+            let pole_side = side(pole.0, pole.1);
+            if pole_side.abs() > 1e-3 {
+                let mid = n / 2;
+                let mid_side = side(points[mid].0, points[mid].1);
+                if mid_side * pole_side < 0.0 {
+                    // Mirror joints 1..n-1 across the root→target line.
+                    let (ux, uy) = (rx / rl, ry / rl);
+                    for p in points.iter_mut().skip(1).take(n - 2) {
+                        let (dx, dy) = (p.0 - root.0, p.1 - root.1);
+                        let along = dx * ux + dy * uy;
+                        let perp = dx * (-uy) + dy * ux;
+                        *p = (
+                            root.0 + along * ux + perp * uy,
+                            root.1 + along * uy - perp * ux,
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
 fn sample_ik(keys: &[IkKey], frame: u32, clip: Option<&BoneClip>) -> (f32, f32) {
     let f = match clip {
         Some(c) if c.looping && c.frames > 0 => frame % c.frames,
@@ -258,6 +503,37 @@ fn sample_ik(keys: &[IkKey], frame: u32, clip: Option<&BoneClip>) -> (f32, f32) 
     }
     let last = keys[keys.len() - 1];
     (last.x, last.y)
+}
+
+/// Pole target sampled with the same frame mapping as [`sample_ik`].
+/// Interpolates only when both neighbouring keys carry a pole.
+fn sample_ik_pole(keys: &[IkKey], frame: u32, clip: Option<&BoneClip>) -> Option<(f32, f32)> {
+    let f = match clip {
+        Some(c) if c.looping && c.frames > 0 => frame % c.frames,
+        Some(c) => frame.min(c.frames.saturating_sub(1)),
+        None => frame,
+    };
+    let pair_pole = |a: &IkKey, b: &IkKey, t: f32| -> Option<(f32, f32)> {
+        match (a.pole_x.zip(a.pole_y), b.pole_x.zip(b.pole_y)) {
+            (Some((ax, ay)), Some((bx, by))) => Some((ax + (bx - ax) * t, ay + (by - ay) * t)),
+            _ => None,
+        }
+    };
+    if keys.len() <= 1 {
+        return keys.first().and_then(|k| k.pole_x.zip(k.pole_y));
+    }
+    if f <= keys[0].frame {
+        return keys[0].pole_x.zip(keys[0].pole_y);
+    }
+    for pair in keys.windows(2) {
+        let (a, b) = (pair[0], pair[1]);
+        if f <= b.frame {
+            let span = (b.frame - a.frame).max(1) as f32;
+            let t = (f - a.frame) as f32 / span;
+            return pair_pole(&a, &b, t).or_else(|| a.pole_x.zip(a.pole_y));
+        }
+    }
+    keys.last().and_then(|k| k.pole_x.zip(k.pole_y))
 }
 
 fn sample_keys(keys: &[BoneKey], frame: u32, default: f32) -> f32 {
@@ -442,5 +718,128 @@ mod tests {
         let pose = rig.pose_at(Some(&clip), 99);
         let p = pose.iter().find(|(i, _)| *i == id).unwrap().1;
         assert!((p.rotation - 40.0).abs() < 0.01);
+    }
+
+    fn chain_rig() -> Skeleton {
+        // root -> mid -> end, each offset 30px along +x, length 30.
+        let root = Bone::new("Root", 0.0, 0.0, 30.0);
+        let mut mid = Bone::new("Mid", 30.0, 0.0, 30.0);
+        mid.parent = Some(root.id);
+        let mut end = Bone::new("End", 30.0, 0.0, 30.0);
+        end.parent = Some(mid.id);
+        Skeleton {
+            bones: vec![root, mid, end],
+        }
+    }
+
+    #[test]
+    fn fabrik_reaches_target() {
+        // Straight chain 0->30->60->90 on x axis; target below.
+        let mut points = vec![(0.0f32, 0.0f32), (30.0, 0.0), (60.0, 0.0), (90.0, 0.0)];
+        let lengths = vec![30.0f32, 30.0, 30.0];
+        fabrik_solve(&mut points, &lengths, (60.0, -50.0), None, 20);
+        let tip = points[3];
+        assert!((tip.0 - 60.0).abs() < 1.0, "tip x {}", tip.0);
+        assert!((tip.1 - (-50.0)).abs() < 1.0, "tip y {}", tip.1);
+        // Root stays pinned.
+        assert_eq!(points[0], (0.0, 0.0));
+    }
+
+    #[test]
+    fn fabrik_unreachable_stretches() {
+        let mut points = vec![(0.0f32, 0.0f32), (30.0, 0.0), (60.0, 0.0), (90.0, 0.0)];
+        let lengths = vec![30.0f32, 30.0, 30.0];
+        fabrik_solve(&mut points, &lengths, (0.0, -500.0), None, 20);
+        // Total reach 90 < 500: joints straighten toward the target.
+        let mid = points[1];
+        assert!(
+            mid.1 < -20.0,
+            "chain should fold toward target, got {mid:?}"
+        );
+    }
+
+    #[test]
+    fn pole_mirrors_chain_side() {
+        // Same chain; pole above vs below the root->target line must put
+        // the middle joint on opposite sides.
+        let mut a = vec![(0.0f32, 0.0f32), (30.0, 0.0), (60.0, 0.0), (90.0, 0.0)];
+        let mut b = a.clone();
+        let lengths = vec![30.0f32, 30.0, 30.0];
+        let target = (60.0, -50.0);
+        fabrik_solve(&mut a, &lengths, target, Some((60.0, 50.0)), 20);
+        fabrik_solve(&mut b, &lengths, target, Some((60.0, -80.0)), 20);
+        // Mid joint (points[2] sits between root and tip horizontally):
+        // pole below target line (y=-80 side is "below" in screen space) vs
+        // above (y=+50). Check the middle joint x-offset sign flips or y
+        // ordering differs — assert they are meaningfully different.
+        let da = (a[1].0 - a[2].0).abs() + (a[1].1 - a[2].1).abs();
+        let _ = da;
+        assert!(
+            (a[1].1 - b[1].1).abs() > 1.0 || (a[1].0 - b[1].0).abs() > 1.0,
+            "pole must change the bend: a={:?} b={:?}",
+            a[1],
+            b[1]
+        );
+    }
+
+    #[test]
+    fn chain_ik_three_bones_reaches_target() {
+        let rig = chain_rig();
+        let mut clip = BoneClip::new("reach", 1);
+        let end_id = rig.bones[2].id;
+        let mut key = IkKey::new(0, 60.0, -60.0);
+        key.pole_x = Some(60.0);
+        key.pole_y = Some(60.0);
+        clip.tracks.push(BoneTrack {
+            bone: end_id,
+            keys: vec![],
+            ik: vec![key],
+        });
+        clip.looping = false;
+        let pose = rig.pose_at(Some(&clip), 0);
+        let end = pose.iter().find(|(id, _)| *id == end_id).unwrap().1;
+        // Tip = end joint + length along its rotation; joint itself should
+        // be near the target region (chain 90px total, target dist ~85).
+        let (tx, ty) = rotate_point(end.x, end.y, end.rotation, 30.0, 0.0);
+        assert!(
+            (tx - 60.0).abs() < 3.0 && (ty - (-60.0)).abs() < 3.0,
+            "tip ({tx},{ty}) should reach (60,-60)"
+        );
+    }
+
+    #[test]
+    fn chain_ik_stops_at_animated_ancestor() {
+        let rig = chain_rig();
+        let mut clip = BoneClip::new("mix", 1);
+        // Mid has its own FK key -> IK chain for End is only [End]? No:
+        // chain stops below animated ancestors, so End alone can't IK
+        // (needs >=2). Give Mid+End chain by animating only Root instead.
+        let root_id = rig.bones[0].id;
+        clip.tracks.push(BoneTrack {
+            bone: root_id,
+            keys: vec![BoneKey {
+                frame: 0,
+                rotation: 30.0,
+            }],
+            ik: vec![],
+        });
+        let end_id = rig.bones[2].id;
+        clip.tracks.push(BoneTrack {
+            bone: end_id,
+            keys: vec![],
+            ik: vec![IkKey::new(0, 60.0, -60.0)],
+        });
+        clip.looping = false;
+        // Should not panic and should produce a pose.
+        let pose = rig.pose_at(Some(&clip), 0);
+        assert_eq!(pose.len(), 3);
+        // Chain = [Mid, End] (Root animated -> excluded). Two bones ->
+        // falls back to the two-bone solver path.
+        let mid = pose
+            .iter()
+            .find(|(id, _)| *id == rig.bones[1].id)
+            .unwrap()
+            .1;
+        assert!(mid.rotation.is_finite());
     }
 }

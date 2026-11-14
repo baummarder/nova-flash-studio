@@ -195,6 +195,7 @@ pub enum Tool {
     Eraser,
     Fill,
     PathEdit,
+    Pen,
 }
 
 impl Tool {
@@ -207,6 +208,7 @@ impl Tool {
             Self::Eraser => "Radierer",
             Self::Fill => "Füllen",
             Self::PathEdit => "Pfad",
+            Self::Pen => "Stift",
         }
     }
 
@@ -219,8 +221,27 @@ impl Tool {
             Self::Eraser => "Objekt unter dem Zeiger entfernen.",
             Self::Fill => "Farbe des getroffenen Objekts ändern.",
             Self::PathEdit => "Pfadknoten des ausgewählten Objekts bearbeiten.",
+            Self::Pen => {
+                "Anker setzen: Klick = Ecke, Ziehen = Kurve. Enter/Doppelklick = fertig, Klick auf Startpunkt = schließen, Esc = abbrechen."
+            }
         }
     }
+}
+
+/// One anchor of an in-progress pen path (stage coordinates).
+#[derive(Debug, Clone, Copy)]
+pub struct PenAnchor {
+    pub pos: egui::Pos2,
+    /// Quadratic control point for the segment ending at this anchor.
+    pub handle: Option<egui::Pos2>,
+}
+
+/// In-progress pen path: anchors in stage space, committed as a Path object.
+#[derive(Debug, Clone, Default)]
+pub struct PenDraft {
+    pub anchors: Vec<PenAnchor>,
+    /// Stage position where the current press started (for curve drags).
+    pub press: Option<egui::Pos2>,
 }
 
 #[derive(Debug, Clone)]
@@ -531,6 +552,11 @@ pub struct AppState {
     pub draft: Option<DraftStroke>,
     pub transform_drag: Option<TransformDrag>,
     pub node_drag: Option<NodeDrag>,
+    /// Pen tool draft: anchors in stage coordinates. `handle` is the
+    /// quadratic control point for the segment ending at this anchor.
+    pub pen: Option<PenDraft>,
+    /// Bone-joint drag while a rigged symbol timeline is being edited.
+    pub bone_drag: Option<Uuid>,
     pub asset_textures: HashMap<Uuid, egui::TextureHandle>,
     pub selected_asset: Option<Uuid>,
     pub selected_sound_cue: Option<(Uuid, usize)>,
@@ -612,6 +638,8 @@ impl AppState {
             draft: None,
             transform_drag: None,
             node_drag: None,
+            pen: None,
+            bone_drag: None,
             asset_textures: HashMap::new(),
             selected_asset: project.assets.first().map(|asset| asset.id),
             selected_sound_cue: None,
@@ -673,6 +701,8 @@ impl AppState {
         self.draft = None;
         self.transform_drag = None;
         self.node_drag = None;
+        self.pen = None;
+        self.bone_drag = None;
     }
 
     /// Clamps the playhead to the active scene or symbol timeline.

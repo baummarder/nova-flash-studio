@@ -23,8 +23,9 @@ decisively for original vector artwork.
 | Keyframes | per-property, per-frame | same + motion presets, ease editor |
 | Shape tweens | yes — rect/ellipse/path vertex interpolation + easing, baked (no shape hints, no MorphShape tags) | yes (shape hints, MorphShape) |
 | Motion tweens | position/scale/rotation/alpha/color | full transform + filters + 3D |
-| Inverse kinematics | two-bone analytic IK on skeletal rigs (M15); no pole constraints | bone/tool IK, constraints |
+| Inverse kinematics | two-bone analytic IK + FABRIK chains ≥3 bones with pole targets (M15/M16); no constraints | bone/tool IK, constraints |
 | Skeletal animation | FK clips + rigid part binding, baked per-frame (M15); no mesh skinning/weight painting | full IK/constraints/mesh |
+| Vector authoring | pen tool (corner/curve anchors, close), path node insert/delete/drag, pencil/brush/line (M16); no gradients, booleans, cubic handles | full pen/pencil/brush, gradients, pathfinder |
 | Onion skin | basic | full |
 | Nested timelines | symbols with own timelines | same, deeper nesting norms |
 

@@ -8,7 +8,19 @@ the project format is versioned JSON, and the SWF writer is implemented directly
 against the published SWF file-format specification. Tools and extensions run in
 an embedded QuickJS context; ActionScript is **not** executed by QuickJS.
 
-> **Status: Mega Milestone 15 release candidate `0.11.0-rc1`, not stable.**
+> **Status: Mega Milestone 16 release candidate `0.12.0-rc1`, not stable.**
+> M16 added real visual authoring workflows: an interactive **Pen tool**
+> (click = corner anchor, drag = curve anchor, click-on-start closes,
+> Enter finishes), path node **insert/delete** in the path editor,
+> a visible **bone overlay** with draggable joints for rigged symbols,
+> and **multi-bone FABRIK chain IK** with pole targets plus a new
+> `add_ik_key` AI operation — all deterministic and unit/integration
+> tested. A pre-existing pencil/brush double-transform bug was fixed.
+> Still out of scope: mesh skinning/weight painting, gradients,
+> font/button/morph-shape tags, cubic bezier handles, and the AS3
+> subset limits (`Vector.<T>`, `try/catch`, `for-in`).
+>
+> M15 baseline `0.11.0-rc1`:
 > M15 added a working skeletal animation system: bone hierarchies with
 > parent/offset/length, FK rotation clips, two-bone analytic IK, rigid
 > part binding on symbol timelines, deterministic per-frame baked

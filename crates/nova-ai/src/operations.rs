@@ -584,6 +584,20 @@ pub enum ProjectOperation {
         frame: u32,
         rotation: f32,
     },
+    /// Adds or replaces an IK target key on a bone track. Chains of two
+    /// bones use the analytic solver; longer chains use FABRIK.
+    AddIkKey {
+        symbol: String,
+        clip: String,
+        bone: String,
+        frame: u32,
+        x: f32,
+        y: f32,
+        #[serde(default)]
+        pole_x: Option<f32>,
+        #[serde(default)]
+        pole_y: Option<f32>,
+    },
     /// Binds an object inside a symbol timeline to a bone.
     BindObjectToBone {
         symbol: String,
@@ -1951,6 +1965,74 @@ fn apply_one(
             project.touch();
             Ok(format!(
                 "FK-Key Frame {frame} für Knochen '{bone}' in Clip '{clip}' (Symbol '{symbol_name}') gesetzt"
+            ))
+        }
+        ProjectOperation::AddIkKey {
+            symbol,
+            clip,
+            bone,
+            frame,
+            x,
+            y,
+            pole_x,
+            pole_y,
+        } => {
+            if !x.is_finite() || !y.is_finite() {
+                return Err(OperationError::invalid("IK-Ziel muss endlich sein."));
+            }
+            let symbol = symbol_mut(project, symbol)?;
+            let symbol_name = symbol.name.clone();
+            let clip_ref = symbol
+                .bone_clips
+                .iter_mut()
+                .find(|c| c.name == clip.trim())
+                .ok_or_else(|| {
+                    OperationError::invalid(format!("Clip '{clip}' existiert nicht."))
+                })?;
+            let skeleton = symbol
+                .skeleton
+                .as_ref()
+                .ok_or_else(|| OperationError::invalid("Das Symbol hat kein Skelett."))?;
+            let bone_id = skeleton
+                .bones
+                .iter()
+                .find(|b| b.name == bone.trim())
+                .map(|b| b.id)
+                .ok_or_else(|| {
+                    OperationError::invalid(format!("Knochen '{bone}' existiert nicht."))
+                })?;
+            let track = match clip_ref.tracks.iter_mut().find(|t| t.bone == bone_id) {
+                Some(t) => t,
+                None => {
+                    clip_ref.tracks.push(nova_core::BoneTrack {
+                        bone: bone_id,
+                        keys: Vec::new(),
+                        ik: Vec::new(),
+                    });
+                    clip_ref.tracks.last_mut().unwrap()
+                }
+            };
+            let pole = match (pole_x, pole_y) {
+                (Some(px), Some(py)) if px.is_finite() && py.is_finite() => (Some(*px), Some(*py)),
+                _ => (None, None),
+            };
+            let key = nova_core::IkKey {
+                frame: *frame,
+                x: *x,
+                y: *y,
+                pole_x: pole.0,
+                pole_y: pole.1,
+            };
+            match track.ik.iter_mut().find(|k| k.frame == *frame) {
+                Some(k) => *k = key,
+                None => {
+                    track.ik.push(key);
+                    track.ik.sort_by_key(|k| k.frame);
+                }
+            }
+            project.touch();
+            Ok(format!(
+                "IK-Key Frame {frame} für Knochen '{bone}' in Clip '{clip}' (Symbol '{symbol_name}') gesetzt"
             ))
         }
         ProjectOperation::BindObjectToBone {

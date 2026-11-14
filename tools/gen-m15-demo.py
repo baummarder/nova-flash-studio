@@ -57,7 +57,9 @@ symbol = {
         ]},
         {"name": "Greifen", "frames": 24, "looping": True, "tracks": [
             {"bone": bone_ids["Unterarm"], "ik": [
-                {"frame": 0, "x": 80.0, "y": 30.0}, {"frame": 12, "x": 60.0, "y": -50.0}, {"frame": 24, "x": 80.0, "y": 30.0}]},
+                {"frame": 0, "x": 80.0, "y": 30.0, "poleX": 0.0, "poleY": 120.0},
+                {"frame": 12, "x": 60.0, "y": -50.0, "poleX": 0.0, "poleY": -120.0},
+                {"frame": 24, "x": 80.0, "y": 30.0, "poleX": 0.0, "poleY": 120.0}]},
         ]},
     ],
     "active_clip": "Schwung",
