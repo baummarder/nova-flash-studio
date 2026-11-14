@@ -140,8 +140,13 @@ error instead of writing JSON or an unverified ZIP under a `.fla` name.
 ### Experimental XFL ZIP
 
 The export dialog can write a `.zip` XFL compatibility package containing
-`DOMDocument.xml`, `scripts/` and a README stating its limitations. This is
-**not** a `.fla` replacement and has not been tested in Adobe Animate.
+`DOMDocument.xml`, `scripts/`, `LIBRARY/` assets and a README stating its
+limitations. This is **not** a `.fla` replacement and has not been tested in
+Adobe Animate. Since M11.1, `ObjectKind::Tilemap` objects are baked to PNG
+bitmaps (`DOMBitmapItem` + `DOMBitmapInstance`) via the shared
+`nova_build::bake_tilemap`; tile layers, solidity and collision metadata are
+not representable and stay in `.nova`. Particles and game metadata still
+produce per-object warnings.
 
 ## Code provenance
 

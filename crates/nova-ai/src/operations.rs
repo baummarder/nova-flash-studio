@@ -301,6 +301,16 @@ pub enum ProjectOperation {
         /// Optional display names per tile index.
         #[serde(default)]
         tile_names: Vec<String>,
+        /// Pixel margin around the tileset grid (spritesheet padding).
+        #[serde(default)]
+        margin_x: u32,
+        #[serde(default)]
+        margin_y: u32,
+        /// Pixel gap between adjacent tiles in the spritesheet.
+        #[serde(default)]
+        spacing_x: u32,
+        #[serde(default)]
+        spacing_y: u32,
     },
     /// Places a tilemap object on a scene layer.
     CreateTilemap {
@@ -351,6 +361,58 @@ pub enum ProjectOperation {
         /// Replace tool: target tile (1-based, 0 = empty).
         #[serde(default)]
         to: u16,
+        #[serde(default)]
+        scene: Option<String>,
+    },
+    /// Adds an empty named tile layer to a tilemap object.
+    AddTileLayer {
+        object: String,
+        #[serde(default)]
+        name: Option<String>,
+        #[serde(default)]
+        scene: Option<String>,
+    },
+    /// Configures visibility/lock/opacity/name of one tile layer.
+    ConfigureTileLayer {
+        object: String,
+        /// Tile layer index (0-based).
+        layer: usize,
+        #[serde(default)]
+        name: Option<String>,
+        #[serde(default)]
+        visible: Option<bool>,
+        #[serde(default)]
+        locked: Option<bool>,
+        #[serde(default)]
+        opacity: Option<f32>,
+        #[serde(default)]
+        scene: Option<String>,
+    },
+    /// Flips a rectangular cell region in place on one tile layer.
+    FlipTileRegion {
+        object: String,
+        layer: usize,
+        x0: i32,
+        y0: i32,
+        x1: i32,
+        y1: i32,
+        #[serde(default)]
+        flip_h: bool,
+        #[serde(default)]
+        flip_v: bool,
+        #[serde(default)]
+        scene: Option<String>,
+    },
+    /// Moves a rectangular cell region by (dx, dy) on one tile layer.
+    MoveTileRegion {
+        object: String,
+        layer: usize,
+        x0: i32,
+        y0: i32,
+        x1: i32,
+        y1: i32,
+        dx: i32,
+        dy: i32,
         #[serde(default)]
         scene: Option<String>,
     },
@@ -1698,6 +1760,10 @@ fn apply_one(
             tile_height,
             solid_tiles,
             tile_names,
+            margin_x,
+            margin_y,
+            spacing_x,
+            spacing_y,
         } => {
             let name = validate_asset_name(name)?;
             if project.tilesets.iter().any(|t| t.name == name) {
@@ -1729,19 +1795,24 @@ fn apply_one(
                     "Kachelgröße muss zwischen 1 und 512 px liegen.",
                 ));
             }
-            let tile_count = nova_core::tilemap::tileset_tile_count(
-                &nova_core::Tileset {
-                    tile_width: *tile_width,
-                    tile_height: *tile_height,
-                    columns: nova_core::tilemap::tileset_columns(asset_w, *tile_width),
-                    ..Default::default()
-                },
-                asset_w,
-                asset_h,
-            );
+            if *margin_x as u64 + *margin_y as u64 > u32::MAX as u64 {
+                return Err(OperationError::invalid("Randwerte zu groß."));
+            }
+            let probe = nova_core::Tileset {
+                tile_width: *tile_width,
+                tile_height: *tile_height,
+                margin_x: *margin_x,
+                margin_y: *margin_y,
+                spacing_x: *spacing_x,
+                spacing_y: *spacing_y,
+                columns: 0,
+                ..Default::default()
+            };
+            let columns = probe.columns_for(asset_w);
+            let tile_count = probe.tile_count(asset_w, asset_h);
             if tile_count == 0 {
                 return Err(OperationError::invalid(format!(
-                    "Asset '{}' ist zu klein für {}×{}-Kacheln.",
+                    "Asset '{}' ist zu klein für {}×{}-Kacheln (Rand/Abstand).",
                     asset_name, tile_width, tile_height
                 )));
             }
@@ -1769,7 +1840,11 @@ fn apply_one(
                 asset: asset_id,
                 tile_width: *tile_width,
                 tile_height: *tile_height,
-                columns: nova_core::tilemap::tileset_columns(asset_w, *tile_width),
+                columns,
+                margin_x: *margin_x,
+                margin_y: *margin_y,
+                spacing_x: *spacing_x,
+                spacing_y: *spacing_y,
                 solid,
                 names,
                 ..Default::default()
@@ -1939,6 +2014,178 @@ fn apply_one(
             project.touch();
             Ok(format!(
                 "{changed} Zellen auf '{needle}' Ebene {layer} gemalt"
+            ))
+        }
+        ProjectOperation::AddTileLayer {
+            object,
+            name,
+            scene,
+        } => {
+            let scene = scene_mut(project, scene.as_deref())?;
+            let needle = object.trim();
+            let (li, fi, oi) = find_object_indices(scene, needle)?;
+            let target = &mut scene.layers[li].frames[fi].objects[oi];
+            let nova_core::ObjectKind::Tilemap(map) = &mut target.kind else {
+                return Err(OperationError::invalid(format!(
+                    "Objekt '{needle}' ist keine Kachelkarte."
+                )));
+            };
+            let layer_name = name
+                .as_deref()
+                .map(str::trim)
+                .filter(|n| !n.is_empty())
+                .map(|n| n.chars().take(80).collect::<String>())
+                .unwrap_or_else(|| format!("Ebene {}", map.layers.len() + 1));
+            let index = nova_core::tilemap::add_layer(map, &layer_name, None);
+            project.touch();
+            Ok(format!(
+                "Kachelebene '{layer_name}' (#{index}) zu '{needle}' hinzugefügt"
+            ))
+        }
+        ProjectOperation::ConfigureTileLayer {
+            object,
+            layer,
+            name,
+            visible,
+            locked,
+            opacity,
+            scene,
+        } => {
+            let scene = scene_mut(project, scene.as_deref())?;
+            let needle = object.trim();
+            let (li, fi, oi) = find_object_indices(scene, needle)?;
+            let target = &mut scene.layers[li].frames[fi].objects[oi];
+            let nova_core::ObjectKind::Tilemap(map) = &mut target.kind else {
+                return Err(OperationError::invalid(format!(
+                    "Objekt '{needle}' ist keine Kachelkarte."
+                )));
+            };
+            if *layer >= map.layers.len() {
+                return Err(OperationError::invalid(format!(
+                    "Kachelebene {layer} existiert nicht (0..{}).",
+                    map.layers.len().saturating_sub(1)
+                )));
+            }
+            let target_layer = &mut map.layers[*layer];
+            if let Some(n) = name {
+                let n = n.trim();
+                if n.is_empty() || n.chars().count() > 80 {
+                    return Err(OperationError::invalid(
+                        "Kachelebenenname muss 1 bis 80 Zeichen enthalten.",
+                    ));
+                }
+                target_layer.name = n.to_string();
+            }
+            if let Some(v) = visible {
+                target_layer.visible = *v;
+            }
+            if let Some(l) = locked {
+                target_layer.locked = *l;
+            }
+            if let Some(o) = opacity {
+                if !o.is_finite() || !(0.0..=1.0).contains(o) {
+                    return Err(OperationError::invalid(
+                        "Opazität muss zwischen 0 und 1 liegen.",
+                    ));
+                }
+                target_layer.opacity = *o;
+            }
+            project.touch();
+            Ok(format!("Kachelebene {layer} von '{needle}' konfiguriert"))
+        }
+        ProjectOperation::FlipTileRegion {
+            object,
+            layer,
+            x0,
+            y0,
+            x1,
+            y1,
+            flip_h,
+            flip_v,
+            scene,
+        } => {
+            if !flip_h && !flip_v {
+                return Err(OperationError::invalid(
+                    "Mindestens eine Spiegelachse wählen.",
+                ));
+            }
+            let scene = scene_mut(project, scene.as_deref())?;
+            let needle = object.trim();
+            let (li, fi, oi) = find_object_indices(scene, needle)?;
+            let target = &mut scene.layers[li].frames[fi].objects[oi];
+            let nova_core::ObjectKind::Tilemap(map) = &mut target.kind else {
+                return Err(OperationError::invalid(format!(
+                    "Objekt '{needle}' ist keine Kachelkarte."
+                )));
+            };
+            if *layer >= map.layers.len() {
+                return Err(OperationError::invalid(format!(
+                    "Kachelebene {layer} existiert nicht (0..{}).",
+                    map.layers.len().saturating_sub(1)
+                )));
+            }
+            if map.layers[*layer].locked {
+                return Err(OperationError::invalid(format!(
+                    "Kachelebene {layer} ist gesperrt."
+                )));
+            }
+            nova_core::tilemap::flip_region(map, *layer, *x0, *y0, *x1, *y1, *flip_h, *flip_v);
+            project.touch();
+            Ok(format!(
+                "Region ({x0},{y0})-({x1},{y1}) auf '{needle}' Ebene {layer} gespiegelt"
+            ))
+        }
+        ProjectOperation::MoveTileRegion {
+            object,
+            layer,
+            x0,
+            y0,
+            x1,
+            y1,
+            dx,
+            dy,
+            scene,
+        } => {
+            if *dx == 0 && *dy == 0 {
+                return Err(OperationError::invalid("Verschiebung ist (0,0)."));
+            }
+            let scene = scene_mut(project, scene.as_deref())?;
+            let needle = object.trim();
+            let (li, fi, oi) = find_object_indices(scene, needle)?;
+            let target = &mut scene.layers[li].frames[fi].objects[oi];
+            let nova_core::ObjectKind::Tilemap(map) = &mut target.kind else {
+                return Err(OperationError::invalid(format!(
+                    "Objekt '{needle}' ist keine Kachelkarte."
+                )));
+            };
+            if *layer >= map.layers.len() {
+                return Err(OperationError::invalid(format!(
+                    "Kachelebene {layer} existiert nicht (0..{}).",
+                    map.layers.len().saturating_sub(1)
+                )));
+            }
+            if map.layers[*layer].locked {
+                return Err(OperationError::invalid(format!(
+                    "Kachelebene {layer} ist gesperrt."
+                )));
+            }
+            let Some(region) = nova_core::tilemap::copy_region(map, *layer, *x0, *y0, *x1, *y1)
+            else {
+                return Err(OperationError::invalid("Region ist leer oder ungültig."));
+            };
+            let (ax, ay, bx, by) = (
+                (*x0).min(*x1),
+                (*y0).min(*y1),
+                (*x0).max(*x1),
+                (*y0).max(*y1),
+            );
+            nova_core::tilemap::clear_region(map, *layer, ax, ay, bx, by);
+            let dest_x = ax.saturating_add(*dx);
+            let dest_y = ay.saturating_add(*dy);
+            nova_core::tilemap::paste_region(map, *layer, dest_x, dest_y, &region);
+            project.touch();
+            Ok(format!(
+                "Region ({ax},{ay})-({bx},{by}) auf '{needle}' Ebene {layer} um ({dx},{dy}) verschoben"
             ))
         }
         ProjectOperation::CreateCollisionShape {
@@ -2549,6 +2796,10 @@ fn apply_game_level(
                 tile_height: ts.tile_height,
                 solid_tiles: ts.solid_tiles.clone(),
                 tile_names: Vec::new(),
+                margin_x: 0,
+                margin_y: 0,
+                spacing_x: 0,
+                spacing_y: 0,
             }],
         )?;
         notes.push(format!("Tileset '{}' erstellt", ts.name));
@@ -3840,5 +4091,139 @@ mod tests {
         )
         .unwrap_err();
         assert!(err.to_string().contains("Polygon"));
+    }
+
+    #[test]
+    fn tile_layer_region_and_slicing_operations() {
+        let mut project = Project::new_empty("Level");
+        // 32x16 image so the 8x8 + margin/spacing slicing yields 3 tiles.
+        let tiles_png = {
+            let img = image::RgbaImage::from_pixel(32, 16, image::Rgba([200, 80, 40, 255]));
+            let mut buf = std::io::Cursor::new(Vec::new());
+            img.write_to(&mut buf, image::ImageFormat::Png).unwrap();
+            buf.into_inner()
+        };
+        let reader = move |path: &str| -> Result<Vec<u8>, String> {
+            match path {
+                "assets/tiles.png" => Ok(tiles_png.clone()),
+                _ => Err("not found".into()),
+            }
+        };
+        apply_operations_with(
+            &mut project,
+            &[
+                ProjectOperation::ImportProjectAsset {
+                    name: Some("Terrain".into()),
+                    path: "assets/tiles.png".into(),
+                },
+                ProjectOperation::CreateTileset {
+                    name: "Terrain".into(),
+                    asset: "Terrain".into(),
+                    tile_width: 8,
+                    tile_height: 8,
+                    solid_tiles: vec![0],
+                    tile_names: Vec::new(),
+                    margin_x: 2,
+                    margin_y: 2,
+                    spacing_x: 1,
+                    spacing_y: 1,
+                },
+                ProjectOperation::CreateTilemap {
+                    name: "Map".into(),
+                    tileset: "Terrain".into(),
+                    columns: 8,
+                    rows: 8,
+                    x: 0.0,
+                    y: 0.0,
+                    scene: None,
+                    layer: None,
+                },
+            ],
+            &reader,
+        )
+        .unwrap();
+
+        // Slicing margins/spacing were stored on the tileset.
+        let tileset = &project.tilesets[0];
+        assert_eq!((tileset.margin_x, tileset.margin_y), (2, 2));
+        assert_eq!((tileset.spacing_x, tileset.spacing_y), (1, 1));
+
+        // Paint an L-shape, add a layer, configure it, then flip+move.
+        apply_operations(
+            &mut project,
+            &[
+                ProjectOperation::PaintTiles {
+                    object: "Map".into(),
+                    layer: 0,
+                    tool: nova_core::tilemap::PaintTool::Rect,
+                    x0: 0,
+                    y0: 0,
+                    x1: 3,
+                    y1: 0,
+                    tile: 1,
+                    from: 0,
+                    to: 0,
+                    scene: None,
+                },
+                ProjectOperation::AddTileLayer {
+                    object: "Map".into(),
+                    name: Some("Details".into()),
+                    scene: None,
+                },
+                ProjectOperation::ConfigureTileLayer {
+                    object: "Map".into(),
+                    layer: 1,
+                    name: None,
+                    visible: Some(true),
+                    locked: Some(false),
+                    opacity: Some(0.5),
+                    scene: None,
+                },
+                ProjectOperation::FlipTileRegion {
+                    object: "Map".into(),
+                    layer: 0,
+                    x0: 0,
+                    y0: 0,
+                    x1: 3,
+                    y1: 0,
+                    flip_h: true,
+                    flip_v: false,
+                    scene: None,
+                },
+                ProjectOperation::MoveTileRegion {
+                    object: "Map".into(),
+                    layer: 0,
+                    x0: 0,
+                    y0: 0,
+                    x1: 3,
+                    y1: 0,
+                    dx: 2,
+                    dy: 1,
+                    scene: None,
+                },
+            ],
+        )
+        .unwrap();
+
+        let scene = project.active_scene().unwrap();
+        let tilemap_obj = scene
+            .layers
+            .iter()
+            .flat_map(|l| l.frames.iter())
+            .flat_map(|f| f.objects.iter())
+            .find(|o| o.name == "Map")
+            .unwrap();
+        let nova_core::ObjectKind::Tilemap(map) = &tilemap_obj.kind else {
+            panic!("Map is not a tilemap");
+        };
+        assert_eq!(map.layers.len(), 2);
+        assert_eq!(map.layers[1].name, "Details");
+        assert_eq!(map.layers[1].opacity, 0.5);
+        // Moved region now occupies cells x=2..5, y=1 on layer 0.
+        for x in 2..=5 {
+            assert_eq!(map.layers[0].cells[1 * 8 + x], 1, "cell ({x},1)");
+        }
+        assert_eq!(map.layers[0].cells[0], 0, "source cleared");
+        project.validate().expect("project valid");
     }
 }

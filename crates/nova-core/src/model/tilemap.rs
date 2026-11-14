@@ -124,6 +124,16 @@ pub struct Tileset {
     pub tile_height: u32,
     /// Number of tile columns in the source image.
     pub columns: u32,
+    /// Pixel margin between the image edge and the first/last tile.
+    #[serde(skip_serializing_if = "is_zero", default)]
+    pub margin_x: u32,
+    #[serde(skip_serializing_if = "is_zero", default)]
+    pub margin_y: u32,
+    /// Pixel gap between neighbouring tiles (0 = tightly packed).
+    #[serde(skip_serializing_if = "is_zero", default)]
+    pub spacing_x: u32,
+    #[serde(skip_serializing_if = "is_zero", default)]
+    pub spacing_y: u32,
     /// Per-tile collision flag, indexed by tile index (0-based, matching
     /// `cells` value minus one). Missing entries mean "not solid".
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
@@ -142,19 +152,89 @@ impl Default for Tileset {
             tile_width: 16,
             tile_height: 16,
             columns: 0,
+            margin_x: 0,
+            margin_y: 0,
+            spacing_x: 0,
+            spacing_y: 0,
             solid: Vec::new(),
             names: Vec::new(),
         }
     }
 }
 
+fn is_zero(value: &u32) -> bool {
+    *value == 0
+}
+
 impl Tileset {
-    /// Total number of tiles that fit the source image.
-    pub fn tile_count(&self, asset_height_px: u32) -> usize {
+    /// Horizontal stride between tile origins in the source image.
+    pub fn stride_x(&self) -> u32 {
+        self.tile_width.saturating_add(self.spacing_x)
+    }
+
+    /// Vertical stride between tile origins in the source image.
+    pub fn stride_y(&self) -> u32 {
+        self.tile_height.saturating_add(self.spacing_y)
+    }
+
+    /// Number of tile columns that fit `width_px` with the configured
+    /// margins and spacing.
+    pub fn columns_for(&self, width_px: u32) -> u32 {
+        let stride = self.stride_x();
+        if stride == 0 {
+            return 0;
+        }
+        let usable = width_px.saturating_sub(self.margin_x.saturating_mul(2));
+        if usable == 0 {
+            return 0;
+        }
+        // usable + spacing accounts for the gap after the last tile.
+        (usable + self.spacing_x) / stride
+    }
+
+    /// Number of tile rows that fit `height_px` with margins and spacing.
+    pub fn rows_for(&self, height_px: u32) -> u32 {
+        let stride = self.stride_y();
+        if stride == 0 {
+            return 0;
+        }
+        let usable = height_px.saturating_sub(self.margin_y.saturating_mul(2));
+        if usable == 0 {
+            return 0;
+        }
+        (usable + self.spacing_y) / stride
+    }
+
+    /// Total number of tiles inside an image of `width_px`×`height_px`.
+    /// Uses the configured `columns` when set, otherwise derives the column
+    /// count from the image width.
+    pub fn tile_count(&self, asset_width_px: u32, asset_height_px: u32) -> usize {
         if self.tile_width == 0 || self.tile_height == 0 {
             return 0;
         }
-        (self.columns as usize) * (asset_height_px as usize / self.tile_height as usize)
+        let columns = if self.columns > 0 {
+            self.columns
+        } else {
+            self.columns_for(asset_width_px)
+        };
+        columns as usize * self.rows_for(asset_height_px) as usize
+    }
+
+    /// Pixel rect `(x, y, w, h)` of tile `index` (0-based, row-major) inside
+    /// an image of `img_w`×`img_h`. `None` when the tile falls outside the
+    /// image or the slicing parameters are invalid.
+    pub fn tile_rect(&self, index: usize, img_w: u32, img_h: u32) -> Option<(u32, u32, u32, u32)> {
+        if self.tile_width == 0 || self.tile_height == 0 || self.columns == 0 {
+            return None;
+        }
+        let col = index as u32 % self.columns;
+        let row = index as u32 / self.columns;
+        let x = self.margin_x + col * self.stride_x();
+        let y = self.margin_y + row * self.stride_y();
+        if x + self.tile_width > img_w || y + self.tile_height > img_h {
+            return None;
+        }
+        Some((x, y, self.tile_width, self.tile_height))
     }
 
     /// Whether tile `index` (0-based) is solid. Out-of-range means false.

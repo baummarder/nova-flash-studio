@@ -856,56 +856,88 @@ the crate boundaries: `nova-core` owns tilemap logic (`tilemap.rs`), particles
 
 ### Runtime integration
 
+- `nova_core::collision` is the shared narrow-phase module: SAT for
+  convex-polygon pairs (rect/circle normalised into the same solver),
+  closest-point circle↔polygon, analytic circle↔circle. Concave input is
+  validated and resolved as its convex hull — never silently treated as a
+  bounding box.
 - `collect_bodies` now emits implicit static bodies for tilemap objects;
   `attach_tile_colliders` converts tileset-solid cells into a `TileCollider`
-  grid resolved by `resolve_tiles` in `game::step` (min-axis push-out,
-  restitution, grounded flag). Tile collision ignores layer/mask — documented.
+  grid resolved per cell by `resolve_tiles` in `game::step` (same SAT
+  contacts, restitution, grounded flag). Tile colliders carry the tilemap
+  object's `layer`/`mask`, and `GameRuntime`'s enter/exit tracking filters
+  pairs through the same `interacts_with` predicate — tile layer/mask
+  filtering is consistent between physics and events.
 - `GameRuntime` collects `EmitterRuntime`s per scene (object id →
   `ParticleSystem`), follows objects across frames and exposes
   `particle_views()` for the stage renderer. Emitter simulation is stepped
-  inside `GameRuntime::step` with the same clamped dt.
+  inside `GameRuntime::step` with the same clamped dt; restart rebuilds the
+  systems so state never leaks between runs.
 - `GameRuntime` applies world bounds for body clamping and the extended
-  camera (follow smoothing, dead-zone, shake) via `step_camera`.
+  camera (follow smoothing, dead-zone, shake) via `step_camera`; worlds
+  smaller than the viewport centre correctly and a missing follow target
+  falls back to the stage centre.
 
 ### Application
 
 - Bottom dock tab **Kacheln** (`tilemap_view.rs`): tile palette rendered from
-  the real tileset texture with per-tile names, all six paint tools, NxN
-  brush size, flood/eyedrop/replace parameters, layer list with
-  visibility/lock/opacity and zoom-to-fit. All mutations go through the
-  history/undo pipeline.
+  the real tileset texture honouring `tile_rect` (margins/spacing), all seven
+  tools including region **Auswahl**, NxN brush stamps with ↔/↕ flip
+  toggles, selection copy/cut/paste/move with ghost previews, wheel zoom
+  around the cursor, middle-mouse/Space+drag pan, configurable grid +
+  opacity, solid-cell collision overlay and per-layer
+  visibility/lock/opacity. The **Tileset…** dialog slices a bitmap asset
+  (tile size, margins, spacing, solidity toggles, name prefix) into a
+  `Tileset` without duplicating image data. All mutations go through the
+  history/undo pipeline — one entry per gesture.
+- Edit-mode particle preview: `stage_view` keeps a per-object
+  `ParticleSystem` map stepped with real frame delta whenever the game
+  preview is not running; systems recreate on spec change and prune on
+  object removal.
 - Inspector (`properties.rs`): polygon collision point editor, collision
   layer/mask, camera smoothing/dead-zone/shake, world spawn, and the full
   particle emitter form (preset + every field).
 - Stage (`stage_view.rs`): tilemaps render cell-by-cell with real texture
-  UVs and per-layer opacity; particles draw during game preview; collision
-  overlays include polygons.
+  UVs and per-layer opacity; particles draw during game preview **and** in
+  the edit-mode emitter preview; collision overlays include polygons.
 
 ### AI operations
 
-`create_tileset`, `create_tilemap`, `modify_tilemap`, `paint_tiles`,
+`create_tileset` (now with margins/spacing), `create_tilemap`,
+`modify_tilemap`, `paint_tiles`, `add_tile_layer`,
+`configure_tile_layer`, `flip_tile_region`, `move_tile_region`,
 `create_collision_shape`, `modify_camera`,
 `create_particle_emitter`/`configure_particle_emitter`,
 `create_level_group`, `place_game_object`, `import_project_asset` and the
 composite `create_game_level` are transactional and validated; the
-`ai_builds_playable_tilemap_level` test exercises the full pipeline.
+`ai_builds_playable_tilemap_level`, `tile_layer_region_and_slicing_operations`
+and `ai_rejects_invalid_tilemap_ops_transactionally` tests exercise the
+pipeline.
 
 ### Export
 
-- SWF: `define_tilemap` bakes visible layers into a single
-  `DefineBitsLossless2` bitmap (alpha-composited, layer opacity honoured,
-  8192px cap). Missing tilesets/assets warn explicitly. Particles warn once
-  per object.
-- XFL: tilemaps, particles and game metadata warn per object; data stays in
-  `.nova`.
+- SWF: `nova_build::bake_tilemap` bakes visible layers into RGBA honouring
+  `tile_rect` (margins/spacing), alpha-composited with layer opacity and an
+  8192px cap, then `define_tilemap` wraps it in `DefineBitsLossless2`.
+  Missing tilesets/assets warn explicitly. Particles warn once per object.
+- XFL: tilemaps are baked through the same `bake_tilemap` into PNGs under
+  `LIBRARY/` with `DOMBitmapInstance` placements; bake failures fall back to
+  an explicit warning. Particles and game metadata still warn per object;
+  their data stays in `.nova`.
 
 ### Verification boundary
 
-- Unit tests: tilemap paint/flood/eyedrop/replace, particle determinism,
-  collision layer/mask, camera extensions, tileset slicing, format-v4
-  roundtrip and AI level workflow.
-- Build tests: tilemap→`DefineBitsLossless2` bake, missing-tileset warning,
-  every game template compiles to SWF.
-- Ruffle 0.7.1 runs the exported M11 SWFs with zero ERROR lines (font
-  fallback warnings only). Audible/visual frame inspection was not performed
-  headless; claims are limited to clean startup logs.
+- Unit tests: SAT collision pairs/normals/depth, invalid-polygon handling,
+  collision layer/mask (objects and tiles, enter/exit events), camera
+  small-world/missing-target, tilemap paint/flood/eyedrop/replace,
+  copy/paste/clear/flip region ops, tileset slicing math, format-v4
+  roundtrip, AI level workflow and new layer/region ops.
+- Perf: `crates/nova-core/tests/perf.rs` (ignored by default) measures large
+  tilemap ops, 200-body collision steps, 50-emitter particle sim and undo
+  snapshot cost — run with `--release -- --ignored`.
+- Build tests: tilemap→`DefineBitsLossless2` bake, XFL tilemap→PNG bake,
+  missing-tileset warning, every game template compiles to SWF.
+- Ruffle 0.7.1 runs all seven M10 template SWFs and all five M11 demo SWFs
+  with zero ERROR lines (font fallback warnings only). Audible/visual frame
+  inspection was not performed headless; claims are limited to clean startup
+  logs.

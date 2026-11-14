@@ -583,6 +583,9 @@ impl GameRuntime {
                 if b.collision.is_none() && b.physics.is_none() {
                     continue;
                 }
+                if !specs_interact(a, b) {
+                    continue;
+                }
                 let (Some(sa), Some(sb)) = (self.states.get(&a.id), self.states.get(&b.id)) else {
                     continue;
                 };
@@ -711,27 +714,38 @@ fn collect_emitters(scene: &Scene) -> Vec<EmitterRuntime> {
         .collect()
 }
 
+/// Whether two bodies' collision specs permit interaction. Tilemap bodies
+/// expose their layer/mask through `tiles`; other bodies use their
+/// collision spec or the permissive default.
+fn specs_interact(a: &GameBody, b: &GameBody) -> bool {
+    let spec_a = if let Some(tiles) = &a.tiles {
+        crate::model::CollisionSpec {
+            layer: tiles.layer,
+            mask: tiles.mask,
+            ..Default::default()
+        }
+    } else {
+        super::spec_of(a)
+    };
+    let spec_b = if let Some(tiles) = &b.tiles {
+        crate::model::CollisionSpec {
+            layer: tiles.layer,
+            mask: tiles.mask,
+            ..Default::default()
+        }
+    } else {
+        super::spec_of(b)
+    };
+    spec_a.interacts_with(&spec_b)
+}
+
 /// Axis-aligned overlap test between two bodies at their current states.
-/// Uses the same extent rules as the simulation (explicit collision spec,
-/// otherwise visual size; circle pairs use radii, everything else AABB).
+/// Uses the same SAT geometry as the simulation (explicit collision spec,
+/// otherwise visual size).
 fn pair_overlaps(a: &GameBody, sa: &BodyState, b: &GameBody, sb: &BodyState) -> bool {
-    let (aw, ah, ashape) = super::extent(a);
-    let (bw, bh, bshape) = super::extent(b);
-    if aw <= 0.0 || ah <= 0.0 || bw <= 0.0 || bh <= 0.0 {
-        return false;
-    }
-    if ashape == crate::model::CollisionShape::Circle
-        && bshape == crate::model::CollisionShape::Circle
-    {
-        let ra = aw / 2.0;
-        let rb = bw / 2.0;
-        let dx = sa.x - sb.x;
-        let dy = sa.y - sb.y;
-        return dx * dx + dy * dy <= (ra + rb) * (ra + rb);
-    }
-    let dx = (sa.x - sb.x).abs();
-    let dy = (sa.y - sb.y).abs();
-    dx <= (aw + bw) / 2.0 && dy <= (ah + bh) / 2.0
+    let ca = super::body_collider(a, (sa.x, sa.y));
+    let cb = super::body_collider(b, (sb.x, sb.y));
+    crate::collision::overlaps(&ca, &cb)
 }
 
 #[cfg(test)]
@@ -1009,6 +1023,72 @@ mod tests {
         runtime.states.get_mut(&other.id).unwrap().x += 500.0;
         runtime.step(&project, &InputState::default(), &no_keys, 0.016);
         assert!(events.borrow().iter().any(|(k, _)| *k == "exit"));
+    }
+
+    #[test]
+    fn collision_events_respect_layer_mask() {
+        let project = project_with_scenes(&["A"]);
+        let mut runtime = GameRuntime::new(&project, project.scenes[0].id).unwrap();
+        runtime.start();
+        let events = Rc::new(RefCell::new(Vec::new()));
+        let e2 = events.clone();
+        runtime
+            .events
+            .register(GameEventKind::CollisionEnter, move |e| {
+                e2.borrow_mut().push(e.label.clone());
+            });
+        // Overlapping body on layer 2 whose mask does not include layer 1:
+        // pairs must not interact, so no enter event may fire.
+        let other = ObjectInstance {
+            id: Uuid::new_v4(),
+            name: "Other".into(),
+            kind: ObjectKind::Rect {
+                width: 40.0,
+                height: 40.0,
+                corner_radius: 0.0,
+            },
+            transform: Default::default(),
+            fill: Rgba::WHITE,
+            script: None,
+            source_character: None,
+            game: Some(GameObjectConfig {
+                collision: Some(crate::model::CollisionSpec {
+                    shape: crate::model::CollisionShape::Rectangle,
+                    width: 40.0,
+                    height: 40.0,
+                    layer: 2,
+                    mask: 2, // does not see layer 1
+                    ..Default::default()
+                }),
+                physics: None,
+            }),
+            particles: None,
+        };
+        runtime.bodies.push(GameBody {
+            id: other.id,
+            name: other.name.clone(),
+            x: runtime.bodies[0].x,
+            y: runtime.bodies[0].y,
+            width: 40.0,
+            height: 40.0,
+            collision: other.game.as_ref().unwrap().collision.clone(),
+            physics: None,
+            tiles: None,
+        });
+        runtime.states.insert(
+            other.id,
+            BodyState {
+                x: runtime.bodies[0].x,
+                y: runtime.bodies[0].y,
+                ..Default::default()
+            },
+        );
+        runtime.step(&project, &InputState::default(), &no_keys, 0.016);
+        assert!(
+            events.borrow().is_empty(),
+            "mask-filtered pair must not emit collision events: {:?}",
+            events.borrow()
+        );
     }
 
     #[test]

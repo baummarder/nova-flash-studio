@@ -8,7 +8,7 @@ the project format is versioned JSON, and the SWF writer is implemented directly
 against the published SWF file-format specification. Tools and extensions run in
 an embedded QuickJS context; ActionScript is **not** executed by QuickJS.
 
-> **Status: Mega Milestone 11 release candidate `0.7.0-rc1`, not stable.**
+> **Status: Mega Milestone 11.1 release candidate `0.7.1-rc1`, not stable.**
 > The validated `0.6.0-rc2`/`0.6.0-rc1` artifacts remain under
 > `dist/` and `dist/archive/`. M10 added game development on top of M9:
 > optional game metadata in the `.nova` format (version 3, backwards
@@ -48,6 +48,18 @@ an embedded QuickJS context; ActionScript is **not** executed by QuickJS.
 > including a composite `create_game_level`, three new game templates
 > (tilemap platformer, tilemap dungeon, particle showcase) and four new demo
 > projects under `samples/`. See [Limitations](#limitations),
+>
+> M11.1 ("World Building Polish & Runtime Improvements") closes the M11
+> limitations: real SAT polygon collision (convex hull for concave input),
+> collision layer/mask filtering for tile colliders and the event bus,
+> tilemap canvas zoom/pan/grid/collision overlay, region select/copy/paste/
+> move/flip with undo, a dedicated tileset slicing dialog, tileset
+> margins/spacing honoured by every renderer/exporter, edit-mode particle
+> preview, camera small-world and missing-target fixes, new AI operations
+> (`add_tile_layer`, `configure_tile_layer`, `flip_tile_region`,
+> `move_tile_region`, slicing fields on `create_tileset`), XFL tilemap→PNG
+> bitmap export and a repeatable performance suite. All seven M10 templates
+> and all M11 demos re-verified in Ruffle 0.7.1.
 > [docs/WORLD_BUILDING.md](docs/WORLD_BUILDING.md),
 > [docs/MEGA_MILESTONE_11_REPORT.md](docs/MEGA_MILESTONE_11_REPORT.md),
 > [docs/MEGA_MILESTONE_10_1_REPORT.md](docs/MEGA_MILESTONE_10_1_REPORT.md),
@@ -105,7 +117,7 @@ Rust.
 
 | Platform | Package | Status in this repository |
 | --- | --- | --- |
-| Windows 10/11 x64 | `NOVA-Flash-Studio-<version>-windows-x64-Setup.exe` installer, or the portable `NØVA Flash Studio.exe` in the ZIP under `dist/windows/` | Rebuilt and smoke-tested for `0.7.0-rc1`; headless install/uninstall verified |
+| Windows 10/11 x64 | `NOVA-Flash-Studio-<version>-windows-x64-Setup.exe` installer, or the portable `NØVA Flash Studio.exe` in the ZIP under `dist/windows/` | Rebuilt and smoke-tested for `0.7.1-rc1`; `0.7.0-rc1` preserved under `dist/archive/` |
 | macOS 10.15+ | `NØVA Flash Studio.app` ZIP | Bundle script and metadata prepared; not built here |
 | Linux x86_64 | `NØVA-Flash-Studio.AppImage` | AppImage recipe prepared; not built here |
 
@@ -145,11 +157,13 @@ bash scripts/package-macos.sh
 bash scripts/package-linux.sh
 ```
 
-The current Windows artifacts are produced from workspace version `0.7.0-rc1`:
+The current Windows artifacts are produced from workspace version `0.7.1-rc1`:
 the portable ZIP, the staged `NØVA Flash Studio.exe`, and the self-contained
-`NOVA-Flash-Studio-0.7.0-rc1-windows-x64-Setup.exe`. Sizes and SHA-256 values are
+`NOVA-Flash-Studio-0.7.1-rc1-windows-x64-Setup.exe`. Sizes and SHA-256 values are
 listed in `dist/windows/SHA256SUMS.txt`, which is authoritative even if a
-documentation-only rebuild changes a ZIP or Setup hash. The validated
+documentation-only rebuild changes a ZIP or Setup hash. Earlier release
+payloads are preserved under `dist/archive/<version>/` (e.g. `0.7.0-rc1`,
+`0.5.0-rc1`). The validated
 `0.4.0-rc1` artifacts are preserved under `dist/archive/0.4.0-rc1` and
 `0.3.0-rc2` under `dist/archive/0.3.0-rc2`. The artifacts are unsigned.
 
@@ -401,14 +415,17 @@ have context menus for keyframe operations.
   real templates (empty, animation, platformer, UI kit); object
   copy/paste/duplicate; align/distribute; grid snapping; code find/replace with
   case toggle and project-wide search.
-- **World building (M11)** — serialisable tilemaps with shared tilesets
-  (bitmap-backed, per-tile names, solid flags), a tile-painting bottom-dock
-  editor with six tools and layer controls, polygon collision with
-  layer/mask bits, deterministic particle emitters (nine presets) in the
-  game preview, world bounds, extended camera settings, tile-cell collision,
-  twelve transactional AI operations and three new tilemap/particle game
-  templates. Tilemaps bake to `DefineBitsLossless2` on SWF export; particles
-  and tilemaps are preview/`.nova`-native and warn on export.
+- **World building (M11/M11.1)** — serialisable tilemaps with shared tilesets
+  (bitmap-backed, per-tile names, solid flags, margins/spacing), a
+  tile-painting bottom-dock editor with seven tools, region select/copy/
+  paste/move/flip, zoom/pan/grid/collision overlay and a tileset slicing
+  dialog, SAT polygon collision with layer/mask filtering (including tile
+  colliders), deterministic particle emitters (nine presets) in game and
+  edit-mode preview, world bounds, extended camera settings, transactional AI
+  operations including tile-layer/region edits, and tilemap→bitmap baking on
+  both SWF and XFL export. Tilemaps bake to `DefineBitsLossless2` on SWF
+  export and PNG library items on XFL; particles remain preview/`.nova`-native
+  and warn on export.
 - **Packaging** — custom Windows icon/version resource embedding, Windows ZIP
   script, a self-contained branded setup wizard with per-user/all-users
   install, custom directory, optional file associations, uninstaller and

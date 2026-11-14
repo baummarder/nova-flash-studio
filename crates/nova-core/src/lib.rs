@@ -5,6 +5,7 @@
 //! object created on the stage is immediately visible to the code mode and
 //! vice versa.
 
+pub mod collision;
 pub mod error;
 pub mod game;
 pub mod gamekit;

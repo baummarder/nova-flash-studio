@@ -840,97 +840,9 @@ impl CharacterTables {
         warnings: &mut Vec<String>,
         stats: &mut BuildStats,
     ) -> Result<Option<u16>, BuildError> {
-        if map.columns == 0 || map.rows == 0 {
-            return Ok(None);
-        }
-        let Some(tileset) = project.tilesets.iter().find(|t| t.id == map.tileset) else {
-            warnings.push(
-                "Kachelkarte verweist auf einen unbekannten Tileset und wurde übersprungen.".into(),
-            );
+        let Some((out_w, out_h, out)) = bake_tilemap(project, map, warnings)? else {
             return Ok(None);
         };
-        let Some(asset) = project.asset(tileset.asset) else {
-            warnings.push(format!(
-                "Tileset '{}' verweist auf ein unbekanntes Asset und wurde übersprungen.",
-                tileset.name
-            ));
-            return Ok(None);
-        };
-        if asset.data.is_empty() {
-            warnings.push(format!(
-                "Tileset-Asset '{}' enthält keine eingebetteten Daten.",
-                asset.name
-            ));
-            return Ok(None);
-        }
-        let source = image::load_from_memory(&asset.data)
-            .map_err(|error| BuildError::Asset(format!("Tileset '{}': {error}", asset.name)))?
-            .to_rgba8();
-        let (src_w, src_h) = source.dimensions();
-        if tileset.tile_width == 0 || tileset.tile_height == 0 || tileset.columns == 0 {
-            warnings.push(format!(
-                "Tileset '{}' hat ungültige Kachelmaße und wurde übersprungen.",
-                tileset.name
-            ));
-            return Ok(None);
-        }
-        let out_w = map.columns as u32 * tileset.tile_width;
-        let out_h = map.rows as u32 * tileset.tile_height;
-        if out_w == 0 || out_h == 0 || out_w > 8192 || out_h > 8192 {
-            warnings.push(format!(
-                "Kachelkarte ist zu groß für den SWF-Export ({out_w}×{out_h}px)."
-            ));
-            return Ok(None);
-        }
-        let src_px = source.as_raw();
-        let mut out = vec![0u8; (out_w * out_h * 4) as usize];
-        let tile_rows = src_h / tileset.tile_height;
-        for layer in &map.layers {
-            if !layer.visible {
-                continue;
-            }
-            let opacity = layer.opacity.clamp(0.0, 1.0);
-            for cy in 0..map.rows {
-                for cx in 0..map.columns {
-                    let cell = layer.cells.get(cy * map.columns + cx).copied().unwrap_or(0);
-                    if cell == 0 {
-                        continue;
-                    }
-                    let index = cell as usize - 1;
-                    let tile_col = (index as u32 % tileset.columns) * tileset.tile_width;
-                    let tile_row = (index as u32 / tileset.columns) * tileset.tile_height;
-                    if tile_row >= tile_rows * tileset.tile_height {
-                        continue; // tile index outside the source image
-                    }
-                    let sx = tile_col.min(src_w.saturating_sub(tileset.tile_width));
-                    let sy = tile_row.min(src_h.saturating_sub(tileset.tile_height));
-                    let copy_w = tileset.tile_width.min(src_w - sx);
-                    let copy_h = tileset.tile_height.min(src_h - sy);
-                    let dx = cx as u32 * tileset.tile_width;
-                    let dy = cy as u32 * tileset.tile_height;
-                    for py in 0..copy_h {
-                        for px in 0..copy_w {
-                            let s = ((sy + py) * src_w + sx + px) as usize * 4;
-                            let sa = src_px[s + 3] as f32 / 255.0 * opacity;
-                            if sa <= 0.0 {
-                                continue;
-                            }
-                            let d = ((dy + py) * out_w + dx + px) as usize * 4;
-                            let inv = 1.0 - sa;
-                            for c in 0..3 {
-                                out[d + c] = (src_px[s + c] as f32 * sa + out[d + c] as f32 * inv)
-                                    .round()
-                                    .clamp(0.0, 255.0)
-                                    as u8;
-                            }
-                            out[d + 3] = ((sa * 255.0).max(out[d + 3] as f32 * inv))
-                                .round()
-                                .clamp(0.0, 255.0) as u8;
-                        }
-                    }
-                }
-            }
-        }
         let width = u16::try_from(out_w)
             .map_err(|_| BuildError::Limit("Kachelkarte breiter als 65535 Pixel".into()))?;
         let height = u16::try_from(out_h)
@@ -1346,6 +1258,109 @@ fn sound_payload(asset: &nova_core::Asset, warnings: &mut Vec<String>) -> Option
         ));
         None
     }
+}
+
+/// Bakes a tilemap into an RGBA pixel buffer `(width, height, rgba)`.
+///
+/// Every visible layer is alpha-composited cell-by-cell from the shared
+/// tileset image; layer opacity is honoured and `tile_rect` accounts for
+/// margins/spacing. Returns `Ok(None)` with a human-readable warning pushed
+/// to `warnings` when the map cannot be baked (missing tileset/asset,
+/// invalid metrics, oversized output). Shared by the SWF exporter and the
+/// XFL bitmap export.
+pub fn bake_tilemap(
+    project: &Project,
+    map: &nova_core::TilemapData,
+    warnings: &mut Vec<String>,
+) -> Result<Option<(u32, u32, Vec<u8>)>, BuildError> {
+    if map.columns == 0 || map.rows == 0 {
+        return Ok(None);
+    }
+    let Some(tileset) = project.tilesets.iter().find(|t| t.id == map.tileset) else {
+        warnings.push(
+            "Kachelkarte verweist auf einen unbekannten Tileset und wurde übersprungen.".into(),
+        );
+        return Ok(None);
+    };
+    let Some(asset) = project.asset(tileset.asset) else {
+        warnings.push(format!(
+            "Tileset '{}' verweist auf ein unbekanntes Asset und wurde übersprungen.",
+            tileset.name
+        ));
+        return Ok(None);
+    };
+    if asset.data.is_empty() {
+        warnings.push(format!(
+            "Tileset-Asset '{}' enthält keine eingebetteten Daten.",
+            asset.name
+        ));
+        return Ok(None);
+    }
+    let source = image::load_from_memory(&asset.data)
+        .map_err(|error| BuildError::Asset(format!("Tileset '{}': {error}", asset.name)))?
+        .to_rgba8();
+    let (src_w, src_h) = source.dimensions();
+    if tileset.tile_width == 0 || tileset.tile_height == 0 || tileset.columns == 0 {
+        warnings.push(format!(
+            "Tileset '{}' hat ungültige Kachelmaße und wurde übersprungen.",
+            tileset.name
+        ));
+        return Ok(None);
+    }
+    let out_w = map.columns as u32 * tileset.tile_width;
+    let out_h = map.rows as u32 * tileset.tile_height;
+    if out_w == 0 || out_h == 0 || out_w > 8192 || out_h > 8192 {
+        warnings.push(format!(
+            "Kachelkarte ist zu groß für den Export ({out_w}×{out_h}px)."
+        ));
+        return Ok(None);
+    }
+    let src_px = source.as_raw();
+    let mut out = vec![0u8; (out_w * out_h * 4) as usize];
+    for layer in &map.layers {
+        if !layer.visible {
+            continue;
+        }
+        let opacity = layer.opacity.clamp(0.0, 1.0);
+        for cy in 0..map.rows {
+            for cx in 0..map.columns {
+                let cell = layer.cells.get(cy * map.columns + cx).copied().unwrap_or(0);
+                if cell == 0 {
+                    continue;
+                }
+                let index = cell as usize - 1;
+                // tile_rect honours margins/spacing and rejects tiles
+                // that fall outside the source image.
+                let Some((sx, sy, tw, th)) = tileset.tile_rect(index, src_w, src_h) else {
+                    continue;
+                };
+                let copy_w = tw.min(src_w - sx);
+                let copy_h = th.min(src_h - sy);
+                let dx = cx as u32 * tileset.tile_width;
+                let dy = cy as u32 * tileset.tile_height;
+                for py in 0..copy_h {
+                    for px in 0..copy_w {
+                        let s = ((sy + py) * src_w + sx + px) as usize * 4;
+                        let sa = src_px[s + 3] as f32 / 255.0 * opacity;
+                        if sa <= 0.0 {
+                            continue;
+                        }
+                        let d = ((dy + py) * out_w + dx + px) as usize * 4;
+                        let inv = 1.0 - sa;
+                        for c in 0..3 {
+                            out[d + c] = (src_px[s + c] as f32 * sa + out[d + c] as f32 * inv)
+                                .round()
+                                .clamp(0.0, 255.0) as u8;
+                        }
+                        out[d + 3] = ((sa * 255.0).max(out[d + 3] as f32 * inv))
+                            .round()
+                            .clamp(0.0, 255.0) as u8;
+                    }
+                }
+            }
+        }
+    }
+    Ok(Some((out_w, out_h, out)))
 }
 
 fn next_character_id(current: u16) -> Result<u16, BuildError> {

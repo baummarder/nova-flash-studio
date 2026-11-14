@@ -240,32 +240,19 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
         }
     }
 
-    // Particle emitters: live preview simulation only.
+    // Particle emitters: game preview uses the runtime simulation; in edit
+    // mode a lightweight deterministic preview runs on the authored objects.
     if let Some(preview) = &state.game_preview {
         for (_emitter, views) in preview.particle_views() {
-            for particle in views {
-                if particle.size <= 0.0 || particle.opacity <= 0.0 {
-                    continue;
-                }
-                let center = view.to_screen(Pos2::new(particle.x, particle.y));
-                let radius = (particle.size * view.zoom / 2.0).max(0.5);
-                let alpha = (particle.color.a as f32 * particle.opacity).round() as u8;
-                let color = Color32::from_rgba_unmultiplied(
-                    particle.color.r,
-                    particle.color.g,
-                    particle.color.b,
-                    alpha,
-                );
-                let radians = particle.rotation.to_radians();
-                let (sin, cos) = radians.sin_cos();
-                let quad = [
-                    center + Vec2::new(-radius * cos + radius * sin, -radius * sin - radius * cos),
-                    center + Vec2::new(radius * cos + radius * sin, radius * sin - radius * cos),
-                    center + Vec2::new(radius * cos - radius * sin, radius * sin + radius * cos),
-                    center + Vec2::new(-radius * cos - radius * sin, -radius * sin + radius * cos),
-                ];
-                painter.add(Shape::convex_polygon(quad.to_vec(), color, Stroke::NONE));
-            }
+            draw_particle_views(&painter, &view, &views);
+        }
+    } else {
+        let dt = ui.input(|i| i.stable_dt).clamp(0.0, 0.1);
+        if dt > 0.0 {
+            step_edit_particles(state, &objects, dt);
+        }
+        for views in edit_particle_views(state) {
+            draw_particle_views(&painter, &view, &views);
         }
     }
 
@@ -600,13 +587,16 @@ fn draw_tilemap(
                     continue;
                 }
                 let index = cell as usize - 1;
-                let tile_col = (index as u32 % tileset.columns) * tileset.tile_width;
-                let tile_row = (index as u32 / tileset.columns) * tileset.tile_height;
+                let Some((tile_col, tile_row, tile_pw, tile_ph)) =
+                    tileset.tile_rect(index, tex_size[0] as u32, tex_size[1] as u32)
+                else {
+                    continue;
+                };
                 // UV rect of the tile inside the texture.
                 let u0 = tile_col as f32 / tw;
                 let v0 = tile_row as f32 / th;
-                let u1 = (tile_col + tileset.tile_width) as f32 / tw;
-                let v1 = (tile_row + tileset.tile_height) as f32 / th;
+                let u1 = (tile_col + tile_pw) as f32 / tw;
+                let v1 = (tile_row + tile_ph) as f32 / th;
                 // Local quad, centre-based.
                 let lx0 = cx as f32 * tile_w - map.width() / 2.0;
                 let ly0 = cy as f32 * tile_h - map.height() / 2.0;
@@ -1756,6 +1746,76 @@ fn draw_bitmap(
             StrokeKind::Inside,
         );
     }
+}
+
+/// Draws resolved particle views (shared by game preview and edit preview).
+fn draw_particle_views(
+    painter: &egui::Painter,
+    view: &View,
+    views: &[nova_core::particles::ParticleView],
+) {
+    for particle in views {
+        if particle.size <= 0.0 || particle.opacity <= 0.0 {
+            continue;
+        }
+        let center = view.to_screen(Pos2::new(particle.x, particle.y));
+        let radius = (particle.size * view.zoom / 2.0).max(0.5);
+        let alpha = (particle.color.a as f32 * particle.opacity).round() as u8;
+        let color = Color32::from_rgba_unmultiplied(
+            particle.color.r,
+            particle.color.g,
+            particle.color.b,
+            alpha,
+        );
+        let radians = particle.rotation.to_radians();
+        let (sin, cos) = radians.sin_cos();
+        let quad = [
+            center + Vec2::new(-radius * cos + radius * sin, -radius * sin - radius * cos),
+            center + Vec2::new(radius * cos + radius * sin, radius * sin - radius * cos),
+            center + Vec2::new(radius * cos - radius * sin, radius * sin + radius * cos),
+            center + Vec2::new(-radius * cos - radius * sin, -radius * sin + radius * cos),
+        ];
+        painter.add(Shape::convex_polygon(quad.to_vec(), color, Stroke::NONE));
+    }
+}
+
+/// Steps the edit-mode particle systems for every resolved object carrying
+/// an emitter. Systems are recreated when the spec changes; removed objects
+/// are pruned so restarts never accumulate particles.
+fn step_edit_particles(state: &mut AppState, objects: &[nova_core::ResolvedObject], dt: f32) {
+    use std::collections::HashSet;
+    let mut live: HashSet<uuid::Uuid> = HashSet::new();
+    for resolved in objects {
+        let instance = &resolved.instance;
+        let Some(spec) = &instance.particles else {
+            continue;
+        };
+        live.insert(instance.id);
+        let origin = (instance.transform.x, instance.transform.y);
+        let entry = state.edit_particles.entry(instance.id).or_insert_with(|| {
+            (
+                spec.clone(),
+                nova_core::particles::ParticleSystem::new(spec.clone()),
+                origin,
+            )
+        });
+        if entry.0 != *spec {
+            entry.0 = spec.clone();
+            entry.1 = nova_core::particles::ParticleSystem::new(spec.clone());
+        }
+        entry.2 = origin;
+        entry.1.update(origin, dt);
+    }
+    state.edit_particles.retain(|id, _| live.contains(id));
+}
+
+/// Render-ready views of all live edit-mode particle systems.
+fn edit_particle_views(state: &AppState) -> Vec<Vec<nova_core::particles::ParticleView>> {
+    state
+        .edit_particles
+        .values()
+        .map(|(_, system, origin)| system.view(*origin))
+        .collect()
 }
 
 #[cfg(test)]

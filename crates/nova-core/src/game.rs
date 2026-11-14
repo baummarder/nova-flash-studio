@@ -94,6 +94,10 @@ pub struct TileCollider {
     pub tile_height: f32,
     /// Row-major solidity flags (true = solid), length columns*rows.
     pub solid: Vec<bool>,
+    /// Collision layer of the tilemap body (from its collision spec, or 1).
+    pub layer: u32,
+    /// Collision mask of the tilemap body (from its collision spec, or all).
+    pub mask: u32,
 }
 
 impl TileCollider {
@@ -169,7 +173,6 @@ pub fn collect_bodies(scene: &Scene, symbols: &[Symbol]) -> Vec<GameBody> {
 }
 
 /// Collision extents: explicit spec wins, otherwise the visual size.
-/// Polygon colliders use their bounding box in the preview (documented).
 fn extent(body: &GameBody) -> (f32, f32, CollisionShape) {
     match &body.collision {
         Some(c) => (c.width.max(1.0), c.height.max(1.0), c.shape.clone()),
@@ -179,6 +182,49 @@ fn extent(body: &GameBody) -> (f32, f32, CollisionShape) {
             CollisionShape::Rectangle,
         ),
     }
+}
+
+/// Collision layer/mask of a body: explicit spec wins, otherwise the
+/// permissive default (layer 1, mask all) so legacy content keeps working.
+fn spec_of(body: &GameBody) -> CollisionSpec {
+    body.collision.clone().unwrap_or_else(|| CollisionSpec {
+        layer: 1,
+        mask: u32::MAX,
+        ..Default::default()
+    })
+}
+
+/// Builds the SAT collider for `body` at world position `pos`.
+/// Rectangles become four-point polygons; non-convex authored polygons are
+/// approximated by their convex hull (documented, deterministic).
+pub fn body_collider(body: &GameBody, pos: (f32, f32)) -> crate::collision::Collider {
+    use crate::collision::{Collider, Shape};
+    let (w, h, shape_kind) = extent(body);
+    let shape = match shape_kind {
+        CollisionShape::Circle => Shape::Circle { r: w / 2.0 },
+        CollisionShape::Rectangle => Shape::Rect {
+            hw: w / 2.0,
+            hh: h / 2.0,
+        },
+        CollisionShape::Polygon { points } => {
+            let pts: Vec<(f32, f32)> = if crate::collision::is_convex(&points) {
+                points.clone()
+            } else {
+                crate::collision::convex_hull(&points)
+            };
+            if pts.len() >= 3 {
+                Shape::Poly { points: pts }
+            } else {
+                // Degenerate polygon: fall back to its bounding rect so the
+                // body still collides predictably instead of disappearing.
+                Shape::Rect {
+                    hw: w / 2.0,
+                    hh: h / 2.0,
+                }
+            }
+        }
+    };
+    Collider { center: pos, shape }
 }
 
 /// One simulation step. Mutates `states` in place; `dt` is seconds (clamped
@@ -250,7 +296,21 @@ pub fn step(
                 continue;
             }
             if let Some(tiles) = &bodies[j].tiles {
-                resolve_tiles(bodies, states, i, j, tiles);
+                // Tile colliders carry their own layer/mask (from the
+                // tilemap object's collision spec or the permissive default).
+                let tile_spec = CollisionSpec {
+                    layer: tiles.layer,
+                    mask: tiles.mask,
+                    ..Default::default()
+                };
+                // `i` is dynamic and therefore always has a collision spec.
+                if bodies[i]
+                    .collision
+                    .as_ref()
+                    .is_some_and(|ci| ci.interacts_with(&tile_spec))
+                {
+                    resolve_tiles(bodies, states, i, j, tiles);
+                }
                 continue;
             }
             let (Some(ci), Some(cj)) = (&bodies[i].collision, &bodies[j].collision) else {
@@ -298,36 +358,15 @@ fn resolve_pair(bodies: &[GameBody], states: &mut HashMap<Uuid, BodyState>, i: u
     let (ax, ay) = (sa.x, sa.y);
     let (bx, by) = (sb.x, sb.y);
 
-    let (aw, ah, ashape) = extent(a);
-    let (bw, bh, bshape) = extent(b);
-
-    let contact = match (ashape, bshape) {
-        (CollisionShape::Circle, CollisionShape::Circle) => {
-            let ra = aw / 2.0;
-            let rb = bw / 2.0;
-            let dx = ax - bx;
-            let dy = ay - by;
-            let dist = (dx * dx + dy * dy).sqrt();
-            let overlap = ra + rb - dist;
-            if overlap <= 0.0 {
-                states.insert(a.id, sa);
-                states.insert(b.id, sb);
-                return;
-            }
-            if dist < 0.001 {
-                Some((0.0, -1.0, overlap))
-            } else {
-                Some((dx / dist, dy / dist, overlap))
-            }
-        }
-        // Mixed circle/rect pairs use the bounding-box approximation.
-        _ => rect_overlap(ax, ay, aw, ah, bx, by, bw, bh),
-    };
-    let Some((nx, ny, depth)) = contact else {
+    // SAT collision: polygons (incl. rectangles), circles and mixed pairs.
+    let ca = body_collider(a, (ax, ay));
+    let cb = body_collider(b, (bx, by));
+    let Some(contact) = crate::collision::collide(&ca, &cb) else {
         states.insert(a.id, sa);
         states.insert(b.id, sb);
         return;
     };
+    let (nx, ny, depth) = (contact.nx, contact.ny, contact.depth);
 
     let bounce = a.physics.map(|p| p.bounce).unwrap_or(0.0);
     let friction = a.physics.map(|p| p.friction).unwrap_or(0.0);
@@ -353,9 +392,9 @@ fn resolve_pair(bodies: &[GameBody], states: &mut HashMap<Uuid, BodyState>, i: u
 }
 
 /// Resolves dynamic body `i` against the solid cells of tilemap body `j`.
-/// Only cells overlapping the body's AABB are tested; resolution uses the
-/// same min-axis push-out + restitution as [`resolve_pair`]. Tile collision
-/// ignores layer/mask (tileset solidity is binary) — documented limitation.
+/// Only cells overlapping the body's AABB are tested; resolution uses SAT
+/// against each cell rect with the same restitution as [`resolve_pair`].
+/// Layer/mask filtering happens in `step` before this is called.
 fn resolve_tiles(
     bodies: &[GameBody],
     states: &mut HashMap<Uuid, BodyState>,
@@ -391,6 +430,8 @@ fn resolve_tiles(
 
     let bounce = a.physics.map(|p| p.bounce).unwrap_or(0.0);
     let friction = a.physics.map(|p| p.friction).unwrap_or(0.0);
+    // The dynamic body's collider is built once; each solid cell is a rect.
+    let ca = body_collider(a, (sa.x, sa.y));
 
     for cy in min_cy..max_cy {
         for cx in min_cx..max_cx {
@@ -403,10 +444,17 @@ fn resolve_tiles(
                 continue;
             }
             let (cl, ct, cw, ch) = tiles.cell_rect(cx, cy, sb.x, sb.y);
-            let contact = rect_overlap(sa.x, sa.y, aw, ah, cl + cw / 2.0, ct + ch / 2.0, cw, ch);
-            let Some((nx, ny, depth)) = contact else {
+            let cell = crate::collision::Collider {
+                center: (cl + cw / 2.0, ct + ch / 2.0),
+                shape: crate::collision::Shape::Rect {
+                    hw: cw / 2.0,
+                    hh: ch / 2.0,
+                },
+            };
+            let Some(contact) = crate::collision::collide(&ca, &cell) else {
                 continue;
             };
+            let (nx, ny, depth) = (contact.nx, contact.ny, contact.depth);
             sa.x += nx * depth;
             sa.y += ny * depth;
             let vn = sa.vx * nx + sa.vy * ny;
@@ -468,42 +516,17 @@ pub fn attach_tile_colliders(
             }
         }
         if solid.iter().any(|s| *s) {
+            let spec = spec_of(body);
             body.tiles = Some(TileCollider {
                 columns: map.columns,
                 rows: map.rows,
                 tile_width: map.tile_width,
                 tile_height: map.tile_height,
                 solid,
+                layer: spec.layer,
+                mask: spec.mask,
             });
         }
-    }
-}
-
-/// AABB overlap; returns the contact normal pointing from b to a plus depth.
-fn rect_overlap(
-    ax: f32,
-    ay: f32,
-    aw: f32,
-    ah: f32,
-    bx: f32,
-    by: f32,
-    bw: f32,
-    bh: f32,
-) -> Option<(f32, f32, f32)> {
-    let dx = ax - bx;
-    let px = (aw + bw) / 2.0 - dx.abs();
-    if px <= 0.0 {
-        return None;
-    }
-    let dy = ay - by;
-    let py = (ah + bh) / 2.0 - dy.abs();
-    if py <= 0.0 {
-        return None;
-    }
-    if px < py {
-        Some((if dx >= 0.0 { 1.0 } else { -1.0 }, 0.0, px))
-    } else {
-        Some((0.0, if dy >= 0.0 { 1.0 } else { -1.0 }, py))
     }
 }
 
@@ -564,16 +587,22 @@ pub fn step_camera(
     if config.right > config.left {
         let lo = config.left + half_w;
         let hi = config.right - half_w;
-        if lo <= hi {
-            camera.x = camera.x.clamp(lo, hi);
-        }
+        // When the viewport is larger than the world on an axis, centre the
+        // camera on the world instead of leaving it unclamped/drifting.
+        camera.x = if lo <= hi {
+            camera.x.clamp(lo, hi)
+        } else {
+            (config.left + config.right) / 2.0
+        };
     }
     if config.bottom > config.top {
         let lo = config.top + half_h;
         let hi = config.bottom - half_h;
-        if lo <= hi {
-            camera.y = camera.y.clamp(lo, hi);
-        }
+        camera.y = if lo <= hi {
+            camera.y.clamp(lo, hi)
+        } else {
+            (config.top + config.bottom) / 2.0
+        };
     }
 
     // Deterministic shake: two incommensurate sines give a stable jitter that
@@ -812,5 +841,297 @@ mod tests {
         let hero = &bodies[0];
         let sx = states.get(&hero.id).unwrap().x;
         assert!((camera.x - sx).abs() < 30.0, "cam={} hero={}", camera.x, sx);
+    }
+
+    #[test]
+    fn polygon_body_collides_with_real_geometry() {
+        // A dynamic circle dropped onto a flat-topped polygon house: it must
+        // rest on the sloped/flat polygon surface, not its bounding box.
+        let mut floor_game = static_floor(250.0);
+        floor_game.collision = Some(CollisionSpec {
+            shape: CollisionShape::Polygon {
+                // Trapezoid: flat roof at local y=-20 (world y=230),
+                // eaves at local y=20 (world y=270).
+                points: vec![(-40.0, 20.0), (-20.0, -20.0), (20.0, -20.0), (40.0, 20.0)],
+            },
+            width: 80.0,
+            height: 40.0,
+            ..Default::default()
+        });
+        let mut ball_game = dynamic_player();
+        ball_game.collision = Some(CollisionSpec {
+            shape: CollisionShape::Circle,
+            width: 16.0,
+            height: 16.0,
+            ..Default::default()
+        });
+        ball_game.physics = Some(PhysicsSpec {
+            body: BodyType::Dynamic,
+            gravity_scale: 1.0,
+            friction: 0.0,
+            bounce: 0.0,
+            controlled: false,
+        });
+        let scene = scene_with(vec![
+            game_object("Ball", 200.0, 50.0, 16.0, 16.0, ball_game),
+            game_object("Haus", 200.0, 250.0, 80.0, 40.0, floor_game),
+        ]);
+        let bodies = collect_bodies(&scene, &[]);
+        let mut states = HashMap::new();
+        for _ in 0..240 {
+            step(
+                &bodies,
+                &mut states,
+                &InputState::default(),
+                400.0,
+                300.0,
+                1.0 / 60.0,
+            );
+        }
+        let ball = bodies.iter().find(|b| b.name == "Ball").unwrap();
+        let sb = states.get(&ball.id).unwrap();
+        // Flat roof top at world y=230; ball radius 8 -> rest y≈222.
+        // (Bounding-box bottom would be y=270 -> rest y≈262.)
+        assert!(
+            (sb.y - 222.0).abs() < 8.0,
+            "ball y={} should rest on the polygon roof",
+            sb.y
+        );
+        assert!(sb.grounded);
+    }
+
+    #[test]
+    fn concave_polygon_uses_convex_hull() {
+        // Arrow-shaped (concave) polygon: hull is the bounding triangle-ish
+        // quad; body must still collide deterministically.
+        let mut wall_game = static_floor(200.0);
+        wall_game.collision = Some(CollisionSpec {
+            shape: CollisionShape::Polygon {
+                points: vec![
+                    (-20.0, -20.0),
+                    (20.0, -20.0),
+                    (20.0, 20.0),
+                    (0.0, 0.0),
+                    (-20.0, 20.0),
+                ],
+            },
+            width: 40.0,
+            height: 40.0,
+            ..Default::default()
+        });
+        let mut mover = dynamic_player();
+        mover.physics = Some(PhysicsSpec {
+            body: BodyType::Dynamic,
+            gravity_scale: 0.0,
+            friction: 0.0,
+            bounce: 0.0,
+            controlled: false,
+        });
+        let scene = scene_with(vec![
+            game_object("Mover", 100.0, 100.0, 20.0, 20.0, mover),
+            game_object("Pfeil", 112.0, 100.0, 40.0, 40.0, wall_game),
+        ]);
+        let bodies = collect_bodies(&scene, &[]);
+        let mover_id = bodies.iter().find(|b| b.name == "Mover").unwrap().id;
+        let mut states = HashMap::new();
+        for _ in 0..10 {
+            step(
+                &bodies,
+                &mut states,
+                &InputState::default(),
+                400.0,
+                300.0,
+                1.0 / 60.0,
+            );
+        }
+        let s = states.get(&mover_id).unwrap();
+        // Pushed out of the hull overlap: no NaN, finite position.
+        assert!(s.x.is_finite() && s.y.is_finite());
+        assert!(s.x < 112.0, "mover should be pushed left, x={}", s.x);
+    }
+
+    #[test]
+    fn camera_centres_when_world_smaller_than_viewport() {
+        let mut camera = CameraState {
+            x: 999.0,
+            y: 999.0,
+            zoom: 1.0,
+        };
+        let config = crate::model::CameraConfig {
+            enabled: true,
+            left: 0.0,
+            top: 0.0,
+            right: 100.0,
+            bottom: 80.0,
+            zoom: 1.0,
+            ..Default::default()
+        };
+        // Viewport 400x300 >> world 100x80: camera must centre on the world.
+        step_camera(
+            &mut camera,
+            &config,
+            &[],
+            &HashMap::new(),
+            400.0,
+            300.0,
+            0.016,
+            0.0,
+        );
+        assert!((camera.x - 50.0).abs() < 1.0, "x={}", camera.x);
+        assert!((camera.y - 40.0).abs() < 1.0, "y={}", camera.y);
+    }
+
+    #[test]
+    fn camera_missing_follow_target_falls_back_to_stage_center() {
+        let mut camera = CameraState {
+            x: 10.0,
+            y: 10.0,
+            zoom: 1.0,
+        };
+        let config = crate::model::CameraConfig {
+            enabled: true,
+            follow: "ExistiertNicht".into(),
+            left: 0.0,
+            top: 0.0,
+            right: 400.0,
+            bottom: 300.0,
+            zoom: 1.0,
+            follow_smoothing: 0.0,
+            ..Default::default()
+        };
+        for _ in 0..30 {
+            step_camera(
+                &mut camera,
+                &config,
+                &[],
+                &HashMap::new(),
+                400.0,
+                300.0,
+                0.016,
+                0.0,
+            );
+        }
+        assert!((camera.x - 200.0).abs() < 1.0, "x={}", camera.x);
+        assert!((camera.y - 150.0).abs() < 1.0, "y={}", camera.y);
+    }
+
+    // ---------------------------------------------------------------
+    // M11.1: tile layer/mask filtering.
+    // ---------------------------------------------------------------
+
+    fn tilemap_scene(tile_layer: u32, tile_mask: u32) -> (Scene, crate::model::Project) {
+        use crate::model::{Tileset, Transform};
+        let mut project = crate::model::Project::new_empty("T");
+        project.tilesets.push(Tileset {
+            name: "Terrain".into(),
+            tile_width: 16,
+            tile_height: 16,
+            columns: 1,
+            solid: vec![true],
+            ..Default::default()
+        });
+        let tileset_id = project.tilesets[0].id;
+        let mut map = crate::tilemap::new_tilemap(tileset_id, 16.0, 16.0, 4, 4, &["Ground"]);
+        // Solid floor row at grid row 3 -> world y ≈ 166..182.
+        crate::tilemap::paint(
+            &mut map,
+            0,
+            crate::tilemap::PaintTool::Rect,
+            0,
+            3,
+            3,
+            3,
+            1,
+            0,
+            0,
+        )
+        .unwrap();
+        let mut tile_object = ObjectInstance::new(
+            "Map",
+            crate::model::ObjectKind::Tilemap(map),
+            Transform::at(200.0, 150.0),
+            Rgba::WHITE,
+        );
+        tile_object.game = Some(GameObjectConfig {
+            collision: Some(CollisionSpec {
+                layer: tile_layer,
+                mask: tile_mask,
+                ..Default::default()
+            }),
+            physics: None,
+        });
+        let mut player_game = dynamic_player();
+        player_game.collision = Some(CollisionSpec {
+            shape: CollisionShape::Rectangle,
+            width: 16.0,
+            height: 16.0,
+            layer: 1,
+            mask: u32::MAX,
+            ..Default::default()
+        });
+        let scene = scene_with(vec![
+            // x=192 is the centre of tile column 1 (cells are 16 px wide
+            // starting at world x=168); spawning on a boundary would let the
+            // min-axis solver push the body sideways off the ledge.
+            game_object("Spieler", 192.0, 50.0, 16.0, 16.0, player_game),
+            tile_object,
+        ]);
+        (scene, project)
+    }
+
+    #[test]
+    fn tile_collision_respects_layer_mask() {
+        // Tile layer 2 / mask 1 vs player layer 1 / mask all -> interact.
+        let (scene, project) = tilemap_scene(2, 1);
+        let mut bodies = collect_bodies(&scene, &[]);
+        attach_tile_colliders(&mut bodies, &scene, &project);
+        assert!(bodies.iter().any(|b| b.tiles.is_some()), "tiles attached");
+        let player = bodies.iter().find(|b| b.name == "Spieler").unwrap();
+        let mut states = HashMap::new();
+        for _ in 0..240 {
+            step(
+                &bodies,
+                &mut states,
+                &InputState::default(),
+                400.0,
+                300.0,
+                1.0 / 60.0,
+            );
+        }
+        let s = states.get(&player.id).unwrap();
+        // Floor top at world y=166; player half-height 8 -> rest y=158.
+        assert!((s.y - 158.0).abs() < 4.0, "y={} should land on tiles", s.y);
+        assert!(s.grounded);
+    }
+
+    #[test]
+    fn tile_collision_mask_mismatch_passes_through() {
+        // Tile layer 2 but player mask excludes bit 2 -> no interaction.
+        let (scene, project) = tilemap_scene(2, 1);
+        let mut bodies = collect_bodies(&scene, &[]);
+        // Patch the player spec mask directly on the collected body.
+        for body in bodies.iter_mut() {
+            if body.name == "Spieler" {
+                if let Some(c) = body.collision.as_mut() {
+                    c.mask = 1; // sees only layer 1; tiles are layer 2
+                }
+            }
+        }
+        attach_tile_colliders(&mut bodies, &scene, &project);
+        let player = bodies.iter().find(|b| b.name == "Spieler").unwrap();
+        let mut states = HashMap::new();
+        for _ in 0..240 {
+            step(
+                &bodies,
+                &mut states,
+                &InputState::default(),
+                400.0,
+                300.0,
+                1.0 / 60.0,
+            );
+        }
+        let s = states.get(&player.id).unwrap();
+        // Falls past the tile floor to the stage bottom clamp (y≈292).
+        assert!(s.y > 250.0, "y={} should fall through tiles", s.y);
     }
 }

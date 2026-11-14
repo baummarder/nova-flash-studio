@@ -120,3 +120,18 @@ one validated transaction).
 - Workspace version `0.7.0-rc1`; Windows ZIP + installer + SHA-256 sums under
   `dist/windows/` (see `dist/windows/SHA256SUMS.txt`).
 - macOS/Linux packaging scripts unchanged; still require native hosts.
+
+## 6. M11.1 addendum (0.7.1-rc1)
+
+World Building Polish closed the M11 limitations listed above: real SAT
+polygon collision (convex hull fallback for concave input), collision
+layer/mask filtering for tile colliders and the event bus, tilemap canvas
+zoom/pan/grid/collision overlay, region select/copy/paste/move/flip with
+undo, a dedicated tileset slicing dialog, tileset margins/spacing honoured
+everywhere, edit-mode particle preview, camera small-world and
+missing-target fixes, new AI ops (dd_tile_layer,
+configure_tile_layer, lip_tile_region, move_tile_region,
+slicing fields on create_tileset), XFL tilemap-to-bitmap export and a
+repeatable perf suite. See `docs/MEGA_MILESTONE_11_1_REPORT.md` for the
+full report and `docs/WORLD_BUILDING.md` for the current documentation.
+

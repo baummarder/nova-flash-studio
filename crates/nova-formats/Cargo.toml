@@ -1,6 +1,6 @@
 [package]
 name = "nova-formats"
-description = "FLA/XFL, SWF and NØVA import/export compatibility layer"
+description = "FLA/XFL, SWF and NÃ˜VA import/export compatibility layer"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -17,3 +17,4 @@ uuid.workspace = true
 swf.workspace = true
 zip.workspace = true
 roxmltree.workspace = true
+image = { version = "0.25", default-features = false, features = ["png"] }

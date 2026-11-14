@@ -238,6 +238,231 @@ fn replace_tiles(map: &mut TilemapData, layer: usize, from: u16, to: u16) -> usi
     changed
 }
 
+/// A rectangular snapshot of one tile layer's cells (row-major, `0` = empty).
+#[derive(Debug, Clone, PartialEq)]
+pub struct TileRegion {
+    pub x: i32,
+    pub y: i32,
+    pub width: usize,
+    pub height: usize,
+    pub cells: Vec<u16>,
+}
+
+/// Copies the inclusive rectangle (x0,y0)-(x1,y1) of `layer` into a
+/// [`TileRegion`]. Out-of-bounds edges are clipped; `None` when nothing
+/// inside the grid was selected.
+pub fn copy_region(
+    map: &TilemapData,
+    layer: usize,
+    x0: i32,
+    y0: i32,
+    x1: i32,
+    y1: i32,
+) -> Option<TileRegion> {
+    let target = map.layers.get(layer)?;
+    let (ax, bx) = (x0.min(x1).max(0), x0.max(x1).min(map.columns as i32 - 1));
+    let (ay, by) = (y0.min(y1).max(0), y0.max(y1).min(map.rows as i32 - 1));
+    if ax > bx || ay > by || map.columns == 0 || map.rows == 0 {
+        return None;
+    }
+    let width = (bx - ax + 1) as usize;
+    let height = (by - ay + 1) as usize;
+    let mut cells = vec![0u16; width * height];
+    for ry in 0..height {
+        for rx in 0..width {
+            let sx = ax as usize + rx;
+            let sy = ay as usize + ry;
+            cells[ry * width + rx] = target
+                .cells
+                .get(sy * map.columns + sx)
+                .copied()
+                .unwrap_or(0);
+        }
+    }
+    Some(TileRegion {
+        x: ax,
+        y: ay,
+        width,
+        height,
+        cells,
+    })
+}
+
+/// Pastes `region` with its top-left at cell (x, y) on `layer`, overwriting
+/// every covered cell (including empty ones). Returns changed cells.
+pub fn paste_region(
+    map: &mut TilemapData,
+    layer: usize,
+    x: i32,
+    y: i32,
+    region: &TileRegion,
+) -> usize {
+    let Some(target) = map.layers.get_mut(layer) else {
+        return 0;
+    };
+    if target.locked {
+        return 0;
+    }
+    let mut changed = 0;
+    for ry in 0..region.height as i32 {
+        for rx in 0..region.width as i32 {
+            let cx = x + rx;
+            let cy = y + ry;
+            if cx < 0 || cy < 0 || cx as usize >= map.columns || cy as usize >= map.rows {
+                continue;
+            }
+            let value = region.cells[ry as usize * region.width + rx as usize];
+            let idx = cy as usize * map.columns + cx as usize;
+            if target.cells.get(idx).copied() != Some(value) {
+                target.cells[idx] = value;
+                changed += 1;
+            }
+        }
+    }
+    changed
+}
+
+/// Clears the inclusive rectangle (x0,y0)-(x1,y1) on `layer`.
+/// Returns changed cells.
+pub fn clear_region(
+    map: &mut TilemapData,
+    layer: usize,
+    x0: i32,
+    y0: i32,
+    x1: i32,
+    y1: i32,
+) -> usize {
+    let (ax, bx) = (x0.min(x1), x0.max(x1));
+    let (ay, by) = (y0.min(y1), y0.max(y1));
+    let mut changed = 0;
+    for y in ay..=by {
+        for x in ax..=bx {
+            changed += set_cell(map, layer, x, y, 0) as usize;
+        }
+    }
+    changed
+}
+
+/// Flips the cells inside the inclusive rectangle horizontally and/or
+/// vertically, in place. Returns changed cells.
+pub fn flip_region(
+    map: &mut TilemapData,
+    layer: usize,
+    x0: i32,
+    y0: i32,
+    x1: i32,
+    y1: i32,
+    flip_h: bool,
+    flip_v: bool,
+) -> usize {
+    if !flip_h && !flip_v {
+        return 0;
+    }
+    let Some(target) = map.layers.get(layer) else {
+        return 0;
+    };
+    if target.locked {
+        return 0;
+    }
+    let (ax, bx) = (x0.min(x1).max(0), x0.max(x1).min(map.columns as i32 - 1));
+    let (ay, by) = (y0.min(y1).max(0), y0.max(y1).min(map.rows as i32 - 1));
+    if ax > bx || ay > by {
+        return 0;
+    }
+    let w = (bx - ax + 1) as usize;
+    let h = (by - ay + 1) as usize;
+    let mut snapshot = vec![0u16; w * h];
+    for ry in 0..h {
+        for rx in 0..w {
+            let sx = ax as usize + rx;
+            let sy = ay as usize + ry;
+            snapshot[ry * w + rx] = target
+                .cells
+                .get(sy * map.columns + sx)
+                .copied()
+                .unwrap_or(0);
+        }
+    }
+    let Some(target) = map.layers.get_mut(layer) else {
+        return 0;
+    };
+    let mut changed = 0;
+    for ry in 0..h {
+        for rx in 0..w {
+            let (fx, fy) = if flip_h {
+                (w - 1 - rx, if flip_v { h - 1 - ry } else { ry })
+            } else {
+                (rx, if flip_v { h - 1 - ry } else { ry })
+            };
+            let value = snapshot[fy * w + fx];
+            let idx = (ay as usize + ry) * map.columns + ax as usize + rx;
+            if target.cells.get(idx).copied() != Some(value) {
+                target.cells[idx] = value;
+                changed += 1;
+            }
+        }
+    }
+    changed
+}
+
+/// Mirrors a brush stamp in place (used by the editor's flip toggles).
+pub fn flip_stamp(stamp: &mut BrushStamp, flip_h: bool, flip_v: bool) {
+    if !flip_h && !flip_v {
+        return;
+    }
+    let (w, h) = (stamp.width, stamp.height);
+    let mut out = vec![0u16; w * h];
+    for y in 0..h {
+        for x in 0..w {
+            let (fx, fy) = (
+                if flip_h { w - 1 - x } else { x },
+                if flip_v { h - 1 - y } else { y },
+            );
+            out[y * w + x] = stamp.cells[fy * w + fx];
+        }
+    }
+    stamp.cells = out;
+}
+
+/// Mirrors a copied region's cell data in place (width/height unchanged).
+pub fn flip_region_cells(region: &mut TileRegion, flip_h: bool, flip_v: bool) {
+    if !flip_h && !flip_v {
+        return;
+    }
+    let (w, h) = (region.width, region.height);
+    let mut out = vec![0u16; w * h];
+    for y in 0..h {
+        for x in 0..w {
+            let (fx, fy) = (
+                if flip_h { w - 1 - x } else { x },
+                if flip_v { h - 1 - y } else { y },
+            );
+            out[y * w + x] = region.cells[fy * w + fx];
+        }
+    }
+    region.cells = out;
+}
+
+/// Adds an empty named tile layer at `index` (clamped to the end).
+pub fn add_layer(map: &mut TilemapData, name: &str, index: Option<usize>) -> usize {
+    let layer = TileLayer::new(name, map.columns, map.rows);
+    let at = index.unwrap_or(map.layers.len()).min(map.layers.len());
+    map.layers.insert(at, layer);
+    at
+}
+
+/// Removes tile layer `index`; refuses to remove the last remaining layer.
+/// Returns the removed layer name on success.
+pub fn remove_layer(map: &mut TilemapData, index: usize) -> Result<String, String> {
+    if map.layers.len() <= 1 {
+        return Err("Eine Kachelkarte braucht mindestens eine Ebene.".into());
+    }
+    if index >= map.layers.len() {
+        return Err(format!("Ebene {index} existiert nicht"));
+    }
+    Ok(map.layers.remove(index).name)
+}
+
 /// Creates a tilemap object payload: `columns`×`rows` grid, `layers`
 /// empty named layers.
 pub fn new_tilemap(
@@ -304,13 +529,7 @@ pub fn tileset_columns(width_px: u32, tile_width: u32) -> u32 {
 
 /// Total tile count for a tileset given the asset pixel size.
 pub fn tileset_tile_count(tileset: &Tileset, asset_width: u32, asset_height: u32) -> usize {
-    let columns = tileset_columns(asset_width, tileset.tile_width) as usize;
-    let rows = if tileset.tile_height == 0 {
-        0
-    } else {
-        (asset_height / tileset.tile_height) as usize
-    };
-    columns * rows
+    tileset.tile_count(asset_width, asset_height)
 }
 
 /// Validates a tileset configuration; returns an error message.
@@ -475,5 +694,71 @@ mod tests {
         assert_eq!(loaded.tilesets.len(), 1);
         assert_eq!(loaded.tilesets[0].solid, vec![true, false, true]);
         let _ = m; // model covered by project roundtrip tests
+    }
+
+    #[test]
+    fn copy_paste_and_clear_region() {
+        let mut m = map();
+        paint(&mut m, 0, PaintTool::Rect, 0, 0, 1, 1, 5, 0, 0).unwrap();
+        let region = copy_region(&m, 0, 0, 0, 1, 1).unwrap();
+        assert_eq!((region.width, region.height), (2, 2));
+        assert!(region.cells.iter().all(|c| *c == 5));
+        // Paste at (2,1): overwrites cells including empties.
+        assert_eq!(paste_region(&mut m, 0, 2, 1, &region), 4);
+        assert_eq!(sample(&m, 0, 2, 1), Some(5));
+        assert_eq!(sample(&m, 0, 3, 2), Some(5));
+        // Clear the source.
+        assert_eq!(clear_region(&mut m, 0, 0, 0, 1, 1), 4);
+        assert_eq!(sample(&m, 0, 0, 0), Some(0));
+        assert_eq!(sample(&m, 0, 2, 1), Some(5)); // paste survives
+    }
+
+    #[test]
+    fn copy_region_clips_to_grid() {
+        let m = map();
+        // Selection partially outside -> clipped, never panics.
+        let region = copy_region(&m, 0, -2, -2, 1, 1).unwrap();
+        assert_eq!((region.x, region.y), (0, 0));
+        assert_eq!((region.width, region.height), (2, 2));
+        assert!(copy_region(&m, 0, 10, 10, 12, 12).is_none());
+        assert!(copy_region(&m, 9, 0, 0, 1, 1).is_none());
+    }
+
+    #[test]
+    fn flip_region_mirrors_cells() {
+        let mut m = map();
+        // Distinct pattern in a 3x2 rect: A B C / D E F (as tile ids 1..6)
+        for (i, &(x, y)) in [(0, 0), (1, 0), (2, 0), (0, 1), (1, 1), (2, 1)]
+            .iter()
+            .enumerate()
+        {
+            paint(&mut m, 0, PaintTool::Pencil, x, y, x, y, i as u16 + 1, 0, 0).unwrap();
+        }
+        flip_region(&mut m, 0, 0, 0, 2, 1, true, false);
+        assert_eq!(sample(&m, 0, 0, 0), Some(3));
+        assert_eq!(sample(&m, 0, 2, 0), Some(1));
+        assert_eq!(sample(&m, 0, 0, 1), Some(6));
+        flip_region(&mut m, 0, 0, 0, 2, 1, false, true);
+        assert_eq!(sample(&m, 0, 0, 0), Some(6));
+        assert_eq!(sample(&m, 0, 0, 1), Some(3));
+        // Both flips = 180° rotation of the region.
+        flip_region(&mut m, 0, 0, 0, 2, 1, true, true);
+        assert_eq!(sample(&m, 0, 0, 0), Some(1));
+        assert_eq!(sample(&m, 0, 2, 1), Some(6));
+    }
+
+    #[test]
+    fn add_and_remove_layer() {
+        let mut m = map();
+        assert_eq!(m.layers.len(), 2);
+        let at = add_layer(&mut m, "Extra", None);
+        assert_eq!(at, 2);
+        assert_eq!(m.layers[2].name, "Extra");
+        assert_eq!(m.layers[2].cells.len(), 12);
+        // Removing down to one layer is refused.
+        remove_layer(&mut m, 0).unwrap();
+        remove_layer(&mut m, 1).unwrap();
+        assert!(remove_layer(&mut m, 0).is_err());
+        assert_eq!(m.layers.len(), 1);
     }
 }

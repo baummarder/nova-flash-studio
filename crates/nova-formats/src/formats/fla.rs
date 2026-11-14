@@ -1064,6 +1064,81 @@ fn parse_color(value: &str) -> Option<Rgba> {
     }
 }
 
+/// A tilemap baked to a PNG for XFL export (keyed by object id).
+struct BakedTilemap {
+    /// `DOMBitmapItem`/`libraryItemName` used by the instance.
+    lib_name: String,
+    /// ZIP path of the PNG inside the package.
+    file_name: String,
+    width: u32,
+    height: u32,
+    png: Vec<u8>,
+}
+
+/// Bakes every `ObjectKind::Tilemap` reachable from the active scene and all
+/// symbol timelines into PNG library items. Failures degrade to `None` so a
+/// single broken tileset cannot abort the whole export.
+fn bake_tilemaps(project: &Project) -> HashMap<Uuid, BakedTilemap> {
+    let mut baked = HashMap::new();
+    let mut warnings = Vec::new();
+    let mut collect = |object: &ObjectInstance, baked: &mut HashMap<Uuid, BakedTilemap>| {
+        let ObjectKind::Tilemap(map) = &object.kind else {
+            return;
+        };
+        let Ok(Some((w, h, rgba))) = nova_build::bake_tilemap(project, map, &mut warnings) else {
+            return;
+        };
+        let Ok(png) = rgba_to_png(w, h, rgba) else {
+            return;
+        };
+        let lib_name = format!(
+            "Tilemap_{}_{}",
+            sanitize_file_component(&object.name),
+            &object.id.to_string()[..8]
+        );
+        baked.insert(
+            object.id,
+            BakedTilemap {
+                file_name: format!("LIBRARY/{lib_name}.png"),
+                lib_name,
+                width: w,
+                height: h,
+                png,
+            },
+        );
+    };
+    if let Some(scene) = project.active_scene() {
+        for layer in &scene.layers {
+            for frame in &layer.frames {
+                for object in &frame.objects {
+                    collect(object, &mut baked);
+                }
+            }
+        }
+    }
+    for symbol in &project.symbols {
+        for layer in &symbol.timeline.layers {
+            for frame in &layer.frames {
+                for object in &frame.objects {
+                    collect(object, &mut baked);
+                }
+            }
+        }
+    }
+    baked
+}
+
+/// Encodes an RGBA buffer as PNG bytes.
+fn rgba_to_png(width: u32, height: u32, rgba: Vec<u8>) -> Result<Vec<u8>, FormatError> {
+    let image = image::RgbaImage::from_raw(width, height, rgba)
+        .ok_or_else(|| FormatError::Unsupported("Kachelkarte: ungültige Pixeldaten".into()))?;
+    let mut buffer = Cursor::new(Vec::new());
+    image
+        .write_to(&mut buffer, image::ImageFormat::Png)
+        .map_err(|error| FormatError::Unsupported(format!("Kachelkarte PNG: {error}")))?;
+    Ok(buffer.into_inner())
+}
+
 pub fn export_xfl(project: &Project) -> FormatResult<ExportData> {
     let scene = project
         .active_scene()
@@ -1078,6 +1153,16 @@ pub fn export_xfl(project: &Project) -> FormatResult<ExportData> {
         report.warning(
             IssueCategory::Code,
             "Skripte mit erhaltenem ABC können nicht als XFL-Quelltext exportiert werden und werden ausgelassen.",
+        );
+    }
+    let baked_tilemaps = bake_tilemaps(project);
+    if !baked_tilemaps.is_empty() {
+        report.info(
+            IssueCategory::Export,
+            format!(
+                "{} Kachelkarte(n) wurden als Bitmap in die XFL-Bibliothek gebacken.",
+                baked_tilemaps.len()
+            ),
         );
     }
 
@@ -1139,7 +1224,7 @@ pub fn export_xfl(project: &Project) -> FormatResult<ExportData> {
             if !frame.objects.is_empty() {
                 document.push_str("              <elements>\n");
                 for object in &frame.objects {
-                    write_xfl_object(&mut document, object, project, &mut report);
+                    write_xfl_object(&mut document, object, project, &baked_tilemaps, &mut report);
                 }
                 document.push_str("              </elements>\n");
             }
@@ -1150,7 +1235,7 @@ pub fn export_xfl(project: &Project) -> FormatResult<ExportData> {
     }
     document.push_str("      </layers>\n    </DOMTimeline>\n  </timelines>\n");
 
-    if !project.symbols.is_empty() || !project.assets.is_empty() {
+    if !project.symbols.is_empty() || !project.assets.is_empty() || !baked_tilemaps.is_empty() {
         document.push_str("  <library>\n");
         for asset in &project.assets {
             let href = library_asset_path(asset);
@@ -1174,6 +1259,15 @@ pub fn export_xfl(project: &Project) -> FormatResult<ExportData> {
                 }
                 AssetKind::Font => {}
             }
+        }
+        for baked in baked_tilemaps.values() {
+            document.push_str(&format!(
+                "    <DOMBitmapItem name=\"{}\" href=\"{}\" width=\"{}\" height=\"{}\"/>\n",
+                xml_escape(&baked.lib_name),
+                xml_escape(&baked.file_name),
+                baked.width,
+                baked.height
+            ));
         }
         document.push_str("  </library>\n");
     }
@@ -1212,7 +1306,7 @@ pub fn export_xfl(project: &Project) -> FormatResult<ExportData> {
         }
         for symbol in &project.symbols {
             let file_name = format!("LIBRARY/{}.xml", sanitize_file_component(&symbol.name));
-            let xml = write_symbol_document(symbol, project, &mut report);
+            let xml = write_symbol_document(symbol, project, &baked_tilemaps, &mut report);
             writer
                 .start_file(file_name, options)
                 .map_err(|error| FormatError::Zip(error.to_string()))?;
@@ -1233,6 +1327,12 @@ pub fn export_xfl(project: &Project) -> FormatResult<ExportData> {
                 .start_file(library_asset_path(asset), options)
                 .map_err(|error| FormatError::Zip(error.to_string()))?;
             writer.write_all(&asset.data)?;
+        }
+        for baked in baked_tilemaps.values() {
+            writer
+                .start_file(&baked.file_name, options)
+                .map_err(|error| FormatError::Zip(error.to_string()))?;
+            writer.write_all(&baked.png)?;
         }
         writer
             .start_file("README.txt", options)
@@ -1267,6 +1367,7 @@ pub fn export_xfl(project: &Project) -> FormatResult<ExportData> {
 fn write_symbol_document(
     symbol: &Symbol,
     project: &Project,
+    baked_tilemaps: &HashMap<Uuid, BakedTilemap>,
     report: &mut CompatibilityReport,
 ) -> String {
     let mut document = String::new();
@@ -1329,7 +1430,7 @@ fn write_symbol_document(
             if !frame.objects.is_empty() {
                 document.push_str("              <elements>\n");
                 for object in &frame.objects {
-                    write_xfl_object(&mut document, object, project, report);
+                    write_xfl_object(&mut document, object, project, baked_tilemaps, report);
                 }
                 document.push_str("              </elements>\n");
             }
@@ -1425,6 +1526,7 @@ fn write_xfl_object(
     document: &mut String,
     object: &ObjectInstance,
     project: &Project,
+    baked_tilemaps: &HashMap<Uuid, BakedTilemap>,
     report: &mut CompatibilityReport,
 ) {
     // Game/particle metadata has no XFL representation; warn once per object
@@ -1573,13 +1675,41 @@ fn write_xfl_object(
             );
         }
         ObjectKind::Tilemap(map) => {
-            report.warning(
-                IssueCategory::Export,
-                format!(
-                    "Kachelkarte '{}' ({}×{} Kacheln) wird im XFL-Paket nicht exportiert; die Daten bleiben im .nova-Projekt erhalten. Der SWF-Export backt Kachelkarten zu einem Bitmap.",
-                    object.name, map.columns, map.rows
-                ),
-            );
+            match baked_tilemaps.get(&object.id) {
+                Some(baked) => {
+                    // The tilemap was baked to a PNG library bitmap; the
+                    // instance mirrors the authored transform. Tile collision
+                    // and layer data remain editor metadata.
+                    document.push_str(&format!(
+                        "                <DOMBitmapInstance libraryItemName=\"{}\" name=\"{}\" x=\"{}\" y=\"{}\" scaleX=\"{}\" scaleY=\"{}\" rotation=\"{}\" width=\"{}\" height=\"{}\"/>\n",
+                        xml_escape(&baked.lib_name),
+                        xml_escape(&object.name),
+                        object.transform.x,
+                        object.transform.y,
+                        object.transform.scale_x,
+                        object.transform.scale_y,
+                        object.transform.rotation,
+                        baked.width,
+                        baked.height
+                    ));
+                    report.info(
+                        IssueCategory::Export,
+                        format!(
+                            "Kachelkarte '{}' wurde als Bitmap '{}' in die XFL-Bibliothek gebacken.",
+                            object.name, baked.lib_name
+                        ),
+                    );
+                }
+                None => {
+                    report.warning(
+                        IssueCategory::Export,
+                        format!(
+                            "Kachelkarte '{}' ({}×{} Kacheln) konnte nicht als Bitmap gebacken werden und fehlt im XFL-Paket; die Daten bleiben im .nova-Projekt erhalten.",
+                            object.name, map.columns, map.rows
+                        ),
+                    );
+                }
+            }
         }
     }
 }
@@ -2027,6 +2157,75 @@ mod tests {
             0x9C, 0x63, 0x00, 0x01, 0x00, 0x00, 0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00,
             0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
         ]
+    }
+
+    #[test]
+    fn xfl_exports_tilemap_as_baked_bitmap() {
+        use nova_core::model::{Tileset, Transform};
+        let mut project = Project::demo();
+        let png = tiny_png_for_xfl();
+        let bitmap = Asset::bitmap("Raster", "assets/raster.png", "image/png", 1, 1, png);
+        let asset_id = bitmap.id;
+        project.assets.push(bitmap);
+        project.tilesets.push(Tileset {
+            name: "Terrain".into(),
+            asset: asset_id,
+            tile_width: 1,
+            tile_height: 1,
+            columns: 1,
+            solid: vec![true],
+            ..Default::default()
+        });
+        let tileset_id = project.tilesets[0].id;
+        let mut map = nova_core::tilemap::new_tilemap(tileset_id, 1.0, 1.0, 4, 4, &["Ebene 1"]);
+        nova_core::tilemap::paint(
+            &mut map,
+            0,
+            nova_core::tilemap::PaintTool::Rect,
+            0,
+            0,
+            3,
+            3,
+            1,
+            0,
+            0,
+        )
+        .unwrap();
+        let tile_object = ObjectInstance::new(
+            "Map",
+            ObjectKind::Tilemap(map),
+            Transform::at(50.0, 60.0),
+            Rgba::WHITE,
+        );
+        project.active_scene_mut().unwrap().layers[0].frames[0]
+            .objects
+            .push(tile_object);
+
+        let export = export_xfl(&project).unwrap();
+        let mut archive = zip::ZipArchive::new(Cursor::new(&export.bytes)).unwrap();
+        let mut document_xml = String::new();
+        archive
+            .by_name("DOMDocument.xml")
+            .unwrap()
+            .read_to_string(&mut document_xml)
+            .unwrap();
+        assert!(
+            document_xml.contains("DOMBitmapInstance"),
+            "tilemap should export as bitmap instance"
+        );
+        assert!(document_xml.contains("Tilemap_Map_"));
+        let png_entry = archive
+            .file_names()
+            .filter_map(|name| name.ok().map(|n| n.into_owned()))
+            .find(|name| name.starts_with("LIBRARY/Tilemap_Map_") && name.ends_with(".png"))
+            .expect("baked tilemap PNG in package");
+        let mut png_bytes = Vec::new();
+        archive
+            .by_name(&png_entry)
+            .unwrap()
+            .read_to_end(&mut png_bytes)
+            .unwrap();
+        assert!(png_bytes.starts_with(b"\x89PNG"));
     }
 
     fn tiny_wav_for_xfl() -> Vec<u8> {

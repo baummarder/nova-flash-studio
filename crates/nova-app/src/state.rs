@@ -44,6 +44,8 @@ pub enum TilemapTool {
     Flood,
     Eyedrop,
     Replace,
+    /// Region select / move (M11.1).
+    Select,
 }
 
 impl TilemapTool {
@@ -55,6 +57,7 @@ impl TilemapTool {
             Self::Flood => "Füllen",
             Self::Eyedrop => "Pipette",
             Self::Replace => "Ersetzen",
+            Self::Select => "Auswahl",
         }
     }
 }
@@ -75,6 +78,73 @@ pub struct TilemapEditor {
     pub stroke_start: Option<(i32, i32)>,
     /// Tile captured by the replace/eyedrop tools.
     pub replace_from: u16,
+    // ------------------------------------------------ M11.1 canvas state
+    /// Canvas zoom in px per tile unit; 0 = auto-fit (recomputed per frame
+    /// until the user zooms or pans explicitly).
+    pub zoom: f32,
+    /// Screen-space pan offset added to the fitted origin (pixels).
+    pub pan: egui::Vec2,
+    /// Whether the user has touched zoom/pan (disables auto-fit).
+    pub view_custom: bool,
+    /// Grid lines visibility.
+    pub show_grid: bool,
+    /// Grid line opacity 0.0..=1.0.
+    pub grid_opacity: f32,
+    /// Solid-tile collision overlay.
+    pub show_collision: bool,
+    /// Normalized cell selection (x0,y0,x1,y1 inclusive) on the active layer.
+    pub selection: Option<(i32, i32, i32, i32)>,
+    /// Drag start while the Select tool creates a selection.
+    pub select_start: Option<(i32, i32)>,
+    /// Move drag: (grab cell, current offset in cells).
+    pub move_drag: Option<((i32, i32), (i32, i32))>,
+    /// Copied tile region (single layer).
+    pub clipboard: Option<nova_core::tilemap::TileRegion>,
+    /// Mirror the brush stamp / pasted region horizontally.
+    pub flip_h: bool,
+    /// Mirror the brush stamp / pasted region vertically.
+    pub flip_v: bool,
+    /// Next canvas click places the clipboard (paste armed).
+    pub paste_armed: bool,
+    /// Last hovered cell (for paste placement and brush preview).
+    pub cursor_cell: Option<(i32, i32)>,
+    /// Tileset slicing dialog open flag.
+    pub tileset_dialog: bool,
+}
+
+/// State of the tileset slicing dialog (bitmap -> Tileset).
+#[derive(Debug, Clone)]
+pub struct TilesetDialog {
+    /// Selected bitmap asset id.
+    pub asset: Option<Uuid>,
+    pub name: String,
+    pub tile_width: u32,
+    pub tile_height: u32,
+    pub margin_x: u32,
+    pub margin_y: u32,
+    pub spacing_x: u32,
+    pub spacing_y: u32,
+    /// Per-tile solid flags for the preview/create step.
+    pub solid: Vec<bool>,
+    /// Optional name prefix; tiles are named "{prefix} {n}" when set.
+    pub name_prefix: String,
+}
+
+impl Default for TilesetDialog {
+    fn default() -> Self {
+        Self {
+            asset: None,
+            name: String::new(),
+            tile_width: 16,
+            tile_height: 16,
+            margin_x: 0,
+            margin_y: 0,
+            spacing_x: 0,
+            spacing_y: 0,
+            solid: Vec::new(),
+            name_prefix: String::new(),
+        }
+    }
 }
 
 impl Default for TilemapEditor {
@@ -87,6 +157,21 @@ impl Default for TilemapEditor {
             layer: 0,
             stroke_start: None,
             replace_from: 0,
+            zoom: 0.0,
+            pan: egui::Vec2::ZERO,
+            view_custom: false,
+            show_grid: true,
+            grid_opacity: 0.35,
+            show_collision: false,
+            selection: None,
+            select_start: None,
+            move_drag: None,
+            clipboard: None,
+            flip_h: false,
+            flip_v: false,
+            paste_armed: false,
+            cursor_cell: None,
+            tileset_dialog: false,
         }
     }
 }
@@ -455,6 +540,17 @@ pub struct AppState {
     pub preview_volume: f32,
     /// Tilemap editor state (bottom "Kacheln" tab).
     pub tilemap: TilemapEditor,
+    /// Tileset slicing dialog state.
+    pub tileset_dialog: TilesetDialog,
+    /// Edit-mode particle preview systems: object id -> (spec, system, origin).
+    pub edit_particles: std::collections::HashMap<
+        Uuid,
+        (
+            nova_core::model::ParticleEmitter,
+            nova_core::particles::ParticleSystem,
+            (f32, f32),
+        ),
+    >,
 }
 
 impl AppState {
@@ -522,6 +618,8 @@ impl AppState {
             game_preview: None,
             preview_volume: 1.0,
             tilemap: TilemapEditor::default(),
+            tileset_dialog: TilesetDialog::default(),
+            edit_particles: std::collections::HashMap::new(),
         };
         state.log(
             LogLevel::Info,
