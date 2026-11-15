@@ -8,19 +8,29 @@ the project format is versioned JSON, and the SWF writer is implemented directly
 against the published SWF file-format specification. Tools and extensions run in
 an embedded QuickJS context; ActionScript is **not** executed by QuickJS.
 
-> **Status: M21 complete — release candidate `0.17.0-rc1`.**
-> M21 delivers the **Enterprise Edition**: an offline-first
-> administration & teamwork workspace in the new `nova-ent` crate —
-> enterprise workspaces (`org.json`), project registration by path,
-> 7-role team model with per-project overrides and a documented
-> *policy* permission matrix (roles are **not** authentication; OS file
+> **Status: M22 in progress — UI redesign & internationalization.**
+> M22 adds a five-language UI (`de-DE`, `en-GB`, `da-DK`, `fr-FR`,
+> `pl-PL`; en-GB fallback), a first-run language wizard, per-edition
+> language persistence, an Animate-style left mode rail, and removes
+> the console window on Windows GUI startup (CLI output is preserved
+> via parent-console attach; panics go to `nova-crash.log`). See
+> `docs/I18N.md` and `docs/MEGA_MILESTONE_22_PLAN.md`.
+>
+> **M21 baseline `0.17.0-rc1`:** the **Enterprise Edition** provides an
+> offline-first administration & teamwork workspace in `nova-ent` —
+> workspaces (`org.json`), project registration by path, a 7-role team
+> model with per-project overrides and a documented *policy*
+> permission matrix (roles are **not** authentication; OS file
 > permissions are the boundary), a shared asset library with SHA-256
 > integrity, project snapshots/version history with safe restore and
 > diff summaries, review workflows with anchored comments, build
 > profiles + history reusing the SWF/XFL pipelines, an append-only
 > audit log, opt-in local integrations (disabled by default, env-var
 > key references) and `.novaent` workspace packages — see
-> `docs/ENTERPRISE.md`.
+> `docs/ENTERPRISE.md`. An independent acceptance audit
+> (`docs/MEGA_MILESTONE_21_ACCEPTANCE_AUDIT.md`) found and the
+> remediation commit `140aa94` fixed an encoding corruption, made the
+> `.novaent` import transactional and corrected packaging archive order.
 >
 > **M20 baseline `0.16.0-rc1`:** the **Education Edition** provides a
 > real offline-first classroom workflow in `nova-edu` — Edu workspaces
