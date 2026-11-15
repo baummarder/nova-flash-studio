@@ -425,7 +425,7 @@ mod tests {
 
     #[test]
     fn rejects_checksum_mismatch() {
-        let bytes =
+        let _bytes =
             build_package(PackageKind::Assignment, &sample_manifest(), &sample_files()).unwrap();
         // Corrupt: rebuild with tampered file but same manifest checksums.
         let mut manifest = sample_manifest();

@@ -44,7 +44,7 @@ impl Default for TemplateCatalog {
 impl TemplateCatalog {
     pub fn load(workspace: &Workspace) -> EduResult<Self> {
         let path = workspace.root.join("templates").join("catalog.json");
-        Ok(crate::store::read_or(&path, Self::default())?)
+        crate::store::read_or(&path, Self::default())
     }
 
     pub fn save(&self, workspace: &Workspace) -> EduResult<()> {
@@ -130,8 +130,10 @@ pub fn create_sample_workspace(workspace: &Workspace) -> EduResult<()> {
     }
 
     // School config with safe defaults.
-    let mut school = crate::school::SchoolConfig::default();
-    school.school = "Beispielschule".into();
+    let school = crate::school::SchoolConfig {
+        school: "Beispielschule".into(),
+        ..Default::default()
+    };
     school.save(workspace)?;
 
     let _ = Uuid::nil();

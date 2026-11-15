@@ -137,7 +137,7 @@ const EDU_MODULES: &[EditionModule] = &[
     EditionModule {
         id: "classroom",
         label: "Klassenzimmer-Werkzeuge",
-        reserved: true,
+        reserved: false,
     },
 ];
 
@@ -242,6 +242,13 @@ pub fn active_modules() -> Vec<&'static EditionModule> {
     profile().modules.iter().filter(|m| !m.reserved).collect()
 }
 
+/// Whether `id` names an implemented, non-reserved module of the active
+/// edition. This is the only gate classroom/edu UI may use — it cannot be
+/// influenced by environment variables or user settings.
+pub fn has_active_module(id: &str) -> bool {
+    profile().modules.iter().any(|m| m.id == id && !m.reserved)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -272,12 +279,28 @@ mod tests {
 
     #[test]
     fn reserved_modules_are_marked_not_implemented() {
-        // Edu and Enterprise expose exactly one reserved slot each; nothing
-        // else may be reserved (reserved = documented future work only).
-        for modules in [EDU_MODULES, ENTERPRISE_MODULES] {
-            let reserved: Vec<_> = modules.iter().filter(|m| m.reserved).collect();
-            assert_eq!(reserved.len(), 1);
-        }
+        // Enterprise keeps exactly one reserved slot (administration).
+        // Edu's classroom module became active in M20; User has none.
+        let reserved: Vec<_> = ENTERPRISE_MODULES.iter().filter(|m| m.reserved).collect();
+        assert_eq!(reserved.len(), 1);
+        assert_eq!(reserved[0].id, "administration");
+        assert!(EDU_MODULES.iter().all(|m| !m.reserved));
         assert!(CORE_MODULES.iter().all(|m| !m.reserved));
+    }
+
+    #[test]
+    fn classroom_module_is_edu_only() {
+        // The edition registry is the single gate: User and Enterprise must
+        // never report an active classroom module regardless of env vars.
+        assert!(has_active_module_for(Edition::Edu, "classroom"));
+        assert!(!has_active_module_for(Edition::User, "classroom"));
+        assert!(!has_active_module_for(Edition::Enterprise, "classroom"));
+    }
+
+    fn has_active_module_for(edition: Edition, id: &str) -> bool {
+        profile_for(edition)
+            .modules
+            .iter()
+            .any(|m| m.id == id && !m.reserved)
     }
 }

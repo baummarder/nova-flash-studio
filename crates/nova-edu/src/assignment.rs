@@ -12,19 +12,15 @@ use crate::workspace::{Workspace, now_unix};
 /// Where the starter `.nova` comes from.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
+#[derive(Default)]
 pub enum StarterRef {
     /// No starter; students start from an empty/new project.
+    #[default]
     None,
     /// A `.nova` file inside the workspace (relative path).
     Workspace { path: String },
     /// A starter bundled in a teaching template package.
     Template { id: String, path: String },
-}
-
-impl Default for StarterRef {
-    fn default() -> Self {
-        Self::None
-    }
 }
 
 /// Which exports students must produce for the assignment.
@@ -146,12 +142,12 @@ impl Assignment {
                 )));
             }
         }
-        if let Some(t) = &self.tutorial {
-            if t.contains("..") || std::path::Path::new(t).is_absolute() {
-                return Err(EduError::Invalid(
-                    "Tutorial-Pfad muss relativ und ohne .. sein".into(),
-                ));
-            }
+        if let Some(t) = &self.tutorial
+            && (t.contains("..") || std::path::Path::new(t).is_absolute())
+        {
+            return Err(EduError::Invalid(
+                "Tutorial-Pfad muss relativ und ohne .. sein".into(),
+            ));
         }
         Ok(())
     }
@@ -197,7 +193,7 @@ pub fn list_assignments(workspace: &Workspace) -> EduResult<Vec<Assignment>> {
             out.push(a);
         }
     }
-    out.sort_by(|a, b| b.created_unix.cmp(&a.created_unix));
+    out.sort_by_key(|a| std::cmp::Reverse(a.created_unix));
     Ok(out)
 }
 

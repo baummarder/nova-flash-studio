@@ -20,8 +20,8 @@ use crate::state::{
     Tool, UiAction,
 };
 use crate::{
-    autosave, branding, code_view, console, edition, flash, properties, stage_view, theme,
-    tilemap_view, timeline_view, tree, util,
+    autosave, branding, classroom_view, code_view, console, edition, flash, properties, stage_view,
+    theme, tilemap_view, timeline_view, tree, util,
 };
 
 fn egui_key_for_letter(index: usize) -> Key {
@@ -85,6 +85,7 @@ pub struct NovaApp {
     splash: Option<Splash>,
     ai: AiEditor,
     audio: crate::audio::AudioEngine,
+    edu: crate::edu_state::EduUi,
 }
 
 impl NovaApp {
@@ -133,6 +134,11 @@ impl NovaApp {
             splash: Some(Splash::new(Instant::now(), logo, warning.clone())),
             ai,
             audio: crate::audio::AudioEngine::new(),
+            edu: crate::edu_state::EduUi::load_local(
+                &nova_core::Edition::current()
+                    .config_dir()
+                    .unwrap_or_else(|| std::path::PathBuf::from(".")),
+            ),
         };
         if let Some(path) = startup_project {
             if is_swf_path(path) {
@@ -553,7 +559,11 @@ impl NovaApp {
             );
 
             ui.add_space(10.0);
-            for (mode, label) in [(Mode::Code, "Code"), (Mode::Animation, "Animation")] {
+            let mut modes = vec![(Mode::Code, "Code"), (Mode::Animation, "Animation")];
+            if edition::has_active_module("classroom") {
+                modes.push((Mode::Classroom, "Klassenzimmer"));
+            }
+            for (mode, label) in modes {
                 if ui
                     .selectable_label(self.state.mode == mode, RichText::new(label).strong())
                     .clicked()
@@ -859,11 +869,22 @@ impl NovaApp {
                 UiAction::About => self.state.dialog = Dialog::About,
                 UiAction::Help => self.state.dialog = Dialog::Help,
                 UiAction::SetMode(mode) => {
+                    // Classroom is gated by the edition module registry —
+                    // it cannot be reached in User/Enterprise builds.
+                    if mode == Mode::Classroom && !edition::has_active_module("classroom") {
+                        self.state
+                            .set_status("Klassenzimmer ist in dieser Edition nicht verfügbar");
+                        continue;
+                    }
                     self.state.mode = mode;
                     if mode == Mode::Code {
                         self.state.playing = false;
                     }
                     self.state.set_status(format!("{}modus", mode.label()));
+                }
+                UiAction::OpenProjectPath(path) => {
+                    self.load_path(&path);
+                    self.state.mode = Mode::Animation;
                 }
                 UiAction::SetBottomTab(tab) => self.state.bottom_tab = tab,
                 UiAction::TogglePlay => self.toggle_play(),
@@ -4384,6 +4405,18 @@ impl eframe::App for NovaApp {
             egui::CentralPanel::default().show(ui, |ui| {
                 actions.extend(self.ai.show(ui, &mut self.project, &mut self.state));
             });
+        } else if self.state.mode == Mode::Classroom {
+            // Classroom mode owns the full central area; project panels are
+            // hidden (classroom data is not part of the project document).
+            egui::CentralPanel::default().show(ui, |ui| {
+                let json = self.project.to_json().ok().map(String::into_bytes);
+                actions.extend(classroom_view::show(
+                    ui,
+                    &mut self.edu,
+                    json.as_deref(),
+                    &self.project.metadata.name,
+                ));
+            });
         } else {
             egui::Panel::bottom("bottom_dock")
                 .resizable(true)
@@ -4410,6 +4443,15 @@ impl eframe::App for NovaApp {
                 });
 
             egui::CentralPanel::default().show(ui, |ui| match self.state.mode {
+                Mode::Classroom => {
+                    let json = self.project.to_json().ok().map(String::into_bytes);
+                    actions.extend(classroom_view::show(
+                        ui,
+                        &mut self.edu,
+                        json.as_deref(),
+                        &self.project.metadata.name,
+                    ));
+                }
                 Mode::Code => {
                     actions.extend(code_view::show(ui, &mut self.project, &mut self.state));
                 }

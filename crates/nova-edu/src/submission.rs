@@ -161,10 +161,10 @@ pub fn list_submissions(workspace: &Workspace, assignment_id: Uuid) -> EduResult
                 if path.extension().and_then(|e| e.to_str()) != Some("json") {
                     continue;
                 }
-                if let Ok(sub) = read_or::<Submission>(&path, Submission::default()) {
-                    if sub.schema != 0 {
-                        out.push(sub);
-                    }
+                if let Ok(sub) = read_or::<Submission>(&path, Submission::default())
+                    && sub.schema != 0
+                {
+                    out.push(sub);
                 }
             }
         }

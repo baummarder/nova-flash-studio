@@ -19,6 +19,7 @@ nova-formats.workspace = true
 nova-as.workspace = true
 nova-script.workspace = true
 nova-ai.workspace = true
+nova-edu.workspace = true
 eframe.workspace = true
 egui.workspace = true
 rfd.workspace = true

@@ -13,6 +13,8 @@ use uuid::Uuid;
 pub enum Mode {
     Code,
     Animation,
+    /// Edu-only classroom workspace (gated by the edition module registry).
+    Classroom,
 }
 
 impl Mode {
@@ -20,6 +22,7 @@ impl Mode {
         match self {
             Self::Code => "Code",
             Self::Animation => "Animation",
+            Self::Classroom => "Klassenzimmer",
         }
     }
 }
@@ -439,6 +442,8 @@ pub enum UiAction {
     About,
     Help,
     SetMode(Mode),
+    /// Open a `.nova` project at an explicit path (edu starter projects).
+    OpenProjectPath(PathBuf),
     SetBottomTab(BottomTab),
     TogglePlay,
     Stop,

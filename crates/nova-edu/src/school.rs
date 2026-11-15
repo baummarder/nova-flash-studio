@@ -72,10 +72,7 @@ impl Default for SchoolPolicy {
 
 impl SchoolConfig {
     pub fn load(workspace: &Workspace) -> EduResult<Self> {
-        Ok(crate::store::read_or(
-            &workspace.school_path(),
-            SchoolConfig::default(),
-        )?)
+        crate::store::read_or(&workspace.school_path(), SchoolConfig::default())
     }
 
     pub fn save(&self, workspace: &Workspace) -> EduResult<()> {
@@ -83,12 +80,12 @@ impl SchoolConfig {
     }
 
     pub fn validate(&self) -> EduResult<()> {
-        if let Some(days) = self.retention_days {
-            if days == 0 {
-                return Err(crate::error::EduError::Invalid(
-                    "retentionDays muss > 0 sein oder fehlen".into(),
-                ));
-            }
+        if let Some(days) = self.retention_days
+            && days == 0
+        {
+            return Err(crate::error::EduError::Invalid(
+                "retentionDays muss > 0 sein oder fehlen".into(),
+            ));
         }
         let mut ids = std::collections::HashSet::new();
         for level in &self.grade_scale {
@@ -104,12 +101,12 @@ impl SchoolConfig {
                 )));
             }
         }
-        if let Some(cat) = &self.template_catalog {
-            if cat.contains("..") || std::path::Path::new(cat).is_absolute() {
-                return Err(crate::error::EduError::Invalid(
-                    "templateCatalog muss ein relativer Pfad ohne .. sein".into(),
-                ));
-            }
+        if let Some(cat) = &self.template_catalog
+            && (cat.contains("..") || std::path::Path::new(cat).is_absolute())
+        {
+            return Err(crate::error::EduError::Invalid(
+                "templateCatalog muss ein relativer Pfad ohne .. sein".into(),
+            ));
         }
         Ok(())
     }
@@ -170,8 +167,10 @@ mod tests {
 
     #[test]
     fn validation_rejects_bad_catalog() {
-        let mut cfg = SchoolConfig::default();
-        cfg.template_catalog = Some("../escape".into());
+        let cfg = SchoolConfig {
+            template_catalog: Some("../escape".into()),
+            ..Default::default()
+        };
         assert!(cfg.validate().is_err());
     }
 

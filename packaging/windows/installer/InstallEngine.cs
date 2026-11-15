@@ -70,6 +70,8 @@ public sealed class InstallManifest
     public List<string> Files { get; set; } = new();
     public List<string> Shortcuts { get; set; } = new();
     public List<AssociationRecord> Associations { get; set; } = new();
+    /// <summary>True when Capabilities/RegisteredApplications were written.</summary>
+    public bool AppCapabilities { get; set; }
     public string UninstallerFileName { get; set; } = Installer.UninstallerFileName;
 }
 
@@ -438,6 +440,7 @@ public static class Installer
             progress?.Invoke(96, "Dateizuordnungen werden registriert …");
             if (options.AssociateNova) RegisterAssociation(".nova", EditionInfo.ProgIdNova, options.Scope, manifest);
             if (options.AssociateSwf) RegisterAssociation(".swf", EditionInfo.ProgIdSwf, options.Scope, manifest);
+            RegisterAppCapabilities(options, manifest);
             File.WriteAllText(manifestPath, JsonSerializer.Serialize(manifest, JsonOptions));
 
             // --- Uninstall registry entry ---------------------------------------------
@@ -597,7 +600,71 @@ public static class Installer
             cmdKey.SetValue(null, $"\"{exePath}\" \"%1\"");
         }
 
+        // Context-menu verb "Mit <Product> öffnen" (spec §3). Lives inside the
+        // ProgId, so it disappears with the ProgId on uninstall.
+        using (var verbKey = hive.CreateSubKey(
+            ClassesRootName(scope) + $"\\{progId}\\shell\\openWithNOVA", writable: true))
+        {
+            verbKey.SetValue(null, $"Mit {ProductName} öffnen");
+        }
+        using (var verbCmd = hive.CreateSubKey(
+            ClassesRootName(scope) + $"\\{progId}\\shell\\openWithNOVA\\command", writable: true))
+        {
+            verbCmd.SetValue(null, $"\"{exePath}\" \"%1\"");
+        }
+
+        // "Öffnen mit"-list entries (spec §3): OpenWithProgids + OpenWithList
+        // under the extension key. Removed again in RemoveAssociation.
+        using (var owp = hive.CreateSubKey(
+            ClassesRootName(scope) + $"\\{extension}\\OpenWithProgids", writable: true))
+        {
+            owp.CreateSubKey(progId, writable: true).Dispose();
+        }
+        using (var owl = hive.CreateSubKey(
+            ClassesRootName(scope) + $"\\{extension}\\OpenWithList", writable: true))
+        {
+            using var entry = owl.CreateSubKey(progId, writable: true);
+            entry.SetValue(null, ProductName);
+        }
+
         manifest.Associations.Add(record);
+    }
+
+    /// <summary>
+    /// Registers the app with Windows' modern app lists (spec §4):
+    /// Capabilities\FileAssociations + RegisteredApplications. Without these
+    /// the ProgId works for double-click but the app may not appear in the
+    /// "Öffnen mit" picker on Windows 10/11. UserChoice is never touched.
+    /// </summary>
+    private static void RegisterAppCapabilities(InstallOptions options, InstallManifest manifest)
+    {
+        var hive = options.Scope == InstallScope.AllUsers ? Registry.LocalMachine : Registry.CurrentUser;
+        var hiveName = options.Scope == InstallScope.AllUsers
+            ? @"SOFTWARE"
+            : @"Software";
+        var exePath = Path.Combine(manifest.InstallDir, AppExeName);
+        var vendorKey = EditionInfo.UninstallKey; // e.g. NOVAFlashStudioEdu
+
+        try
+        {
+            using (var caps = hive.CreateSubKey(
+                $"{hiveName}\\{vendorKey}\\Capabilities\\FileAssociations", writable: true))
+            {
+                if (options.AssociateNova) caps.SetValue(".nova", EditionInfo.ProgIdNova);
+                if (options.AssociateSwf) caps.SetValue(".swf", EditionInfo.ProgIdSwf);
+            }
+            using (var regApps = hive.CreateSubKey(
+                $"{hiveName}\\RegisteredApplications", writable: true))
+            {
+                regApps.SetValue(exePath, string.Empty);
+            }
+            manifest.AppCapabilities = true;
+        }
+        catch (System.Security.SecurityException)
+        {
+            // HKLM without elevation: ProgId registration still succeeded;
+            // capabilities are a best-effort nicety, not required for open.
+        }
     }
 
     private static void RemoveAssociation(AssociationRecord record, string exePath)
@@ -640,11 +707,71 @@ public static class Installer
                     extKey.SetValue(null, record.PreviousDefault);
                 }
             }
+
+            // Remove our "Öffnen mit" entries (only ours — keyed by ProgId).
+            try
+            {
+                hive.DeleteSubKeyTree(
+                    $"{root}\\{record.Extension}\\OpenWithProgids\\{record.ProgId}",
+                    throwOnMissingSubKey: false);
+                hive.DeleteSubKeyTree(
+                    $"{root}\\{record.Extension}\\OpenWithList\\{record.ProgId}",
+                    throwOnMissingSubKey: false);
+            }
+            catch (System.Security.SecurityException) { }
         }
         catch (System.Security.SecurityException)
         {
             // HKLM cleanup without elevation: leave the keys, they are inert.
         }
+    }
+
+    /// <summary>
+    /// Removes Capabilities/RegisteredApplications entries written by
+    /// RegisterAppCapabilities. Values are only deleted when they still point
+    /// at this edition's ProgIds/exe — never clobber another edition.
+    /// </summary>
+    private static void RemoveAppCapabilities(InstallManifest manifest)
+    {
+        if (!manifest.AppCapabilities) return;
+        var hive = manifest.Scope == "HKLM" ? Registry.LocalMachine : Registry.CurrentUser;
+        var hiveName = manifest.Scope == "HKLM" ? @"SOFTWARE" : @"Software";
+        var vendorKey = EditionInfo.UninstallKey;
+        var exePath = Path.Combine(manifest.InstallDir, AppExeName);
+
+        try
+        {
+            var capsPath = $"{hiveName}\\{vendorKey}\\Capabilities\\FileAssociations";
+            using (var caps = hive.OpenSubKey(capsPath, writable: true))
+            {
+                if (caps is not null)
+                {
+                    foreach (var name in caps.GetValueNames())
+                    {
+                        var progId = caps.GetValue(name) as string;
+                        var ours = name == ".nova" && progId == EditionInfo.ProgIdNova
+                            || name == ".swf" && progId == EditionInfo.ProgIdSwf;
+                        if (ours) caps.DeleteValue(name, throwOnMissingValue: false);
+                    }
+                    if (caps.GetValueNames().Length == 0)
+                    {
+                        hive.DeleteSubKey(capsPath, throwOnMissingSubKey: false);
+                        hive.DeleteSubKey(
+                            $"{hiveName}\\{vendorKey}\\Capabilities",
+                            throwOnMissingSubKey: false);
+                        hive.DeleteSubKey($"{hiveName}\\{vendorKey}", throwOnMissingSubKey: false);
+                    }
+                }
+            }
+            using (var regApps = hive.OpenSubKey($"{hiveName}\\RegisteredApplications", writable: true))
+            {
+                if (regApps?.GetValue(exePath) is not null)
+                {
+                    regApps.DeleteValue(exePath, throwOnMissingValue: false);
+                }
+            }
+        }
+        catch (System.Security.SecurityException) { }
     }
 
     private static void RemoveRecordedArtifacts(
@@ -655,6 +782,7 @@ public static class Installer
         {
             RemoveAssociation(record, exePath);
         }
+        RemoveAppCapabilities(manifest);
         foreach (var shortcut in manifest.Shortcuts)
         {
             DeleteShortcut(shortcut);

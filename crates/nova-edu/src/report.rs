@@ -67,14 +67,14 @@ pub fn progress_csv(rows: &[ProgressEntry], assignment_title: &str) -> String {
 pub fn class_overview_markdown(overview: &ClassOverview) -> String {
     let mut out = String::new();
     let _ = writeln!(out, "# Klassenübersicht: {}", overview.class_name);
-    let _ = writeln!(out, "");
+    let _ = writeln!(out);
     let _ = writeln!(
         out,
         "Mitglieder: {} · Aufgaben: {}",
         overview.members,
         overview.assignments.len()
     );
-    let _ = writeln!(out, "");
+    let _ = writeln!(out);
     let _ = writeln!(out, "| Aufgabe | Abgegeben | Gesehen | Fällig |");
     let _ = writeln!(out, "| --- | --- | --- | --- |");
     for a in &overview.assignments {

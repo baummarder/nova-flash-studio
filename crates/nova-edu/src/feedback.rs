@@ -38,10 +38,10 @@ impl ProjectAnchor {
 
     /// Best human-readable description for UI.
     pub fn describe(&self) -> String {
-        if let Some(label) = &self.label {
-            if !label.trim().is_empty() {
-                return label.clone();
-            }
+        if let Some(label) = &self.label
+            && !label.trim().is_empty()
+        {
+            return label.clone();
         }
         let mut parts = Vec::new();
         if let Some(id) = self.object_id {
@@ -198,6 +198,11 @@ fn load_bundle(
     Ok(b)
 }
 
+/// Persists a feedback bundle directly (used by package import).
+pub fn save_feedback_bundle(workspace: &Workspace, b: &FeedbackBundle) -> EduResult<()> {
+    save_bundle(workspace, b)
+}
+
 fn save_bundle(workspace: &Workspace, b: &FeedbackBundle) -> EduResult<()> {
     b.validate()?;
     write_json(&b.feedback_path(workspace), b)
@@ -240,16 +245,17 @@ pub fn list_feedback(workspace: &Workspace, assignment_id: Uuid) -> EduResult<Ve
             if Uuid::parse_str(a_part).ok() != Some(assignment_id) {
                 continue;
             }
-            if let Ok(b) = read_or::<FeedbackBundle>(&path, FeedbackBundle::default()) {
-                if b.schema != 0 {
-                    out.push(b);
-                }
+            if let Ok(b) = read_or::<FeedbackBundle>(&path, FeedbackBundle::default())
+                && b.schema != 0
+            {
+                out.push(b);
             }
         }
     }
     Ok(out)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn add_comment(
     workspace: &Workspace,
     class_id: Uuid,
@@ -454,7 +460,7 @@ mod tests {
 
     #[test]
     fn orphan_detection() {
-        let mut project = nova_core::Project::demo();
+        let project = nova_core::Project::demo();
         let real_obj = project.scenes[0]
             .layers
             .iter()

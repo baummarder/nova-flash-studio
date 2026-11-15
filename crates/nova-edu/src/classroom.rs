@@ -143,7 +143,7 @@ pub fn list_classrooms(workspace: &Workspace) -> EduResult<Vec<Classroom>> {
             out.push(class);
         }
     }
-    out.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    out.sort_by_key(|a| a.name.to_lowercase());
     Ok(out)
 }
 
@@ -305,10 +305,10 @@ pub fn move_member_to_group(
     group_id: Option<Uuid>,
 ) -> EduResult<()> {
     let mut class = get_classroom(workspace, class_id)?;
-    if let Some(gid) = group_id {
-        if !class.groups.iter().any(|g| g.id == gid) {
-            return Err(EduError::NotFound("Zielgruppe nicht gefunden".into()));
-        }
+    if let Some(gid) = group_id
+        && !class.groups.iter().any(|g| g.id == gid)
+    {
+        return Err(EduError::NotFound("Zielgruppe nicht gefunden".into()));
     }
     let member = class
         .members
@@ -348,7 +348,7 @@ pub fn remove_member(workspace: &Workspace, class_id: Uuid, member_id: Uuid) -> 
     save_classroom(workspace, &class)
 }
 
-pub fn find_member<'a>(class: &'a Classroom, member_id: Uuid) -> Option<&'a Member> {
+pub fn find_member(class: &Classroom, member_id: Uuid) -> Option<&Member> {
     class.members.iter().find(|m| m.id == member_id)
 }
 
@@ -375,13 +375,13 @@ impl Classroom {
             if !member_ids.insert(member.id) {
                 return Err(EduError::Invalid("Doppelte Mitglieder-ID".into()));
             }
-            if let Some(gid) = member.group_id {
-                if !self.groups.iter().any(|g| g.id == gid) {
-                    return Err(EduError::Invalid(format!(
-                        "Mitglied '{}' referenziert unbekannte Gruppe",
-                        member.author_name()
-                    )));
-                }
+            if let Some(gid) = member.group_id
+                && !self.groups.iter().any(|g| g.id == gid)
+            {
+                return Err(EduError::Invalid(format!(
+                    "Mitglied '{}' referenziert unbekannte Gruppe",
+                    member.author_name()
+                )));
             }
         }
         let mut group_ids = std::collections::HashSet::new();
