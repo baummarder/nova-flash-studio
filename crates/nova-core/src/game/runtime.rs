@@ -935,7 +935,7 @@ mod tests {
             // SAFETY-free approach: capture bus via raw pointer is unsound;
             // instead this test uses a second bus owned outside? Listeners
             // cannot borrow the bus mutably. Use a thread_local recursion
-            // counter instead â€” see below.
+            // counter instead — see below.
             let _ = e;
         });
         // Real recursion test: a listener that dispatches through a shared

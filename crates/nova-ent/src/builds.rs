@@ -1,7 +1,7 @@
-﻿//! Build profiles, build history and export validation (M21.7).
+//! Build profiles, build history and export validation (M21.7).
 //!
 //! Profiles are named, versioned configurations that drive the *existing*
-//! `nova-build`/`nova-formats` pipelines â€” no parallel exporter. History
+//! `nova-build`/`nova-formats` pipelines — no parallel exporter. History
 //! records are append-only JSONL with output path + sha256.
 
 use std::path::PathBuf;
@@ -85,7 +85,7 @@ impl BuildProfile {
             return Err(EntError::Invalid("Profilname darf nicht leer sein".into()));
         }
         if self.targets.is_empty() {
-            return Err(EntError::Invalid("Mindestens ein Build-Ziel nÃ¶tig".into()));
+            return Err(EntError::Invalid("Mindestens ein Build-Ziel nötig".into()));
         }
         Ok(())
     }
@@ -239,7 +239,7 @@ pub fn run_build(
             }
             BuildTarget::Xfl => {
                 // XFL compatibility export via nova-formats (experimental,
-                // documented subset â€” same pipeline the UI uses).
+                // documented subset — same pipeline the UI uses).
                 let result = nova_formats::export_xfl(project)
                     .map_err(|e| EntError::Invalid(format!("XFL-Export fehlgeschlagen: {e}")))?;
                 (result.bytes, result.warnings.len(), 0)

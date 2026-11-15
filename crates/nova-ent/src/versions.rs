@@ -51,7 +51,7 @@ impl ChangeSummary {
     /// One-line summary for lists.
     pub fn headline(&self) -> String {
         if self.is_empty() {
-            return "Keine strukturellen Ã„nderungen".into();
+            return "Keine strukturellen Änderungen".into();
         }
         let mut parts = Vec::new();
         if !self.scenes_added.is_empty() {
@@ -93,7 +93,7 @@ pub struct VersionEntry {
     /// sha256 of the snapshot bytes (also the integrity anchor).
     pub sha256: String,
     pub size_bytes: u64,
-    /// Author label (local profile display name â€” not authentication).
+    /// Author label (local profile display name — not authentication).
     pub author: String,
     pub message: String,
     /// Parent version id (previous head at snapshot time).
@@ -158,7 +158,7 @@ pub fn snapshot_path(workspace: &Workspace, entry: &VersionEntry) -> PathBuf {
 /// Loads + parses a project file into `nova_core::Project`.
 fn parse_project(bytes: &[u8]) -> EntResult<nova_core::Project> {
     let text = std::str::from_utf8(bytes)
-        .map_err(|_| EntError::Invalid("Projekt ist kein gÃ¼ltiges UTF-8".into()))?;
+        .map_err(|_| EntError::Invalid("Projekt ist kein gültiges UTF-8".into()))?;
     Ok(nova_core::Project::from_json(text)?)
 }
 
@@ -291,13 +291,13 @@ pub fn create_snapshot(
 
     let file = format!("snap-{}-{}.nova", now_unix(), &sha[..12]);
     let snap_path = dir.join(&file);
-    // Avoid clobbering an identical existing snapshot (non-safety only â€”
+    // Avoid clobbering an identical existing snapshot (non-safety only —
     // safety snapshots must always be recorded for a truthful restore trail).
     if !safety && snap_path.exists() {
         let existing_sha = sha256_hex(&std::fs::read(&snap_path)?);
         if existing_sha == sha {
             // Return a pointer to the existing identical snapshot instead
-            // of duplicating bytes â€” but keep index consistent.
+            // of duplicating bytes — but keep index consistent.
             if let Some(existing) = entries.iter().find(|e| e.sha256 == sha && !e.safety) {
                 return Ok(existing.clone());
             }
@@ -361,11 +361,11 @@ pub fn restore_version(
     let entry = get_version(workspace, reg.id, version_id)?;
     if !verify_version(workspace, &entry)? {
         return Err(EntError::Integrity(format!(
-            "Snapshot {} ist beschÃ¤digt (sha256-Mismatch)",
+            "Snapshot {} ist beschädigt (sha256-Mismatch)",
             entry.id
         )));
     }
-    // Safety snapshot of current state (skip when file unreadable â€”
+    // Safety snapshot of current state (skip when file unreadable —
     // restore should still be possible for a missing file? No: refuse,
     // restoring over nothing loses the "before" state implicitly anyway).
     let safety = create_snapshot(
@@ -415,9 +415,9 @@ pub fn compare_with_current(
     let entry = get_version(workspace, reg.id, version_id)?;
     let snap = std::fs::read(snapshot_path(workspace, &entry))?;
     let current = std::fs::read(reg.abs_path())?;
-    // Diff direction: snapshot â†’ current ("what changed since this version").
+    // Diff direction: snapshot → current ("what changed since this version").
     compare_bytes(&snap, &current).ok_or_else(|| {
-        EntError::Invalid("Projekt oder Snapshot lÃ¤sst sich nicht als .nova parsen".into())
+        EntError::Invalid("Projekt oder Snapshot lässt sich nicht als .nova parsen".into())
     })
 }
 
@@ -502,7 +502,7 @@ mod tests {
         let v1 = create_snapshot(&ws, &reg, "Ada", "Basis", false).unwrap();
         assert!(verify_version(&ws, &v1).unwrap());
 
-        // Modify project, snapshot again â†’ diff should show changes.
+        // Modify project, snapshot again → diff should show changes.
         let mut p2 = nova_core::Project::load(&f).unwrap();
         p2.scenes
             .push(nova_core::Scene::new("Szene Zwei", 800.0, 600.0));
@@ -512,7 +512,7 @@ mod tests {
         assert_eq!(changes.scenes_added, vec!["Szene Zwei".to_string()]);
         assert_eq!(v2.parent, Some(v1.id));
 
-        // Restore v1 â†’ safety snapshot taken, file reverts.
+        // Restore v1 → safety snapshot taken, file reverts.
         let (restored, safety) = restore_version(&ws, &reg, v1.id, "Ada").unwrap();
         assert_eq!(restored.id, v1.id);
         assert!(safety.is_some());

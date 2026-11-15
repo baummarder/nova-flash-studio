@@ -1,4 +1,4 @@
-﻿//! Review & approval workflows (M21.5).
+//! Review & approval workflows (M21.5).
 //!
 //! Reviews attach to a project registration. Comments may carry an anchor
 //! (object > layer+frame > scene/label) resolved against a loaded
@@ -28,15 +28,15 @@ impl ReviewStatus {
         match self {
             Self::Draft => "Entwurf",
             Self::PendingReview => "Wartet auf Review",
-            Self::InReview => "In PrÃ¼fung",
-            Self::ChangesRequested => "Ã„nderungen angefordert",
+            Self::InReview => "In Prüfung",
+            Self::ChangesRequested => "Änderungen angefordert",
             Self::Approved => "Freigegeben",
             Self::Rejected => "Abgelehnt",
         }
     }
 
-    /// Legal transitions. Rejected can be resubmitted â†’ PendingReview;
-    /// ChangesRequested â†’ PendingReview on resubmission.
+    /// Legal transitions. Rejected can be resubmitted → PendingReview;
+    /// ChangesRequested → PendingReview on resubmission.
     pub fn can_transition_to(self, next: ReviewStatus) -> bool {
         use ReviewStatus::*;
         matches!(
@@ -53,7 +53,7 @@ impl ReviewStatus {
     }
 }
 
-/// Anchor into the reviewed project â€” same semantics as nova-edu.
+/// Anchor into the reviewed project — same semantics as nova-edu.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ReviewAnchor {
@@ -259,7 +259,7 @@ pub fn transition(
     let mut r = get_review(workspace, id)?;
     if !r.status.can_transition_to(to) {
         return Err(EntError::Invalid(format!(
-            "UngÃ¼ltiger Review-Ãœbergang {} â†’ {}",
+            "Ungültiger Review-Übergang {} → {}",
             r.status.label(),
             to.label()
         )));
@@ -268,7 +268,7 @@ pub fn transition(
         && note.trim().is_empty()
     {
         return Err(EntError::Invalid(
-            "Ablehnung/RÃ¼ckgabe erfordert eine BegrÃ¼ndung".into(),
+            "Ablehnung/Rückgabe erfordert eine Begründung".into(),
         ));
     }
     let from = r.status;
@@ -428,10 +428,10 @@ mod tests {
     fn lifecycle() {
         let (ws, dir) = ws("life");
         let reg = reg_project(&ws, &dir);
-        let r = create_review(&ws, reg.id, "Review 1", "Bitte prÃ¼fen", None, "PM").unwrap();
+        let r = create_review(&ws, reg.id, "Review 1", "Bitte prüfen", None, "PM").unwrap();
         assert_eq!(r.status, ReviewStatus::Draft);
 
-        // Illegal: Draft â†’ Approved.
+        // Illegal: Draft → Approved.
         assert!(transition(&ws, r.id, ReviewStatus::Approved, "PM", "").is_err());
         transition(&ws, r.id, ReviewStatus::PendingReview, "PM", "").unwrap();
         transition(&ws, r.id, ReviewStatus::InReview, "Rev", "").unwrap();
@@ -442,7 +442,7 @@ mod tests {
             r.id,
             ReviewStatus::ChangesRequested,
             "Rev",
-            "Bitte Screenshots ergÃ¤nzen",
+            "Bitte Screenshots ergänzen",
         )
         .unwrap();
         assert_eq!(r.status, ReviewStatus::ChangesRequested);
@@ -510,7 +510,7 @@ mod tests {
             r.id,
             "Rev",
             CommentCategory::Requirement,
-            "Label prÃ¼fen",
+            "Label prüfen",
             Some(ReviewAnchor::SceneLabel {
                 scene: scene.name.clone(),
                 label: "intro".into(),

@@ -1,6 +1,6 @@
 //! Enterprise mode UI (M21.9): administration workspace for the Enterprise
 //! edition. All persistence goes through `nova-ent`; nothing here touches
-//! the `Project` document or `.nova` format. Roles are workflow policy â€”
+//! the `Project` document or `.nova` format. Roles are workflow policy —
 //! the UI states this explicitly; OS file permissions are the real boundary.
 
 use std::path::{Path, PathBuf};
@@ -36,7 +36,7 @@ pub fn show(
         ui.separator();
         ui.label(
             RichText::new(
-                "Rollen und Berechtigungen sind lokale Workflow-Regeln, keine Anmeldung â€” \
+                "Rollen und Berechtigungen sind lokale Workflow-Regeln, keine Anmeldung — \
                  Dateizugriff regelt das Betriebssystem.",
             )
             .small()
@@ -46,8 +46,8 @@ pub fn show(
     ui.add_space(6.0);
 
     if let Some(err) = &ent.error {
-        ui.colored_label(theme::AMBER, format!("âš  {}", err));
-        if ui.small_button("SchlieÃŸen").clicked() {
+        ui.colored_label(theme::AMBER, format!("⚠ {}", err));
+        if ui.small_button("Schließen").clicked() {
             ent.clear_error();
         }
         ui.separator();
@@ -143,20 +143,20 @@ fn workspace_gate(ui: &mut Ui, ent: &mut EntUi) {
         ui.add_space(6.0);
         ui.label(
             RichText::new(
-                "WÃ¤hle einen Enterprise-Workspace (Ordner mit org.json) oder erstelle einen neuen.\n\
-                 Alles lÃ¤uft offline â€” Projekte werden nur registriert, nie verschoben oder verÃ¤ndert.",
+                "Wähle einen Enterprise-Workspace (Ordner mit org.json) oder erstelle einen neuen.\n\
+                 Alles läuft offline — Projekte werden nur registriert, nie verschoben oder verändert.",
             )
             .color(theme::TEXT_DIM),
         );
         ui.add_space(12.0);
         ui.horizontal(|ui| {
-            if ui.button("Workspace Ã¶ffnen â€¦").clicked()
+            if ui.button("Workspace öffnen …").clicked()
                 && let Some(dir) = rfd::FileDialog::new().pick_folder()
                 && let Err(e) = ent.open_workspace(dir)
             {
                 ent.set_error(e);
             }
-            if ui.button("Neuer Workspace â€¦").clicked()
+            if ui.button("Neuer Workspace …").clicked()
                 && let Some(dir) = rfd::FileDialog::new().pick_folder()
             {
                 let name = dir
@@ -171,8 +171,8 @@ fn workspace_gate(ui: &mut Ui, ent: &mut EntUi) {
         ui.add_space(8.0);
         ui.label(
             RichText::new(
-                "Der Workspace enthÃ¤lt Organisation, Team, Projekt-Registry, Asset-Bibliothek, \
-                 Versionen, Reviews, Build-Profile und Audit-Log â€” alles als lokale JSON-Dateien.",
+                "Der Workspace enthält Organisation, Team, Projekt-Registry, Asset-Bibliothek, \
+                 Versionen, Reviews, Build-Profile und Audit-Log — alles als lokale JSON-Dateien.",
             )
             .small()
             .color(theme::TEXT_FAINT),
@@ -218,7 +218,7 @@ fn overview_tab(ui: &mut Ui, ent: &mut EntUi, ws: &Workspace) {
         stat(
             &mut cols[1],
             "Builds",
-            &format!("{} Profile, {} LÃ¤ufe", ov.build_profiles, ov.builds_total),
+            &format!("{} Profile, {} Läufe", ov.build_profiles, ov.builds_total),
         );
         stat(
             &mut cols[2],
@@ -237,20 +237,13 @@ fn overview_tab(ui: &mut Ui, ent: &mut EntUi, ws: &Workspace) {
     });
     ui.add_space(8.0);
     if !ov.integrity_problems.is_empty() {
-        ui.colored_label(
-            theme::AMBER,
-            "IntegritÃ¤tsprobleme in der Asset-Bibliothek:",
-        );
+        ui.colored_label(theme::AMBER, "Integritätsprobleme in der Asset-Bibliothek:");
         for p in ov.integrity_problems.iter().take(10) {
-            ui.label(
-                RichText::new(format!("â€¢ {p}"))
-                    .small()
-                    .color(theme::AMBER),
-            );
+            ui.label(RichText::new(format!("• {p}")).small().color(theme::AMBER));
         }
     } else {
         ui.label(
-            RichText::new("Asset-IntegritÃ¤t: OK")
+            RichText::new("Asset-Integrität: OK")
                 .small()
                 .color(theme::GREEN),
         );
@@ -311,9 +304,9 @@ fn projects_tab(
                 Err(e) => ent.set_error(e.to_string()),
             }
         }
-        if ui.button("â€¦ Datei wÃ¤hlen").clicked()
+        if ui.button("… Datei wählen").clicked()
             && let Some(f) = rfd::FileDialog::new()
-                .add_filter("NÃ˜VA-Projekt", &["nova"])
+                .add_filter("NØVA-Projekt", &["nova"])
                 .pick_file()
         {
             let name = f
@@ -336,7 +329,7 @@ fn projects_tab(
     let projects = team::list_projects(ws).unwrap_or_default();
     if projects.is_empty() {
         ui.label(
-            RichText::new("Keine Projekte registriert. Ã–ffne oder erstelle ein .nova-Projekt und registriere es hier.")
+            RichText::new("Keine Projekte registriert. Öffne oder erstelle ein .nova-Projekt und registriere es hier.")
                 .color(theme::TEXT_DIM),
         );
         return;
@@ -374,14 +367,14 @@ fn project_row(
         match (reg.registered_sha256.as_ref(), team::current_sha256(reg)) {
             (Some(old), Some(cur)) if old != &cur => {
                 ui.label(
-                    RichText::new("geÃ¤ndert seit Registrierung")
+                    RichText::new("geändert seit Registrierung")
                         .small()
                         .color(theme::AMBER),
                 );
             }
             (Some(_), Some(_)) => {
                 ui.label(
-                    RichText::new("unverÃ¤ndert")
+                    RichText::new("unverändert")
                         .small()
                         .color(theme::TEXT_FAINT),
                 );
@@ -390,7 +383,7 @@ fn project_row(
                 ui.label(RichText::new("Datei fehlt?").small().color(theme::AMBER));
             }
         }
-        if ui.small_button("Ã–ffnen").clicked() {
+        if ui.small_button("Öffnen").clicked() {
             actions.push(UiAction::OpenProjectPath(reg.abs_path()));
         }
         if !reg.archived && ui.small_button("Archivieren").clicked() {
@@ -435,7 +428,7 @@ fn team_tab(ui: &mut Ui, ent: &mut EntUi, ws: &Workspace) {
                     ui.selectable_value(&mut ent.input_member_role, *role, role.label());
                 }
             });
-        if ui.button("HinzufÃ¼gen").clicked() {
+        if ui.button("Hinzufügen").clicked() {
             match team::add_member(ws, &ent.input_member_name, ent.input_member_role) {
                 Ok(m) => {
                     let _ = admin::record(
@@ -446,7 +439,7 @@ fn team_tab(ui: &mut Ui, ent: &mut EntUi, ws: &Workspace) {
                         format!("{} ({})", m.display_name, m.role.label()),
                     );
                     ent.input_member_name.clear();
-                    ent.status = format!("Mitglied hinzugefÃ¼gt: {}", m.display_name);
+                    ent.status = format!("Mitglied hinzugefügt: {}", m.display_name);
                 }
                 Err(e) => ent.set_error(e.to_string()),
             }
@@ -467,28 +460,25 @@ fn team_tab(ui: &mut Ui, ent: &mut EntUi, ws: &Workspace) {
 
     // Permission matrix overview.
     ui.add_space(8.0);
-    ui.collapsing(
-        "BerechtigungsÃ¼bersicht (Rollen â†’ Aktionen)",
-        |ui| {
-            ui.label(
-                RichText::new(
-                    "Policy-Matrix fÃ¼r die lokale Workflow-Steuerung â€” keine Authentifizierung.",
-                )
-                .small()
-                .color(theme::TEXT_FAINT),
-            );
-            for role in EnterpriseRole::ALL {
-                let allowed: Vec<&str> = nova_ent::profile::default_permissions(*role)
-                    .iter()
-                    .map(|a| a.label())
-                    .collect();
-                ui.horizontal(|ui| {
-                    ui.label(RichText::new(role.label()).strong());
-                    ui.label(allowed.join(", "));
-                });
-            }
-        },
-    );
+    ui.collapsing("Berechtigungsübersicht (Rollen → Aktionen)", |ui| {
+        ui.label(
+            RichText::new(
+                "Policy-Matrix für die lokale Workflow-Steuerung — keine Authentifizierung.",
+            )
+            .small()
+            .color(theme::TEXT_FAINT),
+        );
+        for role in EnterpriseRole::ALL {
+            let allowed: Vec<&str> = nova_ent::profile::default_permissions(*role)
+                .iter()
+                .map(|a| a.label())
+                .collect();
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(role.label()).strong());
+                ui.label(allowed.join(", "));
+            });
+        }
+    });
 }
 
 fn member_row(ui: &mut Ui, ent: &mut EntUi, ws: &Workspace, m: &TeamMember) {
@@ -515,9 +505,9 @@ fn member_row(ui: &mut Ui, ent: &mut EntUi, ws: &Workspace, m: &TeamMember) {
                                     &ent.actor(),
                                     "team",
                                     "team.role",
-                                    format!("{} â†’ {}", m.display_name, role.label()),
+                                    format!("{} → {}", m.display_name, role.label()),
                                 );
-                                ent.status = format!("Rolle von {} geÃ¤ndert.", m.display_name);
+                                ent.status = format!("Rolle von {} geändert.", m.display_name);
                             }
                             Err(e) => ent.set_error(e.to_string()),
                         }
@@ -554,7 +544,7 @@ fn assets_tab(ui: &mut Ui, ent: &mut EntUi, ws: &Workspace) {
     ui.horizontal(|ui| {
         ui.label("Suche:");
         ui.text_edit_singleline(&mut ent.input_asset_name);
-        if ui.button("Importieren â€¦").clicked()
+        if ui.button("Importieren …").clicked()
             && let Some(f) = rfd::FileDialog::new().pick_file()
         {
             let folder = ent.input_asset_folder.trim().to_string();
@@ -587,13 +577,13 @@ fn assets_tab(ui: &mut Ui, ent: &mut EntUi, ws: &Workspace) {
                 Err(e) => ent.set_error(e.to_string()),
             }
         }
-        if ui.button("IntegritÃ¤t prÃ¼fen").clicked() {
+        if ui.button("Integrität prüfen").clicked() {
             match assets::verify_library(ws) {
                 Ok(problems) if problems.is_empty() => {
-                    ent.status = "Asset-IntegritÃ¤t: alle Blobs OK.".into();
+                    ent.status = "Asset-Integrität: alle Blobs OK.".into();
                 }
                 Ok(problems) => ent.set_error(format!(
-                    "{} IntegritÃ¤tsprobleme: {}",
+                    "{} Integritätsprobleme: {}",
                     problems.len(),
                     problems.join("; ")
                 )),
@@ -643,7 +633,7 @@ fn asset_row(ui: &mut Ui, ent: &mut EntUi, ws: &Workspace, a: &LibraryAsset) {
                 .small()
                 .color(theme::TEXT_FAINT),
         );
-        if ui.small_button("Export â€¦").clicked()
+        if ui.small_button("Export …").clicked()
             && let Some(dir) = rfd::FileDialog::new().pick_folder()
         {
             match assets::export_asset(ws, a, &dir) {
@@ -651,11 +641,11 @@ fn asset_row(ui: &mut Ui, ent: &mut EntUi, ws: &Workspace, a: &LibraryAsset) {
                 Err(e) => ent.set_error(e.to_string()),
             }
         }
-        if ui.small_button("LÃ¶schen").clicked() {
+        if ui.small_button("Löschen").clicked() {
             match assets::delete_asset(ws, a.id) {
                 Ok(()) => {
                     let _ = admin::record(ws, &ent.actor(), "asset", "asset.delete", &a.name);
-                    ent.status = format!("Asset gelÃ¶scht: {}", a.name);
+                    ent.status = format!("Asset gelöscht: {}", a.name);
                 }
                 Err(e) => ent.set_error(e.to_string()),
             }
@@ -675,8 +665,7 @@ fn asset_row(ui: &mut Ui, ent: &mut EntUi, ws: &Workspace, a: &LibraryAsset) {
 fn versions_tab(ui: &mut Ui, ent: &mut EntUi, ws: &Workspace) {
     let Some(pid) = ent.selected_project else {
         ui.label(
-            RichText::new("WÃ¤hle zuerst ein Projekt im Tab â€žProjekteâ€œ.")
-                .color(theme::TEXT_DIM),
+            RichText::new("Wähle zuerst ein Projekt im Tab „Projekte“.").color(theme::TEXT_DIM),
         );
         return;
     };
@@ -687,7 +676,7 @@ fn versions_tab(ui: &mut Ui, ent: &mut EntUi, ws: &Workspace) {
             return;
         }
     };
-    ui.label(RichText::new(format!("Versionen fÃ¼r: {}", reg.name)).strong());
+    ui.label(RichText::new(format!("Versionen für: {}", reg.name)).strong());
     ui.horizontal(|ui| {
         ui.text_edit_singleline(&mut ent.input_version_message);
         if ui.button("Snapshot erstellen").clicked() {
@@ -708,7 +697,7 @@ fn versions_tab(ui: &mut Ui, ent: &mut EntUi, ws: &Workspace) {
                     );
                     ent.input_version_message.clear();
                     ent.status = format!(
-                        "Snapshot erstellt ({} Ã„nderungen)",
+                        "Snapshot erstellt ({} Änderungen)",
                         v.changes.as_ref().map(|c| c.headline()).unwrap_or_default()
                     );
                 }
@@ -755,7 +744,7 @@ fn versions_tab(ui: &mut Ui, ent: &mut EntUi, ws: &Workspace) {
                                 &ent.actor(),
                                 "version",
                                 "version.restore",
-                                format!("{} â†’ {}", reg.name, restored.id),
+                                format!("{} → {}", reg.name, restored.id),
                             );
                             ent.status = format!(
                                 "Version {} wiederhergestellt{}.",
@@ -790,11 +779,11 @@ fn versions_tab(ui: &mut Ui, ent: &mut EntUi, ws: &Workspace) {
                         Err(e) => ent.set_error(e.to_string()),
                     }
                 }
-                if ui.small_button("PrÃ¼fen").clicked() {
+                if ui.small_button("Prüfen").clicked() {
                     match versions::get_version(ws, pid, v.id) {
                         Ok(entry) => match versions::verify_version(ws, &entry) {
-                            Ok(true) => ent.status = "Snapshot-IntegritÃ¤t: OK.".into(),
-                            Ok(false) => ent.set_error("Snapshot-IntegritÃ¤t: sha256-Mismatch!"),
+                            Ok(true) => ent.status = "Snapshot-Integrität: OK.".into(),
+                            Ok(false) => ent.set_error("Snapshot-Integrität: sha256-Mismatch!"),
                             Err(e) => ent.set_error(e.to_string()),
                         },
                         Err(e) => ent.set_error(e.to_string()),
@@ -835,7 +824,7 @@ fn reviews_tab(ui: &mut Ui, ent: &mut EntUi, ws: &Workspace) {
             }
         } else {
             ui.label(
-                RichText::new("(Projekt im Tab â€žProjekteâ€œ wÃ¤hlen)")
+                RichText::new("(Projekt im Tab „Projekte“ wählen)")
                     .small()
                     .color(theme::TEXT_FAINT),
             );
@@ -888,8 +877,8 @@ fn review_row(ui: &mut Ui, ent: &mut EntUi, ws: &Workspace, r: &Review) {
         ui.horizontal_wrapped(|ui| {
             for (to, label) in [
                 (ReviewStatus::PendingReview, "Einreichen"),
-                (ReviewStatus::InReview, "In PrÃ¼fung"),
-                (ReviewStatus::ChangesRequested, "Ã„nderungen"),
+                (ReviewStatus::InReview, "In Prüfung"),
+                (ReviewStatus::ChangesRequested, "Änderungen"),
                 (ReviewStatus::Approved, "Freigeben"),
                 (ReviewStatus::Rejected, "Ablehnen"),
             ] {
@@ -907,7 +896,7 @@ fn review_row(ui: &mut Ui, ent: &mut EntUi, ws: &Workspace, r: &Review) {
                                 &ent.actor(),
                                 "review",
                                 "review.transition",
-                                format!("{} â†’ {}", r.status.label(), to.label()),
+                                format!("{} → {}", r.status.label(), to.label()),
                             );
                             ent.status = format!("Review: {}", updated.status.label());
                         }
@@ -957,7 +946,7 @@ fn review_row(ui: &mut Ui, ent: &mut EntUi, ws: &Workspace, r: &Review) {
                 ) {
                     Ok(_) => {
                         ent.input_review_comment.clear();
-                        ent.status = "Kommentar hinzugefÃ¼gt.".into();
+                        ent.status = "Kommentar hinzugefügt.".into();
                     }
                     Err(e) => ent.set_error(e.to_string()),
                 }
@@ -990,7 +979,7 @@ fn builds_tab(ui: &mut Ui, ent: &mut EntUi, ws: &Workspace, current_project: Opt
         }
         if let Some(path) = current_project
             && let Some(pid) = ent.selected_project
-            && ui.button("Build ausfÃ¼hren").clicked()
+            && ui.button("Build ausführen").clicked()
         {
             let reg = team::get_project(ws, pid).ok();
             match (reg, nova_core::Project::load(path)) {
@@ -1013,12 +1002,12 @@ fn builds_tab(ui: &mut Ui, ent: &mut EntUi, ws: &Workspace, current_project: Opt
                                     "build",
                                     "build.run",
                                     format!(
-                                        "{} â†’ {} ({} Warnungen)",
+                                        "{} → {} ({} Warnungen)",
                                         reg.name, rec.output, rec.warnings
                                     ),
                                 );
                             }
-                            ent.status = format!("{} Build(s) ausgefÃ¼hrt.", records.len());
+                            ent.status = format!("{} Build(s) ausgeführt.", records.len());
                         }
                         Err(e) => ent.set_error(e.to_string()),
                     }
@@ -1053,9 +1042,9 @@ fn builds_tab(ui: &mut Ui, ent: &mut EntUi, ws: &Workspace, current_project: Opt
                     .small()
                     .color(theme::TEXT_DIM),
                 );
-                if ui.small_button("LÃ¶schen").clicked() {
+                if ui.small_button("Löschen").clicked() {
                     match builds::delete_profile(ws, p.id) {
-                        Ok(()) => ent.status = "Profil gelÃ¶scht.".into(),
+                        Ok(()) => ent.status = "Profil gelöscht.".into(),
                         Err(e) => ent.set_error(e.to_string()),
                     }
                 }
@@ -1163,7 +1152,7 @@ fn admin_tab(ui: &mut Ui, ent: &mut EntUi, ws: &Workspace) {
         }
         if ui.button("Workspace importieren (.novaent)").clicked()
             && let Some(f) = rfd::FileDialog::new()
-                .add_filter("NÃ˜VA Enterprise Workspace", &["novaent"])
+                .add_filter("NØVA Enterprise Workspace", &["novaent"])
                 .pick_file()
         {
             match nova_ent::package::read_package(&f) {
@@ -1180,7 +1169,7 @@ fn admin_tab(ui: &mut Ui, ent: &mut EntUi, ws: &Workspace) {
                         ent.status = format!("Import: {}", report.summary());
                     } else {
                         ent.set_error(format!(
-                            "Import: {} â€” {}",
+                            "Import: {} — {}",
                             report.summary(),
                             report.errors.join("; ")
                         ));
@@ -1196,7 +1185,7 @@ fn admin_tab(ui: &mut Ui, ent: &mut EntUi, ws: &Workspace) {
     let log = admin::audit_log(ws).unwrap_or_default();
     if log.is_empty() {
         ui.label(
-            RichText::new("Noch keine EintrÃ¤ge.")
+            RichText::new("Noch keine Einträge.")
                 .small()
                 .color(theme::TEXT_DIM),
         );
@@ -1232,7 +1221,7 @@ fn csv_escape(s: &str) -> String {
 fn integrations_tab(ui: &mut Ui, ent: &mut EntUi, ws: &Workspace) {
     ui.label(
         RichText::new(
-            "Optionale lokale Integrationen â€” standardmÃ¤ÃŸig deaktiviert. \
+            "Optionale lokale Integrationen — standardmäßig deaktiviert. \
              Endpunkte bleiben lokal; Projektdateien verlassen den Rechner nur auf explizite Aktion. \
              API-Keys werden als Umgebungsvariablen-Referenzen gespeichert, nie im Klartext.",
         )
@@ -1255,7 +1244,7 @@ fn integrations_tab(ui: &mut Ui, ent: &mut EntUi, ws: &Workspace) {
                     ui.selectable_value(&mut ent.input_integration_kind, k, k.label());
                 }
             });
-        if ui.button("HinzufÃ¼gen").clicked() {
+        if ui.button("Hinzufügen").clicked() {
             let i = Integration {
                 name: ent.input_integration_name.clone(),
                 kind: ent.input_integration_kind,
@@ -1344,19 +1333,19 @@ fn integrations_tab(ui: &mut Ui, ent: &mut EntUi, ws: &Workspace) {
                     Err(e) => ent.set_error(e.to_string()),
                 }
             }
-            if ui.small_button("LÃ¶schen").clicked() {
+            if ui.small_button("Löschen").clicked() {
                 match integrations::delete_integration(ws, i.id) {
-                    Ok(()) => ent.status = format!("{} gelÃ¶scht.", i.name),
+                    Ok(()) => ent.status = format!("{} gelöscht.", i.name),
                     Err(e) => ent.set_error(e.to_string()),
                 }
             }
         });
         ui.label(
             RichText::new(format!(
-                "{} Â· {} Â· Key: {}",
+                "{} · {} · Key: {}",
                 i.endpoint,
                 i.model,
-                i.api_key_env.clone().unwrap_or_else(|| "â€”".into())
+                i.api_key_env.clone().unwrap_or_else(|| "—".into())
             ))
             .small()
             .color(theme::TEXT_FAINT),

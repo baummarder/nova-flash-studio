@@ -1,7 +1,7 @@
-﻿//! Audit log + administration overview (M21.6).
+//! Audit log + administration overview (M21.6).
 //!
 //! The audit log is append-only JSONL inside the workspace. Entries record
-//! *who did what* using local display-name labels â€” again, policy
+//! *who did what* using local display-name labels — again, policy
 //! attribution, not authentication.
 
 use serde::{Deserialize, Serialize};
@@ -45,7 +45,7 @@ impl AuditEntry {
     }
 }
 
-/// Appends an audit entry. Never fails silently â€” errors propagate so
+/// Appends an audit entry. Never fails silently — errors propagate so
 /// callers can decide whether the mutation should be rolled back.
 pub fn log(workspace: &Workspace, entry: &AuditEntry) -> EntResult<()> {
     append_jsonl(&workspace.audit_path(), entry)

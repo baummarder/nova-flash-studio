@@ -11,7 +11,7 @@
 
 use std::collections::BTreeMap;
 use std::io::{Read, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -348,30 +348,55 @@ impl ImportReport {
     }
 }
 
-/// Writes payload files into `dest` (workspace root) — only whitelisted
-/// top-level prefixes are accepted; everything else is skipped.
-fn commit_files(workspace: &Workspace, pkg: &ExtractedPackage) -> ImportReport {
+/// One planned import: package path → workspace-relative destination.
+struct PlannedFile {
+    pkg_path: String,
+    dest_rel: String,
+    dest: PathBuf,
+    data: Vec<u8>,
+}
+
+/// Maps a package path to its workspace destination (whitelist only).
+/// `org.json` is deliberately NOT importable: local org identity always wins.
+fn plan_destination(pkg_path: &str) -> Option<String> {
+    let ok = pkg_path == "team.json"
+        || pkg_path == "meta.json"
+        || pkg_path.starts_with("projects/")
+        || pkg_path.starts_with("reviews/")
+        || pkg_path == "builds/profiles.json"
+        || pkg_path == "integrations/config.json"
+        || pkg_path == "assets/index.json"
+        || pkg_path.starts_with("blobs/");
+    if !ok {
+        return None;
+    }
+    Some(if let Some(rest) = pkg_path.strip_prefix("blobs/") {
+        format!("assets/blobs/{rest}")
+    } else {
+        pkg_path.to_string()
+    })
+}
+
+/// Imports a verified package into the workspace **transactionally**:
+///
+/// 1. Plan — whitelist mapping, conflict detection, path safety. Nothing
+///    is written yet; `org.json` is always excluded by the caller.
+/// 2. Stage — every payload is written into a temporary staging dir inside
+///    the workspace and re-hashed against the manifest checksum.
+/// 3. Commit — staged files are moved into place one by one. Existing
+///    files are never overwritten (they were filtered in planning).
+/// 4. Rollback — if any step fails, every destination file created during
+///    this run is deleted again and the staging dir is removed, so a
+///    failed import leaves the workspace exactly as before.
+pub fn import_package(workspace: &Workspace, pkg: &ExtractedPackage) -> ImportReport {
     let mut report = ImportReport::default();
+
+    // ---------------------------------------------------------- plan
+    let mut plan: Vec<PlannedFile> = Vec::new();
     for f in &pkg.files {
-        // Whitelist: known metadata locations only.
-        let ok = f.path == "org.json"
-            || f.path == "team.json"
-            || f.path == "meta.json"
-            || f.path.starts_with("projects/")
-            || f.path.starts_with("reviews/")
-            || f.path == "builds/profiles.json"
-            || f.path == "integrations/config.json"
-            || f.path == "assets/index.json"
-            || f.path.starts_with("blobs/");
-        if !ok {
+        let Some(dest_rel) = plan_destination(&f.path) else {
             report.skipped.push(f.path.clone());
             continue;
-        }
-        // Map package layout → workspace layout.
-        let dest_rel = if f.path.starts_with("blobs/") {
-            format!("assets/{}", f.path)
-        } else {
-            f.path.clone()
         };
         let dest = match safe_join(&workspace.root, &dest_rel) {
             Ok(p) => p,
@@ -380,51 +405,88 @@ fn commit_files(workspace: &Workspace, pkg: &ExtractedPackage) -> ImportReport {
                 continue;
             }
         };
-        // Never overwrite existing files silently — skip conflicts.
         if dest.exists() {
             report
                 .skipped
                 .push(format!("{} (existiert bereits)", f.path));
             continue;
         }
-        if let Some(parent) = dest.parent()
+        plan.push(PlannedFile {
+            pkg_path: f.path.clone(),
+            dest_rel,
+            dest,
+            data: f.data.clone(),
+        });
+    }
+    if plan.is_empty() {
+        return report;
+    }
+
+    // ---------------------------------------------------------- stage
+    let staging = workspace
+        .root
+        .join(format!(".novaent-staging-{}", Uuid::new_v4()));
+    let stage_result = (|| -> EntResult<()> {
+        for pf in &plan {
+            let stage_path = staging.join(&pf.dest_rel);
+            if let Some(parent) = stage_path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            std::fs::write(&stage_path, &pf.data)?;
+            // Re-verify integrity of what actually landed on disk.
+            let written = std::fs::read(&stage_path)?;
+            if sha256_hex(&written) != sha256_hex(&pf.data) {
+                return Err(EntError::Integrity(format!(
+                    "Staging-Checksum-Mismatch für '{}'",
+                    pf.pkg_path
+                )));
+            }
+        }
+        Ok(())
+    })();
+    if let Err(e) = stage_result {
+        let _ = std::fs::remove_dir_all(&staging);
+        report.errors.push(format!("Staging fehlgeschlagen: {e}"));
+        return report;
+    }
+
+    // ---------------------------------------------------------- commit + rollback
+    let mut created: Vec<PathBuf> = Vec::new();
+    let mut commit_error: Option<String> = None;
+    'commit: for pf in &plan {
+        let stage_path = staging.join(&pf.dest_rel);
+        if let Some(parent) = pf.dest.parent()
             && let Err(e) = std::fs::create_dir_all(parent)
         {
-            report.errors.push(format!("{}: {e}", f.path));
-            continue;
+            commit_error = Some(format!("{}: {e}", pf.pkg_path));
+            break 'commit;
         }
-        if let Err(e) = std::fs::write(&dest, &f.data) {
-            report.errors.push(format!("{}: {e}", f.path));
-        } else {
-            report.imported.push(f.path.clone());
+        // Never overwrite: re-check immediately before the move.
+        if pf.dest.exists() {
+            commit_error = Some(format!("{}: Ziel existiert jetzt", pf.pkg_path));
+            break 'commit;
         }
+        if let Err(e) = std::fs::rename(&stage_path, &pf.dest) {
+            commit_error = Some(format!("{}: {e}", pf.pkg_path));
+            break 'commit;
+        }
+        created.push(pf.dest.clone());
+        report.imported.push(pf.pkg_path.clone());
+    }
+
+    let _ = std::fs::remove_dir_all(&staging);
+    if let Some(err) = commit_error {
+        // Roll back every file this run created — the report must reflect
+        // that nothing was actually imported.
+        for dest in created.iter().rev() {
+            let _ = std::fs::remove_file(dest);
+        }
+        report.imported.clear();
+        report
+            .errors
+            .push(format!("Import abgebrochen, gerollt zurück: {err}"));
     }
     report
-}
-
-/// Imports a verified package into the workspace.
-pub fn import_package(workspace: &Workspace, pkg: &ExtractedPackage) -> ImportReport {
-    // org.json is special: importing it would rename the org — skip it and
-    // report, org identity stays local.
-    let mut filtered = pkg.clone_shallow();
-    filtered.files.retain(|f| f.path != "org.json");
-    commit_files(workspace, &filtered)
-}
-
-impl ExtractedPackage {
-    fn clone_shallow(&self) -> Self {
-        Self {
-            manifest: self.manifest.clone(),
-            files: self
-                .files
-                .iter()
-                .map(|f| PackageFile {
-                    path: f.path.clone(),
-                    data: f.data.clone(),
-                })
-                .collect(),
-        }
-    }
 }
 
 #[cfg(test)]
@@ -504,5 +566,68 @@ mod tests {
             zip.finish().unwrap();
         }
         assert!(read_package_bytes(&buf.into_inner()).is_err());
+    }
+
+    #[test]
+    fn failed_commit_rolls_back_created_files() {
+        let (dst, dir) = ws("rb");
+        // Package: team.json succeeds, reviews/r1.json is blocked because
+        // `reviews` exists as a *file* (not a directory) in the workspace.
+        // `reviews/sub` exists as a *file* so committing
+        // reviews/sub/x.json must fail mid-run (parent is not a dir).
+        std::fs::write(dir.join("reviews").join("sub"), b"blocker").unwrap();
+        let manifest = PackageManifest::default();
+        let files = vec![
+            PackageFile {
+                path: "team.json".into(),
+                data: br#"{"schema":1,"members":[]}"#.to_vec(),
+            },
+            PackageFile {
+                path: "reviews/sub/x.json".into(),
+                data: br#"{"schema":1}"#.to_vec(),
+            },
+        ];
+        let bytes = build_package(&manifest, &files).unwrap();
+        let pkg = read_package_bytes(&bytes).unwrap();
+
+        let report = import_package(&dst, &pkg);
+        assert!(!report.errors.is_empty(), "expected commit failure");
+        // Rollback: team.json must NOT remain.
+        assert!(!dir.join("team.json").exists(), "rollback failed");
+        assert!(report.imported.is_empty());
+        // No staging leftovers.
+        let leftovers: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| {
+                e.file_name()
+                    .to_string_lossy()
+                    .starts_with(".novaent-staging")
+            })
+            .collect();
+        assert!(leftovers.is_empty(), "staging dir left behind");
+        // Pre-existing blocker untouched.
+        assert_eq!(
+            std::fs::read(dir.join("reviews").join("sub")).unwrap(),
+            b"blocker"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn org_json_never_imported() {
+        let (dst, dir) = ws("org");
+        let before = dst.org().unwrap().name;
+        let manifest = PackageManifest::default();
+        let files = vec![PackageFile {
+            path: "org.json".into(),
+            data: br#"{"schema":1,"name":"PWNED"}"#.to_vec(),
+        }];
+        let bytes = build_package(&manifest, &files).unwrap();
+        let pkg = read_package_bytes(&bytes).unwrap();
+        let report = import_package(&dst, &pkg);
+        assert!(report.imported.is_empty());
+        assert_eq!(dst.org().unwrap().name, before);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
