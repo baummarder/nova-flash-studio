@@ -3,9 +3,23 @@
 All notable changes are documented per release candidate. The `.nova`
 project format stays at v4 and edition-neutral across all editions.
 
-## [0.17.0-rc1] — M21 Enterprise Edition + M21 remediation + M22 UI/i18n + M23 workspace/installer
+## [0.17.0-rc1] — M21 Enterprise Edition + M21 remediation + M22 UI/i18n + M23 workspace/installer + M24 installer/i18n + M25 AI access
 
 ### Added
+
+- **M24 — Installer completion:** five-language setup wizard
+  (embedded `i18n/*.json`, en-GB fallback, per-edition registry
+  persistence, first-run language page, header language selector,
+  new summary page), footer rebuilt so Zurück/Weiter/Installieren/
+  Abbrechen are always visible, `--set-language`/`--get-language`
+  CLI.
+- **M25 — AI agent project access:** per-project grant store
+  (`ai-access.json`) with file/folder or whole-tree grants,
+  read-only vs read+write levels, project-wide read-only cap,
+  sensitive-file denylist (.env, keys, credentials, .git, .ssh),
+  isolated `ReviewSession` staging with snapshots, per-file diff
+  accept/reject, conflict detection, grant re-check and rollback on
+  apply; permission prompt + grants manager in the AI Agent Editor.
 
 - **M23 — Integrated code workspace:** three editor layouts —
   Stage Only, Stage + Code (draggable divider, both panes fully

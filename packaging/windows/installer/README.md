@@ -42,6 +42,33 @@ Custom .NET 8 WinForms setup wizard + uninstaller
 - **Edition isolation:** distinct product names, install dirs,
   uninstall keys and ProgIds per edition — installs coexist.
 
+## Wizard pages & navigation (M24)
+
+Flow: **Sprache** (nur beim ersten Start ohne gespeicherte Sprache)
+→ Willkommen → Lizenz → Installationsort → Optionen → **Zusammenfassung**
+→ Fortschritt → Fertig.
+
+- Footer is a `TableLayoutPanel`+`FlowLayoutPanel` right-aligned strip
+  docked bottom — Zurück/Weiter|Installieren/Abbrechen can never be
+  clipped by content or window size.
+- Buttons adapt per page: Back hidden on Progress/Finish, Install
+  label only on the summary page, license gate on the license page,
+  Cancel becomes "Schließen" on Finish and launches the app.
+- `_content` padding is symmetric (8 px); the header/footer heights
+  are handled purely by docking.
+
+## Localization (M24.2)
+
+- Strings live in `i18n/<lang>.json` embedded as `i18n.<lang>.json`
+  resources (de-DE, en-GB, da-DK, fr-FR, pl-PL; en-GB fallback).
+- `InstallerText` resolves `wiz.*` keys; all pages implement
+  `RefreshText()` so the header language combo re-localizes the whole
+  wizard live.
+- Choice persists per edition in
+  `HKCU\Software\<UninstallKey>\Installer\Language`.
+- CLI: `--set-language CODE`, `--get-language` (headless tests).
+- Engine/headless progress messages remain German (limitation).
+
 ## Tests
 
 `scripts/test-installer.ps1` runs the headless install → verify →

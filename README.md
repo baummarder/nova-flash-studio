@@ -8,13 +8,16 @@ the project format is versioned JSON, and the SWF writer is implemented directly
 against the published SWF file-format specification. Tools and extensions run in
 an embedded QuickJS context; ActionScript is **not** executed by QuickJS.
 
-> **Status: M23 — integrated code workspace & installer redesign.**
-> M23 adds three editor layouts — **Stage**, **Stage + Code**
-> (draggable split) and **Code** — persisted per edition, plus a
-> classic-2009 restyled Windows installer wizard with a
-> "Dokumentation öffnen" finish action. Headless install/uninstall
-> is covered by `scripts/test-installer.ps1` for all three editions.
-> See `docs/MEGA_MILESTONE_23_PLAN.md`.
+> **Status: M24/M25 — installer i18n & AI project access.**
+> The setup wizard is fully localized (5 languages, first-run language
+> page, persisted choice) with a summary page and clip-proof footer.
+> The AI Agent now works under explicit per-project file grants with an
+> isolated review/staging workspace, per-file diffs and safe apply.
+>
+> **M23 baseline:** three editor layouts — Stage, Stage + Code
+> (draggable split) and Code — persisted per edition, plus a
+> classic-2009 restyled Windows installer wizard. See
+> `docs/MEGA_MILESTONE_23_PLAN.md`.
 >
 > **M22 baseline:** five-language UI (`de-DE`, `en-GB`, `da-DK`,
 > `fr-FR`, `pl-PL`; en-GB fallback), first-run language wizard,

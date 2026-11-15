@@ -122,26 +122,64 @@ no changes. Unknown actions such as shell commands are ignored.
 Every proposed change is previewed before anything is written.
 
 - **Diff** shows added/removed/context lines and the reason.
-- **Alle bestätigen** applies all previews. If any preview is blocked, nothing
-  is applied.
-- **Verwerfen** discards all pending proposals.
+- **Alle bestätigen** applies the accepted subset. Per-file checkboxes in the
+  Diff tab decide which changes are taken; deletes start unchecked and need an
+  explicit opt-in. Blocked items (conflicts, revoked grants) stay listed.
+- **Verwerfen** discards all pending proposals and the staging area.
 - **Datei-Rückgängig** restores the previous content of the last applied file.
   Project-model undo remains available through the normal `Ctrl+Z` history.
+
+## Project access grants (M25)
+
+The agent has **no implicit filesystem access**. On the first visit per
+project the permission prompt offers:
+
+- **A** — grant individual files/folders via the native picker
+  (read + propose changes);
+- **B** — grant the whole project tree (read + propose changes);
+- **C** — read-only access to the project tree.
+- **Später entscheiden** — no file access; chat still works.
+
+Grants are stored per project root in `ai-access.json` inside the edition's
+AI config directory (`%APPDATA%\<edition>`). They never migrate to another
+project. **Berechtigungen…** (explorer section) lists every grant, allows
+per-grant revoke, a project-wide read-only cap, and full revocation.
+
+Even inside a read-write grant, sensitive paths are hard-denied (shown in
+the dialog): `.env*`, `*.pem/.key/.p12/.pfx/.keystore/.kdbx`, `id_rsa*`,
+`id_ed25519*`, `credentials`, `.netrc`, `.git-credentials`, `.ssh/`,
+`.aws/`, `.gnupg/`, `.git/`.
+
+## Review workspace (M25)
+
+Agent file proposals are staged in an isolated directory (never written to
+the project directly). Each staged change snapshots the original bytes;
+the Diff tab shows per-file diffs with accept checkboxes. On apply:
+
+1. the current original is re-read and compared to the snapshot — a
+   mismatch blocks that file as a **conflict** (never overwritten);
+2. write permission is re-checked immediately before writing;
+3. writes are atomic (temp file + replace);
+4. a mid-apply failure rolls back everything already written.
 
 Safety rules:
 
 1. Paths are project-root confined. Absolute paths, drive prefixes, `..`
    traversal and symlink escapes are rejected.
-2. A creation never silently becomes an overwrite. A modification of a missing
+2. Every read/write additionally requires an explicit grant covering the
+   path; grants are per project and revocable at any time.
+3. A creation never silently becomes an overwrite. A modification of a missing
    file is rejected.
-3. Writes use a same-directory temporary file and replace step. On failure,
+4. Writes use a same-directory temporary file and replace step. On failure,
    previously written files in the same accepted batch are rolled back.
-4. Deletions are explicit, previewed and kept in the undo record.
-5. Preserved ABC scripts cannot be modified or deleted through the agent.
-6. Project model updates are applied only after file writes succeed; on a model
+5. Deletions are explicit, previewed, unchecked by default and kept in the
+   undo record.
+6. Preserved ABC scripts cannot be modified or deleted through the agent.
+7. Project model updates are applied only after file writes succeed; on a model
    error the project snapshot is restored and written files are rolled back.
-7. The agent cannot run shell commands, arbitrary processes, or access files
-   outside the workspace.
+8. The agent cannot run shell commands, arbitrary processes, or access files
+   outside granted paths. Grants cannot be extended by agent output or by
+   project files.
 
 ## Build, diagnostics and activity
 
