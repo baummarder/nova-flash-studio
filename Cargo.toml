@@ -9,6 +9,7 @@ members = [
     "crates/nova-formats",
     "crates/nova-ai",
     "crates/nova-edu",
+    "crates/nova-ent",
     "crates/nova-app",
     "crates/nova-cli",
 ]
@@ -30,6 +31,7 @@ nova-script = { path = "crates/nova-script" }
 nova-formats = { path = "crates/nova-formats" }
 nova-ai = { path = "crates/nova-ai" }
 nova-edu = { path = "crates/nova-edu" }
+nova-ent = { path = "crates/nova-ent" }
 
 swf = "0.4"
 zip = { version = "9.5.1", default-features = false, features = ["deflate"] }

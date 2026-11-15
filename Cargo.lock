@@ -2638,6 +2638,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "nova-ent"
+version = "0.16.0-rc1"
+dependencies = [
+ "nova-build",
+ "nova-core",
+ "nova-formats",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror 2.0.21",
+ "uuid",
+ "zip 9.5.1",
+]
+
+[[package]]
 name = "nova-formats"
 version = "0.16.0-rc1"
 dependencies = [
