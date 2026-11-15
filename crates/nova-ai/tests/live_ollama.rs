@@ -92,18 +92,20 @@ fn live_ollama_agent_request_returns_parsed_reply() {
     manager.set_default(&id).expect("select local provider");
 
     let project = nova_core::Project::demo();
-    let mut session = AgentSession::default();
-    session.context = ContextSelection {
-        include_project_structure: true,
-        include_timeline: true,
-        include_script_metadata: true,
-        include_script_sources: true,
-        include_assets: true,
-        include_diagnostics: true,
-        selected_scripts: project.scripts.iter().map(|script| script.id).collect(),
-        selected_objects: Vec::new(),
-        selected_code: String::new(),
-        notes: "Nur erklären, keine Datei ändern.".into(),
+    let session = AgentSession {
+        context: ContextSelection {
+            include_project_structure: true,
+            include_timeline: true,
+            include_script_metadata: true,
+            include_script_sources: true,
+            include_assets: true,
+            include_diagnostics: true,
+            selected_scripts: project.scripts.iter().map(|script| script.id).collect(),
+            selected_objects: Vec::new(),
+            selected_code: String::new(),
+            notes: "Nur erklären, keine Datei ändern.".into(),
+        },
+        ..AgentSession::default()
     };
     let outcome = session
         .request(

@@ -1,5 +1,3 @@
-use std::io::Read;
-
 fn main() {
     let path = std::env::args()
         .nth(1)
@@ -22,7 +20,7 @@ fn main() {
 
 fn extract_doabc(data: &[u8]) -> Vec<Vec<u8>> {
     // Minimal SWF tag walker (CWS/ZWS decompression via flate2 not available -> handle FWS only or skip)
-    let mut out = Vec::new();
+    let out = Vec::new();
     if data.len() < 8 || &data[..3] != b"FWS" {
         // try CWS: header 8 bytes, rest zlib
         return out;

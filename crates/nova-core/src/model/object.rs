@@ -199,12 +199,10 @@ impl PathShape {
     /// corresponds to `SkinData::weights[i]`.
     pub fn skinning_points(&self) -> Vec<(f32, f32)> {
         let mut points = Vec::new();
-        let mut cursor = (0.0f32, 0.0f32);
         for command in &self.commands {
             match *command {
                 PathCommand::MoveTo { x, y } | PathCommand::LineTo { x, y } => {
-                    cursor = (x, y);
-                    points.push(cursor);
+                    points.push((x, y));
                 }
                 PathCommand::CurveTo {
                     control_x,
@@ -213,8 +211,7 @@ impl PathShape {
                     y,
                 } => {
                     points.push((control_x, control_y));
-                    cursor = (x, y);
-                    points.push(cursor);
+                    points.push((x, y));
                 }
                 PathCommand::CubicTo {
                     c1_x,
@@ -226,8 +223,7 @@ impl PathShape {
                 } => {
                     points.push((c1_x, c1_y));
                     points.push((c2_x, c2_y));
-                    cursor = (x, y);
-                    points.push(cursor);
+                    points.push((x, y));
                 }
             }
         }
@@ -525,7 +521,7 @@ impl Symbol {
     ) -> Self {
         let name = name.into();
         let mut timeline = Scene::new(name.clone(), width, height);
-        timeline.background = Rgba::rgba(0, 0, 0, 0);
+        timeline.background = Rgba::new(0, 0, 0, 0);
         timeline.layers.clear();
         let mut layer = Layer::new("Inhalt", 1);
         layer.frames[0].keyframe = true;
@@ -577,7 +573,7 @@ impl Symbol {
                 corner_radius: self.corner_radius,
             };
         }
-        let background = Rgba::rgba(0, 0, 0, 0);
+        let background = Rgba::new(0, 0, 0, 0);
         self.timeline = Scene::new(self.name.clone(), self.width, self.height);
         self.timeline.background = background;
         self.timeline.layers = vec![Layer::new("Inhalt", 1)];
@@ -593,7 +589,7 @@ impl Symbol {
         }
         if self.timeline.layers.is_empty() {
             let make_shape = self.kind == SymbolKind::Graphic;
-            self.timeline.background = Rgba::rgba(0, 0, 0, 0);
+            self.timeline.background = Rgba::new(0, 0, 0, 0);
             self.timeline.layers = vec![Layer::new("Inhalt", 1)];
             self.timeline.layers[0].frames[0].keyframe = true;
             if make_shape {

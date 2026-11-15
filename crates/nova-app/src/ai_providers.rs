@@ -34,10 +34,11 @@ impl ProviderDialog {
                 .first()
                 .map(|provider| provider.id.clone());
         }
-        if self.editing.is_none() && !self.new_provider {
-            if let Some(id) = self.selected.as_deref() {
-                self.editing = manager.provider(id).cloned();
-            }
+        if self.editing.is_none()
+            && !self.new_provider
+            && let Some(id) = self.selected.as_deref()
+        {
+            self.editing = manager.provider(id).cloned();
         }
 
         let mut close_requested = false;
@@ -233,11 +234,10 @@ impl ProviderDialog {
                                     self.models.len()
                                 ));
                                 self.error = None;
-                                if editing.model.trim().is_empty() {
-                                    if let Some(model) = self.models.first() {
+                                if editing.model.trim().is_empty()
+                                    && let Some(model) = self.models.first() {
                                         editing.model = model.clone();
                                     }
-                                }
                             }
                             Err(error) => {
                                 self.error = Some(error.to_string());
@@ -283,8 +283,8 @@ impl ProviderDialog {
                         .unwrap_or(false);
                     if saved {
                         ui.label(RichText::new("gespeichert").small().color(theme::GREEN));
-                        if ui.button("Schlüssel löschen").clicked() {
-                            if let Some(id) = self.selected.as_deref() {
+                        if ui.button("Schlüssel löschen").clicked()
+                            && let Some(id) = self.selected.as_deref() {
                                 match manager.delete_credential(id) {
                                     Ok(()) => {
                                         self.status =
@@ -294,7 +294,6 @@ impl ProviderDialog {
                                     Err(error) => self.error = Some(error.to_string()),
                                 }
                             }
-                        }
                     }
                 });
                 ui.label(
@@ -311,14 +310,13 @@ impl ProviderDialog {
                         &mut editing.temperature.is_some(),
                         "Temperatur überschreiben",
                     );
-                    if editing.temperature.is_some() {
-                        if ui
+                    if editing.temperature.is_some()
+                        && ui
                             .add(egui::DragValue::new(&mut temperature).range(0.0..=2.0))
                             .changed()
                         {
                             editing.temperature = Some(temperature);
                         }
-                    }
                 });
 
                 ui.add_space(4.0);
@@ -373,8 +371,7 @@ impl ProviderDialog {
                     if ui
                         .add_enabled(can_test, egui::Button::new("Verbindung testen"))
                         .clicked()
-                    {
-                        if let Some(id) = self.selected.clone() {
+                        && let Some(id) = self.selected.clone() {
                             match manager.test_connection(&id) {
                                 Ok(test) => {
                                     self.models = test.models;
@@ -387,15 +384,13 @@ impl ProviderDialog {
                                 }
                             }
                         }
-                    }
                     if ui
                         .add_enabled(
                             self.selected.is_some(),
                             egui::Button::new("Als Standard"),
                         )
                         .clicked()
-                    {
-                        if let Some(id) = self.selected.clone() {
+                        && let Some(id) = self.selected.clone() {
                             match manager.set_default(&id).and_then(|_| manager.save()) {
                                 Ok(()) => {
                                     self.status = Some("Standardanbieter gesetzt.".into());
@@ -404,7 +399,6 @@ impl ProviderDialog {
                                 Err(error) => self.error = Some(error.to_string()),
                             }
                         }
-                    }
                     if ui
                         .add_enabled(
                             self.selected.is_some(),

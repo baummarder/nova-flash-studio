@@ -377,10 +377,10 @@ fn default_export_path(input: &Path) -> PathBuf {
 }
 
 fn write_output(out: &Path, bytes: &[u8]) -> Result<(), Box<dyn Error>> {
-    if let Some(parent) = out.parent() {
-        if !parent.as_os_str().is_empty() {
-            std::fs::create_dir_all(parent)?;
-        }
+    if let Some(parent) = out.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent)?;
     }
     // Write via a sibling temp file so a failed write cannot truncate or
     // corrupt an already existing output file.

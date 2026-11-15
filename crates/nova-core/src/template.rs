@@ -95,7 +95,7 @@ fn animation_short(name: impl Into<String>) -> Project {
         130.0,
         280.0,
         280.0,
-        Rgba::rgba(61, 214, 196, 70),
+        Rgba::new(61, 214, 196, 70),
     )]);
     let mut title = Layer::new("Titel", 60);
     title.frames[0] = keyframe(vec![text_object(

@@ -79,23 +79,23 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
     // Wheel zoom around the pointer.
     if response.hovered() {
         let scroll: f32 = ui.input(|input| input.smooth_scroll_delta.y);
-        if scroll.abs() > 0.5 {
-            if let Some(pointer) = response.hover_pos() {
-                let before = View {
-                    rect,
-                    center: state.camera_center,
-                    zoom: state.zoom,
-                }
-                .to_stage(pointer);
-                let factor = (1.0 + scroll * 0.0015).clamp(0.5, 2.0);
-                state.zoom = (state.zoom * factor).clamp(MIN_ZOOM, MAX_ZOOM);
-                // Keep the stage point under the cursor pinned.
-                let delta = pointer - rect.center();
-                state.camera_center = Pos2::new(
-                    before.x - delta.x / state.zoom,
-                    before.y - delta.y / state.zoom,
-                );
+        if scroll.abs() > 0.5
+            && let Some(pointer) = response.hover_pos()
+        {
+            let before = View {
+                rect,
+                center: state.camera_center,
+                zoom: state.zoom,
             }
+            .to_stage(pointer);
+            let factor = (1.0 + scroll * 0.0015).clamp(0.5, 2.0);
+            state.zoom = (state.zoom * factor).clamp(MIN_ZOOM, MAX_ZOOM);
+            // Keep the stage point under the cursor pinned.
+            let delta = pointer - rect.center();
+            state.camera_center = Pos2::new(
+                before.x - delta.x / state.zoom,
+                before.y - delta.y / state.zoom,
+            );
         }
     }
 
@@ -432,17 +432,17 @@ fn draw_onion(
     };
     let count = scene.frame_count();
     for offset in [2usize, 1] {
-        if let Some(previous) = frame.checked_sub(offset) {
-            if previous < count {
-                draw_ghost(
-                    painter,
-                    view,
-                    scene,
-                    &project.symbols,
-                    previous,
-                    theme::BLUE,
-                );
-            }
+        if let Some(previous) = frame.checked_sub(offset)
+            && previous < count
+        {
+            draw_ghost(
+                painter,
+                view,
+                scene,
+                &project.symbols,
+                previous,
+                theme::BLUE,
+            );
         }
     }
     for offset in 1..=2 {
@@ -1028,21 +1028,22 @@ fn select_input(
     };
 
     // Transform handles take precedence over object dragging.
-    if response.drag_started_by(egui::PointerButton::Primary) {
-        if let Some((mode, pointer)) = response.interact_pointer_pos().and_then(|pointer| {
+    if response.drag_started_by(egui::PointerButton::Primary)
+        && let Some((mode, pointer)) = response.interact_pointer_pos().and_then(|pointer| {
             transform_handle_at(project, state, view, pointer).map(|mode| (mode, pointer))
-        }) {
-            start_transform_drag(project, state, view, mode, pointer);
-        }
+        })
+    {
+        start_transform_drag(project, state, view, mode, pointer);
     }
-    if state.transform_drag.is_some() && response.dragged_by(egui::PointerButton::Primary) {
-        if let (Some(pointer), Some(drag)) = (
+    if state.transform_drag.is_some()
+        && response.dragged_by(egui::PointerButton::Primary)
+        && let (Some(pointer), Some(drag)) = (
             response.interact_pointer_pos(),
             state.transform_drag.clone(),
-        ) {
-            apply_transform_drag(project, state, view, &drag, pointer);
-            state.dirty = true;
-        }
+        )
+    {
+        apply_transform_drag(project, state, view, &drag, pointer);
+        state.dirty = true;
     }
 
     if response.clicked() && state.transform_drag.is_none() {
@@ -1147,10 +1148,9 @@ fn select_input(
 
 /// Axis-aligned stage bounds of the current object selection plus the
 /// per-object transforms captured for dragging.
-fn selection_bounds(
-    project: &Project,
-    state: &AppState,
-) -> Option<(Pos2, Pos2, Vec<(Uuid, Uuid, nova_core::Transform)>)> {
+type SelectionBounds = (Pos2, Pos2, Vec<(Uuid, Uuid, nova_core::Transform)>);
+
+fn selection_bounds(project: &Project, state: &AppState) -> Option<SelectionBounds> {
     let ids = state.selection.object_ids();
     if ids.is_empty() {
         return None;
@@ -1219,17 +1219,12 @@ fn start_transform_drag(
     let centroid = Pos2::new((min.x + max.x) / 2.0, (min.y + max.y) / 2.0);
     let delta = view.to_stage(pointer) - centroid;
     let start_angle = delta.y.atan2(delta.x);
-    let scale = transforms
-        .first()
-        .map(|(_, _, transform)| (transform.scale_x, transform.scale_y))
-        .unwrap_or((1.0, 1.0));
     state.transform_drag = Some(crate::state::TransformDrag {
         mode,
         start_pointer: view.to_stage(pointer),
         centroid,
         start_angle,
         start_transforms: transforms,
-        start_scale: scale,
     });
     state.dragging = None;
     state.marquee = None;
@@ -1302,15 +1297,15 @@ fn draw_tool_input(
                 points: vec![stage],
             });
         }
-        if response.dragged_by(egui::PointerButton::Primary) {
-            if let Some(pointer) = response.interact_pointer_pos() {
-                let stage = view.to_stage(pointer);
-                if let Some(draft) = &mut state.draft {
-                    if draft.points.len() == 1 {
-                        draft.points.push(stage);
-                    } else {
-                        *draft.points.last_mut().unwrap() = stage;
-                    }
+        if response.dragged_by(egui::PointerButton::Primary)
+            && let Some(pointer) = response.interact_pointer_pos()
+        {
+            let stage = view.to_stage(pointer);
+            if let Some(draft) = &mut state.draft {
+                if draft.points.len() == 1 {
+                    draft.points.push(stage);
+                } else {
+                    *draft.points.last_mut().unwrap() = stage;
                 }
             }
         }
@@ -1321,21 +1316,21 @@ fn draw_tool_input(
     }
 
     if tool == crate::state::Tool::Eraser || tool == crate::state::Tool::Fill {
-        if response.clicked() {
-            if let Some(pointer) = response.interact_pointer_pos() {
-                let stage = view.to_stage(pointer);
-                match hit_object(project, state, stage) {
-                    Some(object) => {
-                        if tool == crate::state::Tool::Eraser {
-                            erase_object(project, state, &object);
-                        } else {
-                            fill_object(project, state, &object);
-                        }
+        if response.clicked()
+            && let Some(pointer) = response.interact_pointer_pos()
+        {
+            let stage = view.to_stage(pointer);
+            match hit_object(project, state, stage) {
+                Some(object) => {
+                    if tool == crate::state::Tool::Eraser {
+                        erase_object(project, state, &object);
+                    } else {
+                        fill_object(project, state, &object);
                     }
-                    None => {
-                        if tool == crate::state::Tool::Fill {
-                            state.set_status("Kein Objekt unter dem Zeiger");
-                        }
+                }
+                None => {
+                    if tool == crate::state::Tool::Fill {
+                        state.set_status("Kein Objekt unter dem Zeiger");
                     }
                 }
             }
@@ -1356,16 +1351,15 @@ fn draw_tool_input(
         state.dragging = None;
         state.marquee = None;
     }
-    if response.dragged_by(egui::PointerButton::Primary) {
-        if let Some(pointer) = response.interact_pointer_pos() {
-            let stage = view.to_stage(pointer);
-            if let Some(draft) = &mut state.draft {
-                if let Some(last) = draft.points.last() {
-                    if last.distance(stage) > 1.5 {
-                        draft.points.push(stage);
-                    }
-                }
-            }
+    if response.dragged_by(egui::PointerButton::Primary)
+        && let Some(pointer) = response.interact_pointer_pos()
+    {
+        let stage = view.to_stage(pointer);
+        if let Some(draft) = &mut state.draft
+            && let Some(last) = draft.points.last()
+            && last.distance(stage) > 1.5
+        {
+            draft.points.push(stage);
         }
     }
     if response.drag_stopped() {
@@ -1381,19 +1375,19 @@ fn path_edit_input(
     independent_handles: bool,
 ) {
     let _ = project;
-    if response.drag_started_by(egui::PointerButton::Primary) {
-        if let Some(pointer) = response.interact_pointer_pos() {
-            if let Some(node) = node_at(project, state, view, pointer) {
-                state.node_drag = Some(node);
-            }
-        }
+    if response.drag_started_by(egui::PointerButton::Primary)
+        && let Some(pointer) = response.interact_pointer_pos()
+        && let Some(node) = node_at(project, state, view, pointer)
+    {
+        state.node_drag = Some(node);
     }
-    if state.node_drag.is_some() && response.dragged_by(egui::PointerButton::Primary) {
-        if let (Some(pointer), Some(node)) = (response.interact_pointer_pos(), state.node_drag) {
-            let stage = view.to_stage(pointer);
-            move_node(project, state, node, stage, independent_handles);
-            state.dirty = true;
-        }
+    if state.node_drag.is_some()
+        && response.dragged_by(egui::PointerButton::Primary)
+        && let (Some(pointer), Some(node)) = (response.interact_pointer_pos(), state.node_drag)
+    {
+        let stage = view.to_stage(pointer);
+        move_node(project, state, node, stage, independent_handles);
+        state.dirty = true;
     }
     if response.drag_stopped() {
         state.node_drag = None;
@@ -1493,12 +1487,10 @@ fn pen_input(
         if let (Some(start), Some(end)) = (
             draft.press,
             response.interact_pointer_pos().map(|p| view.to_stage(p)),
-        ) {
-            if start.distance(end) > 6.0
-                && let Some(last) = draft.anchors.last_mut()
-            {
-                last.handle = Some(end);
-            }
+        ) && start.distance(end) > 6.0
+            && let Some(last) = draft.anchors.last_mut()
+        {
+            last.handle = Some(end);
         }
         draft.press = None;
     }
@@ -1511,7 +1503,7 @@ fn commit_pen(project: &mut Project, state: &mut AppState, closed: bool) {
     let Some(draft) = state.pen.take() else {
         return;
     };
-    let mut anchors = draft.anchors;
+    let anchors = draft.anchors;
     if anchors.len() < 2 {
         state.set_status("Stift: mindestens zwei Anker nötig");
         return;
@@ -1896,7 +1888,7 @@ fn skin_paint_input(
     let delta = if remove { -0.15 } else { 0.15 };
     let bone = state.skin_bone.unwrap();
     let radius = state.skin_radius;
-    paint_weights(project, state, view, ids[0], pointer, radius, bone, delta);
+    paint_weights(project, state, view, ids[0], (pointer, radius), bone, delta);
 }
 
 /// Applies a weight delta to all skinning points of the selected object
@@ -1906,11 +1898,11 @@ fn paint_weights(
     state: &mut AppState,
     view: &View,
     object_id: Uuid,
-    pointer: Pos2,
-    radius: f32,
+    brush: (Pos2, f32),
     bone: Uuid,
     delta: f32,
 ) {
+    let (pointer, radius) = brush;
     let frame = state.frame;
     let Some(scene) = project.edit_scene_mut(state.edit_symbol) else {
         return;
@@ -2076,7 +2068,7 @@ fn draw_bone_overlay(painter: &egui::Painter, view: &View, project: &Project, st
             theme::ACCENT
         };
         painter.line_segment([joint, tip], Stroke::new(3.0, color.gamma_multiply(0.5)));
-        if let Some(parent) = bone.parent.and_then(|pid| pos_of(pid)) {
+        if let Some(parent) = bone.parent.and_then(pos_of) {
             painter.line_segment(
                 [view.to_screen(Pos2::new(parent.x, parent.y)), joint],
                 Stroke::new(1.0, theme::TEXT_FAINT),
@@ -2173,10 +2165,12 @@ fn bone_joint_input(
 // ------------------------------------------------------------- node edit
 
 /// Collects editable path nodes of the single selected Path object.
+type PathNode = (usize, usize, usize, Pos2);
+
 fn path_nodes(
     project: &Project,
     state: &AppState,
-) -> Option<(nova_core::ResolvedObject, Vec<(usize, usize, usize, Pos2)>)> {
+) -> Option<(nova_core::ResolvedObject, Vec<PathNode>)> {
     let ids = state.selection.object_ids();
     if ids.len() != 1 {
         return None;

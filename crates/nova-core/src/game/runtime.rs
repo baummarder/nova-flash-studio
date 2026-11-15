@@ -355,7 +355,7 @@ impl GameRuntime {
         if let Some(saved) = next.scene_states.get(&scene.id) {
             next.states = saved.clone();
         }
-        next.events = std::mem::replace(&mut self.events, EventBus::new());
+        next.events = std::mem::take(&mut self.events);
         *self = next;
 
         let from_name = project
@@ -544,8 +544,7 @@ impl GameRuntime {
                 camera,
                 &self.bodies,
                 &self.states,
-                self.scene_w,
-                self.scene_h,
+                (self.scene_w, self.scene_h),
                 dt,
                 self.time,
             );
@@ -1060,7 +1059,6 @@ mod tests {
                     height: 40.0,
                     layer: 2,
                     mask: 2, // does not see layer 1
-                    ..Default::default()
                 }),
                 physics: None,
             }),

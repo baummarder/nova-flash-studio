@@ -44,11 +44,11 @@ fn perf_large_tilemap_operations() {
     let mut map = bench_map(512, 512);
 
     let t = Instant::now();
-    tilemap::paint(&mut map, 0, PaintTool::Rect, 0, 0, 511, 511, 1, 0, 0).unwrap();
+    tilemap::paint(&mut map, 0, PaintTool::Rect, (0, 0, 511, 511), 1, 0, 0).unwrap();
     println!("paint rect 512x512: {:?}", t.elapsed());
 
     let t = Instant::now();
-    tilemap::paint(&mut map, 1, PaintTool::Flood, 200, 200, 200, 200, 7, 0, 0).unwrap();
+    tilemap::paint(&mut map, 1, PaintTool::Flood, (200, 200, 200, 200), 7, 0, 0).unwrap();
     println!("flood fill 512x512 layer1: {:?}", t.elapsed());
 
     let t = Instant::now();
@@ -65,7 +65,7 @@ fn perf_large_tilemap_operations() {
     println!("clear+paste 256x256: {:?}", t.elapsed());
 
     let t = Instant::now();
-    tilemap::flip_region(&mut map, 0, 0, 0, 511, 511, true, true);
+    tilemap::flip_region(&mut map, 0, (0, 0, 511, 511), true, true);
     println!("flip region 512x512: {:?}", t.elapsed());
 
     let t = Instant::now();
@@ -79,40 +79,42 @@ fn perf_collision_many_bodies() {
     // 200 dynamic circles falling onto a static polygon floor + each other.
     let mut scene = Scene::new("Perf", 1280.0, 720.0);
     let mut objects = Vec::new();
-    let mut floor_game = nova_core::GameObjectConfig::default();
-    floor_game.collision = Some(CollisionSpec {
-        shape: CollisionShape::Rectangle,
-        width: 1280.0,
-        height: 40.0,
-        ..Default::default()
-    });
-    floor_game.physics = Some(nova_core::PhysicsSpec {
-        body: nova_core::BodyType::Static,
-        gravity_scale: 0.0,
-        friction: 0.0,
-        bounce: 0.0,
-        controlled: false,
-    });
+    let floor_game = nova_core::GameObjectConfig {
+        collision: Some(CollisionSpec {
+            shape: CollisionShape::Rectangle,
+            width: 1280.0,
+            height: 40.0,
+            ..Default::default()
+        }),
+        physics: Some(nova_core::PhysicsSpec {
+            body: nova_core::BodyType::Static,
+            gravity_scale: 0.0,
+            friction: 0.0,
+            bounce: 0.0,
+            controlled: false,
+        }),
+    };
     let mut floor = ObjectInstance::rect("Floor", 640.0, 700.0, 1280.0, 40.0, Rgba::WHITE);
     floor.game = Some(floor_game);
     objects.push(floor);
     for i in 0..199 {
-        let mut game = nova_core::GameObjectConfig::default();
-        game.collision = Some(CollisionSpec {
-            shape: CollisionShape::Circle,
-            width: 24.0,
-            height: 24.0,
-            ..Default::default()
-        });
-        game.physics = Some(nova_core::PhysicsSpec {
-            body: nova_core::BodyType::Dynamic,
-            gravity_scale: 1.0,
-            friction: 0.0,
-            bounce: 0.2,
-            controlled: false,
-        });
+        let game = nova_core::GameObjectConfig {
+            collision: Some(CollisionSpec {
+                shape: CollisionShape::Circle,
+                width: 24.0,
+                height: 24.0,
+                ..Default::default()
+            }),
+            physics: Some(nova_core::PhysicsSpec {
+                body: nova_core::BodyType::Dynamic,
+                gravity_scale: 1.0,
+                friction: 0.0,
+                bounce: 0.2,
+                controlled: false,
+            }),
+        };
         let mut object = ObjectInstance::ellipse(
-            &format!("B{i}"),
+            format!("B{i}"),
             100.0 + (i % 20) as f32 * 55.0,
             100.0 + (i / 20) as f32 * 60.0,
             24.0,
@@ -159,8 +161,8 @@ fn perf_particles_many_emitters() {
                 size_end: (0.0, 1.0),
                 opacity_start: (1.0, 1.0),
                 opacity_end: (0.0, 0.0),
-                color_start: Rgba::rgba(255, 200, 40, 255),
-                color_end: Rgba::rgba(255, 40, 0, 0),
+                color_start: Rgba::new(255, 200, 40, 255),
+                color_end: Rgba::new(255, 40, 0, 0),
                 spread: 180.0,
                 direction: -90.0,
                 gravity: 300.0,
@@ -193,7 +195,7 @@ fn perf_undo_history_snapshots() {
     let mut project = Project::new_empty("Perf");
     let mut scene = Scene::new("S", 800.0, 600.0);
     let mut map = bench_map(512, 512);
-    tilemap::paint(&mut map, 0, PaintTool::Rect, 0, 0, 511, 511, 1, 0, 0).unwrap();
+    tilemap::paint(&mut map, 0, PaintTool::Rect, (0, 0, 511, 511), 1, 0, 0).unwrap();
     scene.layers[0].frames[0].objects.push(ObjectInstance::new(
         "Map",
         nova_core::ObjectKind::Tilemap(map),

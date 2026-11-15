@@ -227,6 +227,22 @@ impl Splash {
     }
 }
 
+fn draw_glow(painter: &egui::Painter, center: Pos2, radius: f32, color: Color32) {
+    // egui has no radial gradient primitive; concentric translucent circles are
+    // cheap and produce a nearly identical falloff at splash-screen scale.
+    const STEPS: usize = 18;
+    for step in 0..STEPS {
+        let t = step as f32 / STEPS as f32;
+        let r = radius * (1.0 - t * 0.72);
+        let a = (color.a() as f32 * (1.0 - t).powf(1.7)) as u8;
+        painter.circle_filled(
+            center,
+            r,
+            Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), a),
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -249,21 +265,5 @@ mod tests {
         assert!(MIN_VISIBLE < TOTAL);
         assert!(FADE < TOTAL);
         assert!(SKIP_AFTER < MIN_VISIBLE);
-    }
-}
-
-fn draw_glow(painter: &egui::Painter, center: Pos2, radius: f32, color: Color32) {
-    // egui has no radial gradient primitive; concentric translucent circles are
-    // cheap and produce a nearly identical falloff at splash-screen scale.
-    const STEPS: usize = 18;
-    for step in 0..STEPS {
-        let t = step as f32 / STEPS as f32;
-        let r = radius * (1.0 - t * 0.72);
-        let a = (color.a() as f32 * (1.0 - t).powf(1.7)) as u8;
-        painter.circle_filled(
-            center,
-            r,
-            Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), a),
-        );
     }
 }

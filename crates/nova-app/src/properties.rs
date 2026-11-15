@@ -641,229 +641,227 @@ fn layer_properties(
         })
         .unwrap_or_default();
 
-    if let Some(scene) = project.edit_scene_mut(state.edit_symbol) {
-        if let Some(layer) = scene.layers.iter_mut().find(|layer| layer.id == id) {
-            found = true;
-            theme::section(ui, "Ebene");
-            egui::Grid::new("layer_grid")
-                .num_columns(2)
-                .spacing(egui::vec2(8.0, 6.0))
-                .show(ui, |ui| {
-                    ui.label("Name");
-                    changed |= ui.text_edit_singleline(&mut layer.name).changed();
-                    ui.end_row();
+    if let Some(scene) = project.edit_scene_mut(state.edit_symbol)
+        && let Some(layer) = scene.layers.iter_mut().find(|layer| layer.id == id)
+    {
+        found = true;
+        theme::section(ui, "Ebene");
+        egui::Grid::new("layer_grid")
+            .num_columns(2)
+            .spacing(egui::vec2(8.0, 6.0))
+            .show(ui, |ui| {
+                ui.label("Name");
+                changed |= ui.text_edit_singleline(&mut layer.name).changed();
+                ui.end_row();
 
-                    ui.label("Sichtbar");
-                    changed |= ui.checkbox(&mut layer.visible, "Sichtbar").changed();
-                    ui.end_row();
+                ui.label("Sichtbar");
+                changed |= ui.checkbox(&mut layer.visible, "Sichtbar").changed();
+                ui.end_row();
 
-                    ui.label("Gesperrt");
-                    changed |= ui.checkbox(&mut layer.locked, "Gesperrt").changed();
-                    ui.end_row();
+                ui.label("Gesperrt");
+                changed |= ui.checkbox(&mut layer.locked, "Gesperrt").changed();
+                ui.end_row();
 
-                    ui.label("Typ");
-                    let mut kind = layer.kind;
-                    egui::ComboBox::from_id_salt("layer_kind")
-                        .selected_text(kind.label())
-                        .show_ui(ui, |ui| {
-                            for candidate in [
-                                LayerKind::Normal,
-                                LayerKind::Folder,
-                                LayerKind::Guide,
-                                LayerKind::Mask,
-                                LayerKind::Sound,
-                            ] {
-                                if ui
-                                    .selectable_label(kind == candidate, candidate.label())
-                                    .clicked()
-                                {
-                                    kind = candidate;
-                                }
-                            }
-                        });
-                    if kind != layer.kind {
-                        layer.kind = kind;
-                        changed = true;
-                    }
-                    ui.end_row();
-
-                    ui.label("Ordner");
-                    let parent_name = layer
-                        .parent
-                        .and_then(|parent| {
-                            folder_options
-                                .iter()
-                                .find(|(id, _)| *id == parent)
-                                .map(|(_, name)| name.clone())
-                        })
-                        .unwrap_or_else(|| "Kein Ordner".into());
-                    egui::ComboBox::from_id_salt("layer_parent")
-                        .selected_text(parent_name)
-                        .show_ui(ui, |ui| {
+                ui.label("Typ");
+                let mut kind = layer.kind;
+                egui::ComboBox::from_id_salt("layer_kind")
+                    .selected_text(kind.label())
+                    .show_ui(ui, |ui| {
+                        for candidate in [
+                            LayerKind::Normal,
+                            LayerKind::Folder,
+                            LayerKind::Guide,
+                            LayerKind::Mask,
+                            LayerKind::Sound,
+                        ] {
                             if ui
-                                .selectable_label(layer.parent.is_none(), "Kein Ordner")
+                                .selectable_label(kind == candidate, candidate.label())
                                 .clicked()
                             {
-                                layer.parent = None;
-                                changed = true;
-                            }
-                            for (folder_id, folder_name) in &folder_options {
-                                if ui
-                                    .selectable_label(layer.parent == Some(*folder_id), folder_name)
-                                    .clicked()
-                                {
-                                    layer.parent = Some(*folder_id);
-                                    changed = true;
-                                }
-                            }
-                        });
-                    ui.end_row();
-
-                    if layer.kind == LayerKind::Folder {
-                        ui.label("Aufgeklappt");
-                        changed |= ui
-                            .checkbox(&mut layer.expanded, "Unterebenen in Timeline zeigen")
-                            .changed();
-                        ui.end_row();
-                    }
-
-                    ui.label("Frames");
-                    ui.label(
-                        RichText::new(layer.frames.len().to_string())
-                            .small()
-                            .color(theme::TEXT_DIM),
-                    );
-                    ui.end_row();
-                });
-
-            let keyframe = layer.last_keyframe_at_or_before(state.frame);
-            let next = layer.next_keyframe_after(state.frame);
-            ui.add_space(4.0);
-            ui.label(
-                RichText::new(format!(
-                    "Aktuell: Frame {} · Startschlüsselbild {}{}",
-                    state.frame + 1,
-                    keyframe
-                        .map(|index| (index + 1).to_string())
-                        .unwrap_or_else(|| "-".into()),
-                    next.map(|index| format!(" · nächstes {index}"))
-                        .unwrap_or_default()
-                ))
-                .small()
-                .color(theme::TEXT_FAINT),
-            );
-
-            if let Some(start) = keyframe {
-                let end = layer.next_keyframe_after(start);
-                let duration = end.map(|end| end - start + 1).unwrap_or(1);
-                let has_tween = layer.frames[start].tween.is_some();
-                ui.add_space(4.0);
-                theme::section(ui, "Tween");
-                if has_tween {
-                    let tween_kind = layer.frames[start]
-                        .tween
-                        .as_ref()
-                        .map(|tween| tween.kind)
-                        .unwrap_or_default();
-                    let mut selected_kind = tween_kind;
-                    ui.horizontal(|ui| {
-                        ui.label(RichText::new("Typ").small());
-                        for candidate in [nova_core::TweenKind::Motion, nova_core::TweenKind::Shape]
-                        {
-                            if ui
-                                .selectable_label(selected_kind == candidate, candidate.label())
-                                .clicked()
-                            {
-                                selected_kind = candidate;
+                                kind = candidate;
                             }
                         }
                     });
-                    if selected_kind != tween_kind {
-                        actions.push(UiAction::SetTweenKind(selected_kind));
-                    }
-                    let easing = layer.frames[start]
-                        .tween
-                        .as_ref()
-                        .map(|tween| tween.easing)
-                        .unwrap_or_default();
-                    let mut selected = easing;
-                    egui::Grid::new("tween_grid")
-                        .num_columns(2)
-                        .spacing(egui::vec2(8.0, 6.0))
-                        .show(ui, |ui| {
-                            ui.label("Easing");
-                            egui::ComboBox::from_id_salt("tween_easing")
-                                .selected_text(selected.label())
-                                .show_ui(ui, |ui| {
-                                    for candidate in [
-                                        nova_core::Easing::Linear,
-                                        nova_core::Easing::EaseIn,
-                                        nova_core::Easing::EaseOut,
-                                        nova_core::Easing::EaseInOut,
-                                    ] {
-                                        if ui
-                                            .selectable_label(
-                                                selected == candidate,
-                                                candidate.label(),
-                                            )
-                                            .clicked()
-                                        {
-                                            selected = candidate;
-                                        }
-                                    }
-                                });
-                            if selected != easing {
-                                actions.push(UiAction::SetTweenEasing(selected));
-                            }
-                            ui.end_row();
-
-                            ui.label("Dauer");
-                            let mut frames = duration;
-                            if let Some(end) = end {
-                                if ui
-                                    .add(
-                                        egui::DragValue::new(&mut frames)
-                                            .range(2..=999)
-                                            .speed(1.0)
-                                            .suffix(" Frames"),
-                                    )
-                                    .changed()
-                                {
-                                    let new_end = start + frames - 1;
-                                    layer.ensure_frames(new_end + 1);
-                                    let end_frame = layer.frames[end].clone();
-                                    layer.frames[end] = nova_core::Frame::default();
-                                    layer.frames[new_end] = end_frame;
-                                    changed = true;
-                                }
-                            } else {
-                                ui.label(
-                                    RichText::new("Kein End-Schlüsselbild")
-                                        .small()
-                                        .color(theme::AMBER),
-                                );
-                            }
-                            ui.end_row();
-                        });
-                } else {
-                    ui.label(
-                        RichText::new("Zwischen diesem und dem nächsten Schlüsselbild wird nicht interpoliert.")
-                            .small()
-                            .color(theme::TEXT_DIM),
-                    );
+                if kind != layer.kind {
+                    layer.kind = kind;
+                    changed = true;
                 }
-                ui.horizontal_wrapped(|ui| {
-                    if ui.button("Tween erstellen").clicked() {
-                        actions.push(UiAction::CreateTween);
-                    }
-                    if ui
-                        .add_enabled(has_tween, egui::Button::new("Tween entfernen"))
-                        .clicked()
-                    {
-                        actions.push(UiAction::RemoveTween);
+                ui.end_row();
+
+                ui.label("Ordner");
+                let parent_name = layer
+                    .parent
+                    .and_then(|parent| {
+                        folder_options
+                            .iter()
+                            .find(|(id, _)| *id == parent)
+                            .map(|(_, name)| name.clone())
+                    })
+                    .unwrap_or_else(|| "Kein Ordner".into());
+                egui::ComboBox::from_id_salt("layer_parent")
+                    .selected_text(parent_name)
+                    .show_ui(ui, |ui| {
+                        if ui
+                            .selectable_label(layer.parent.is_none(), "Kein Ordner")
+                            .clicked()
+                        {
+                            layer.parent = None;
+                            changed = true;
+                        }
+                        for (folder_id, folder_name) in &folder_options {
+                            if ui
+                                .selectable_label(layer.parent == Some(*folder_id), folder_name)
+                                .clicked()
+                            {
+                                layer.parent = Some(*folder_id);
+                                changed = true;
+                            }
+                        }
+                    });
+                ui.end_row();
+
+                if layer.kind == LayerKind::Folder {
+                    ui.label("Aufgeklappt");
+                    changed |= ui
+                        .checkbox(&mut layer.expanded, "Unterebenen in Timeline zeigen")
+                        .changed();
+                    ui.end_row();
+                }
+
+                ui.label("Frames");
+                ui.label(
+                    RichText::new(layer.frames.len().to_string())
+                        .small()
+                        .color(theme::TEXT_DIM),
+                );
+                ui.end_row();
+            });
+
+        let keyframe = layer.last_keyframe_at_or_before(state.frame);
+        let next = layer.next_keyframe_after(state.frame);
+        ui.add_space(4.0);
+        ui.label(
+            RichText::new(format!(
+                "Aktuell: Frame {} · Startschlüsselbild {}{}",
+                state.frame + 1,
+                keyframe
+                    .map(|index| (index + 1).to_string())
+                    .unwrap_or_else(|| "-".into()),
+                next.map(|index| format!(" · nächstes {index}"))
+                    .unwrap_or_default()
+            ))
+            .small()
+            .color(theme::TEXT_FAINT),
+        );
+
+        if let Some(start) = keyframe {
+            let end = layer.next_keyframe_after(start);
+            let duration = end.map(|end| end - start + 1).unwrap_or(1);
+            let has_tween = layer.frames[start].tween.is_some();
+            ui.add_space(4.0);
+            theme::section(ui, "Tween");
+            if has_tween {
+                let tween_kind = layer.frames[start]
+                    .tween
+                    .as_ref()
+                    .map(|tween| tween.kind)
+                    .unwrap_or_default();
+                let mut selected_kind = tween_kind;
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new("Typ").small());
+                    for candidate in [nova_core::TweenKind::Motion, nova_core::TweenKind::Shape] {
+                        if ui
+                            .selectable_label(selected_kind == candidate, candidate.label())
+                            .clicked()
+                        {
+                            selected_kind = candidate;
+                        }
                     }
                 });
+                if selected_kind != tween_kind {
+                    actions.push(UiAction::SetTweenKind(selected_kind));
+                }
+                let easing = layer.frames[start]
+                    .tween
+                    .as_ref()
+                    .map(|tween| tween.easing)
+                    .unwrap_or_default();
+                let mut selected = easing;
+                egui::Grid::new("tween_grid")
+                    .num_columns(2)
+                    .spacing(egui::vec2(8.0, 6.0))
+                    .show(ui, |ui| {
+                        ui.label("Easing");
+                        egui::ComboBox::from_id_salt("tween_easing")
+                            .selected_text(selected.label())
+                            .show_ui(ui, |ui| {
+                                for candidate in [
+                                    nova_core::Easing::Linear,
+                                    nova_core::Easing::EaseIn,
+                                    nova_core::Easing::EaseOut,
+                                    nova_core::Easing::EaseInOut,
+                                ] {
+                                    if ui
+                                        .selectable_label(selected == candidate, candidate.label())
+                                        .clicked()
+                                    {
+                                        selected = candidate;
+                                    }
+                                }
+                            });
+                        if selected != easing {
+                            actions.push(UiAction::SetTweenEasing(selected));
+                        }
+                        ui.end_row();
+
+                        ui.label("Dauer");
+                        let mut frames = duration;
+                        if let Some(end) = end {
+                            if ui
+                                .add(
+                                    egui::DragValue::new(&mut frames)
+                                        .range(2..=999)
+                                        .speed(1.0)
+                                        .suffix(" Frames"),
+                                )
+                                .changed()
+                            {
+                                let new_end = start + frames - 1;
+                                layer.ensure_frames(new_end + 1);
+                                let end_frame = layer.frames[end].clone();
+                                layer.frames[end] = nova_core::Frame::default();
+                                layer.frames[new_end] = end_frame;
+                                changed = true;
+                            }
+                        } else {
+                            ui.label(
+                                RichText::new("Kein End-Schlüsselbild")
+                                    .small()
+                                    .color(theme::AMBER),
+                            );
+                        }
+                        ui.end_row();
+                    });
+            } else {
+                ui.label(
+                    RichText::new(
+                        "Zwischen diesem und dem nächsten Schlüsselbild wird nicht interpoliert.",
+                    )
+                    .small()
+                    .color(theme::TEXT_DIM),
+                );
             }
+            ui.horizontal_wrapped(|ui| {
+                if ui.button("Tween erstellen").clicked() {
+                    actions.push(UiAction::CreateTween);
+                }
+                if ui
+                    .add_enabled(has_tween, egui::Button::new("Tween entfernen"))
+                    .clicked()
+                {
+                    actions.push(UiAction::RemoveTween);
+                }
+            });
         }
     }
 
@@ -1859,20 +1857,20 @@ fn object_properties(
             ObjectKind::Text(_) => ObjectKind::Text(text),
             ObjectKind::Tilemap(map) => ObjectKind::Tilemap(map.clone()),
         };
-        if let Some(scene) = project.edit_scene_mut(state.edit_symbol) {
-            if let Some(object) = util::governing_object_mut(scene, layer_id, state.frame, id) {
-                object.name = name;
-                object.transform.x = x;
-                object.transform.y = y;
-                object.transform.scale_x = scale_x;
-                object.transform.scale_y = scale_y;
-                object.transform.rotation = rotation;
-                object.fill = fill;
-                object.kind = kind;
-                object.script = script;
-                object.game = game_cfg;
-                object.particles = particles;
-            }
+        if let Some(scene) = project.edit_scene_mut(state.edit_symbol)
+            && let Some(object) = util::governing_object_mut(scene, layer_id, state.frame, id)
+        {
+            object.name = name;
+            object.transform.x = x;
+            object.transform.y = y;
+            object.transform.scale_x = scale_x;
+            object.transform.scale_y = scale_y;
+            object.transform.rotation = rotation;
+            object.fill = fill;
+            object.kind = kind;
+            object.script = script;
+            object.game = game_cfg;
+            object.particles = particles;
         }
         project.touch();
         state.dirty = true;
@@ -2568,40 +2566,37 @@ fn vector_section(
         .checkbox(&mut gradient_on, "Verlauf füllen")
         .on_hover_text("Linearer oder radialer Farbverlauf (SWF-Export: native Gradient-Fills)")
         .changed()
+        && let Some(scene) = project.edit_scene_mut(state.edit_symbol)
+        && let Some(object) = util::governing_object_mut(scene, layer_id, state.frame, object_id)
+        && let ObjectKind::Path { paths, .. } = &mut object.kind
     {
-        if let Some(scene) = project.edit_scene_mut(state.edit_symbol)
-            && let Some(object) =
-                util::governing_object_mut(scene, layer_id, state.frame, object_id)
-            && let ObjectKind::Path { paths, .. } = &mut object.kind
-        {
-            for path in paths.iter_mut() {
-                if gradient_on {
-                    if path.gradient.is_none() {
-                        path.gradient = Some(nova_core::Gradient {
-                            kind: nova_core::GradientKind::Linear,
-                            stops: vec![
-                                nova_core::GradientStop {
-                                    position: 0.0,
-                                    color: path.fill,
-                                },
-                                nova_core::GradientStop {
-                                    position: 1.0,
-                                    color: Rgba::WHITE,
-                                },
-                            ],
-                            angle: 0.0,
-                            center_x: 0.0,
-                            center_y: 0.0,
-                            radius: 50.0,
-                        });
-                    }
-                } else {
-                    path.gradient = None;
+        for path in paths.iter_mut() {
+            if gradient_on {
+                if path.gradient.is_none() {
+                    path.gradient = Some(nova_core::Gradient {
+                        kind: nova_core::GradientKind::Linear,
+                        stops: vec![
+                            nova_core::GradientStop {
+                                position: 0.0,
+                                color: path.fill,
+                            },
+                            nova_core::GradientStop {
+                                position: 1.0,
+                                color: Rgba::WHITE,
+                            },
+                        ],
+                        angle: 0.0,
+                        center_x: 0.0,
+                        center_y: 0.0,
+                        radius: 50.0,
+                    });
                 }
+            } else {
+                path.gradient = None;
             }
-            project.touch();
-            state.dirty = true;
         }
+        project.touch();
+        state.dirty = true;
     }
     if gradient_on {
         // Edit the first path's gradient; committed to all paths below.
@@ -2678,7 +2673,7 @@ fn vector_section(
                     }
                     let mut color = util::to_color32(stop.color);
                     if ui.color_edit_button_srgba(&mut color).changed() {
-                        stop.color = Rgba::rgba(color.r(), color.g(), color.b(), color.a());
+                        stop.color = Rgba::new(color.r(), color.g(), color.b(), color.a());
                         stop_changed = true;
                     }
                     if ui
@@ -2719,7 +2714,7 @@ fn vector_section(
                         .unwrap_or(Rgba::BLACK);
                     gradient.stops.push(nova_core::GradientStop {
                         position: pos.clamp(0.0, 1.0),
-                        color: Rgba::rgba(
+                        color: Rgba::new(
                             ((a.r as f32 + b.r as f32) / 2.0) as u8,
                             ((a.g as f32 + b.g as f32) / 2.0) as u8,
                             ((a.b as f32 + b.b as f32) / 2.0) as u8,
@@ -2732,11 +2727,11 @@ fn vector_section(
                     stop_changed = true;
                 }
             });
-            if let Some(index) = remove_index {
-                if gradient.stops.len() > 2 {
-                    gradient.stops.remove(index);
-                    stop_changed = true;
-                }
+            if let Some(index) = remove_index
+                && gradient.stops.len() > 2
+            {
+                gradient.stops.remove(index);
+                stop_changed = true;
             }
             gradient
                 .stops

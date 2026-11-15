@@ -16,13 +16,10 @@ use std::io::Cursor;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use nova_core::Asset;
-use uuid::Uuid;
 
 static NEXT_SOUND_ID: AtomicU64 = AtomicU64::new(1);
 
 struct ActiveSound {
-    id: u64,
-    asset: Uuid,
     player: rodio::Player,
 }
 
@@ -61,11 +58,6 @@ impl AudioEngine {
         engine
     }
 
-    /// Whether an output device is available.
-    pub fn available(&self) -> bool {
-        self.mixer.is_some()
-    }
-
     /// Decodes `asset.data` and starts playback. Returns the sound handle on
     /// success; incompatible/missing data yields an error string.
     pub fn play(&mut self, asset: &Asset) -> Result<u64, String> {
@@ -84,23 +76,9 @@ impl AudioEngine {
         player.set_volume(self.volume);
         player.append(decoder);
         let id = NEXT_SOUND_ID.fetch_add(1, Ordering::Relaxed);
-        self.sounds.push(ActiveSound {
-            id,
-            asset: asset.id,
-            player,
-        });
+        self.sounds.push(ActiveSound { player });
         self.prune();
         Ok(id)
-    }
-
-    /// Stops every playing instance of `asset`.
-    pub fn stop_asset(&mut self, asset: Uuid) {
-        for sound in self.sounds.iter_mut() {
-            if sound.asset == asset {
-                sound.player.stop();
-            }
-        }
-        self.prune();
     }
 
     /// Stops all preview sounds.
@@ -119,10 +97,6 @@ impl AudioEngine {
         }
     }
 
-    pub fn volume(&self) -> f32 {
-        self.volume
-    }
-
     /// Pauses every playing sound (rodio keeps buffered audio).
     pub fn pause_all(&mut self) {
         for sound in self.sounds.iter_mut() {
@@ -135,11 +109,6 @@ impl AudioEngine {
         for sound in self.sounds.iter_mut() {
             sound.player.play();
         }
-    }
-
-    /// Number of sounds still playing (finished players are pruned first).
-    pub fn playing_count(&self) -> usize {
-        self.sounds.len()
     }
 
     /// Drops finished players so `sounds` cannot grow unboundedly.
@@ -180,6 +149,7 @@ pub fn cues_on_frame<'a>(
 mod tests {
     use super::*;
     use nova_core::model::{Layer, LayerKind, Scene, SoundCue};
+    use uuid::Uuid;
 
     /// Minimal valid PCM WAV: 8 kHz mono 16-bit, 8 samples of silence.
     fn tiny_wav() -> Vec<u8> {
@@ -245,9 +215,8 @@ mod tests {
         // must return an error instead of panicking.
         let mut engine = AudioEngine::new();
         let asset = Asset::audio("Ping", "ping.wav", "audio/wav", 8000, 1, 0.01, tiny_wav());
-        if !engine.available() {
+        if engine.last_error.is_some() {
             assert!(engine.play(&asset).is_err());
-            assert!(engine.last_error.is_some());
         }
     }
 }

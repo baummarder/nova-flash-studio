@@ -224,19 +224,18 @@ impl Lexer {
                             self.bump();
                             let mut hex = String::new();
                             for _ in 0..4 {
-                                if let Some(c) = self.peek(0) {
-                                    if c.is_ascii_hexdigit() {
-                                        hex.push(c);
-                                        self.bump();
-                                    }
+                                if let Some(c) = self.peek(0)
+                                    && c.is_ascii_hexdigit()
+                                {
+                                    hex.push(c);
+                                    self.bump();
                                 }
                             }
-                            if hex.len() == 4 {
-                                if let Ok(code) = u32::from_str_radix(&hex, 16) {
-                                    if let Some(c) = char::from_u32(code) {
-                                        value.push(c);
-                                    }
-                                }
+                            if hex.len() == 4
+                                && let Ok(code) = u32::from_str_radix(&hex, 16)
+                                && let Some(c) = char::from_u32(code)
+                            {
+                                value.push(c);
                             }
                         }
                         Some(other) => {

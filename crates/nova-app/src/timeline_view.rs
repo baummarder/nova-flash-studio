@@ -167,12 +167,11 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
                             theme::TEXT_DIM,
                         );
                         if triangle_response.clicked() {
-                            if let Some(scene) = project.edit_scene_mut(state.edit_symbol) {
-                                if let Some(folder) =
+                            if let Some(scene) = project.edit_scene_mut(state.edit_symbol)
+                                && let Some(folder) =
                                     scene.layers.iter_mut().find(|layer| layer.id == row.id)
-                                {
-                                    folder.expanded = !folder.expanded;
-                                }
+                            {
+                                folder.expanded = !folder.expanded;
                             }
                             state.dirty = true;
                         }
@@ -407,25 +406,24 @@ fn paint_grid(
     let ruler_id = ui.make_persistent_id("timeline_ruler");
     let ruler_response = ui.interact(ruler, ruler_id, Sense::click_and_drag());
     let shift = ui.input(|input| input.modifiers.shift);
-    if ruler_response.drag_started() && shift {
-        if let Some(pointer) = ruler_response.interact_pointer_pos() {
-            if let Some(frame) = frame_at_x(pointer.x, rect.left(), frame_width, frame_count) {
-                state.frame_range = Some((frame, frame));
-            }
-        }
+    if ruler_response.drag_started()
+        && shift
+        && let Some(pointer) = ruler_response.interact_pointer_pos()
+        && let Some(frame) = frame_at_x(pointer.x, rect.left(), frame_width, frame_count)
+    {
+        state.frame_range = Some((frame, frame));
     }
-    if ruler_response.clicked() || ruler_response.dragged() {
-        if let Some(pointer) = ruler_response.interact_pointer_pos() {
-            if let Some(frame) = frame_at_x(pointer.x, rect.left(), frame_width, frame_count) {
-                state.frame = frame;
-                state.playing = false;
-                if shift || (ruler_response.dragged() && state.frame_range.is_some()) {
-                    let start = state.frame_range.map(|(start, _)| start).unwrap_or(frame);
-                    state.frame_range = Some((start.min(frame), start.max(frame)));
-                }
-                state.set_status(format!("Frame {}", frame + 1));
-            }
+    if (ruler_response.clicked() || ruler_response.dragged())
+        && let Some(pointer) = ruler_response.interact_pointer_pos()
+        && let Some(frame) = frame_at_x(pointer.x, rect.left(), frame_width, frame_count)
+    {
+        state.frame = frame;
+        state.playing = false;
+        if shift || (ruler_response.dragged() && state.frame_range.is_some()) {
+            let start = state.frame_range.map(|(start, _)| start).unwrap_or(frame);
+            state.frame_range = Some((start.min(frame), start.max(frame)));
         }
+        state.set_status(format!("Frame {}", frame + 1));
     }
 
     let label_step = if frame_width >= 16.0 { 5 } else { 10 };
@@ -494,30 +492,29 @@ fn paint_grid(
             painter.rect_filled(cell_rect, 0.0, fill);
 
             // Tween span: draw a line from this keyframe to the next one.
-            if let Some(cell) = data {
-                if cell.keyframe && cell.tween {
-                    if let Some(next) = row
-                        .cells
-                        .iter()
-                        .enumerate()
-                        .skip(frame + 1)
-                        .find(|(_, candidate)| candidate.keyframe)
-                        .map(|(index, _)| index)
-                    {
-                        let start = cell_rect.center();
-                        let end = Pos2::new(
-                            rect.left() + next as f32 * frame_width + frame_width * 0.5,
-                            start.y,
-                        );
-                        let tween_color = if cell.shape_tween {
-                            theme::GREEN
-                        } else {
-                            theme::ACCENT_DIM
-                        };
-                        painter.line_segment([start, end], Stroke::new(2.0, tween_color));
-                        painter.circle_filled(end, 2.5, tween_color);
-                    }
-                }
+            if let Some(cell) = data
+                && cell.keyframe
+                && cell.tween
+                && let Some(next) = row
+                    .cells
+                    .iter()
+                    .enumerate()
+                    .skip(frame + 1)
+                    .find(|(_, candidate)| candidate.keyframe)
+                    .map(|(index, _)| index)
+            {
+                let start = cell_rect.center();
+                let end = Pos2::new(
+                    rect.left() + next as f32 * frame_width + frame_width * 0.5,
+                    start.y,
+                );
+                let tween_color = if cell.shape_tween {
+                    theme::GREEN
+                } else {
+                    theme::ACCENT_DIM
+                };
+                painter.line_segment([start, end], Stroke::new(2.0, tween_color));
+                painter.circle_filled(end, 2.5, tween_color);
             }
 
             // Sound cue marker on sound layers.

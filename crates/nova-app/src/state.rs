@@ -6,9 +6,7 @@ use std::time::Instant;
 
 use egui::Vec2;
 use nova_as::Diagnostic;
-use nova_core::{
-    Easing, Frame, LayerKind, Project, ProjectTemplate, Rgba, ScriptId, Transform, TweenKind,
-};
+use nova_core::{Easing, Frame, Project, ProjectTemplate, Rgba, ScriptId, Transform, TweenKind};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -272,7 +270,6 @@ pub struct TransformDrag {
     pub centroid: egui::Pos2,
     pub start_angle: f32,
     pub start_transforms: Vec<(Uuid, Uuid, Transform)>,
-    pub start_scale: (f32, f32),
 }
 
 /// Path-node drag for the Path edit tool: which object, which sub-path,
@@ -410,7 +407,7 @@ pub enum Dialog {
     AiProviders,
     AutosaveRecovery {
         path: PathBuf,
-        recovery: crate::autosave::Recovery,
+        recovery: Box<crate::autosave::Recovery>,
     },
 }
 
@@ -466,9 +463,7 @@ pub enum UiAction {
     EnterSymbol(Uuid),
     ExitSymbol,
     DuplicateSymbol(Uuid),
-    RenameSymbol(Uuid, String),
     SetTool(Tool),
-    SetLayerKind(LayerKind),
     SetTweenKind(TweenKind),
     AddScene,
     DeleteScene,
@@ -570,7 +565,6 @@ pub struct AppState {
     pub skin_radius: f32,
     pub asset_textures: HashMap<Uuid, egui::TextureHandle>,
     pub selected_asset: Option<Uuid>,
-    pub selected_sound_cue: Option<(Uuid, usize)>,
     /// Live game-preview runtime while the timeline plays.
     pub game_preview: Option<nova_core::game::runtime::GameRuntime>,
     /// Master volume for preview audio, 0.0..=1.0.
@@ -655,7 +649,6 @@ impl AppState {
             skin_radius: 24.0,
             asset_textures: HashMap::new(),
             selected_asset: project.assets.first().map(|asset| asset.id),
-            selected_sound_cue: None,
             game_preview: None,
             preview_volume: 1.0,
             tilemap: TilemapEditor::default(),
@@ -681,11 +674,6 @@ impl AppState {
 
     pub fn set_status(&mut self, text: impl Into<String>) {
         self.status = text.into();
-    }
-
-    /// The timeline currently targeted by the stage and timeline panels.
-    pub fn timeline<'a>(&self, project: &'a Project) -> Option<&'a nova_core::Scene> {
-        project.edit_scene(self.edit_symbol)
     }
 
     pub fn enter_symbol(&mut self, project: &Project, id: Uuid) {
@@ -744,35 +732,15 @@ impl AppState {
     }
 
     /// Resolves the object with `id` visible at the current frame.
-    pub fn resolved_object<'a>(
+    pub fn resolved_object(
         &self,
-        project: &'a Project,
+        project: &Project,
         id: Uuid,
     ) -> Option<nova_core::ResolvedObject> {
         let scene = project.edit_scene(self.edit_symbol)?;
         nova_core::resolve_scene(scene, self.frame)
             .into_iter()
             .find(|object| object.instance.id == id)
-    }
-
-    pub fn asset_texture(
-        &mut self,
-        ctx: &egui::Context,
-        asset: &nova_core::Asset,
-    ) -> Option<&egui::TextureHandle> {
-        if let std::collections::hash_map::Entry::Vacant(entry) =
-            self.asset_textures.entry(asset.id)
-        {
-            let image = image::load_from_memory(&asset.data).ok()?.to_rgba8();
-            let size = [image.width() as usize, image.height() as usize];
-            let color = egui::ColorImage::from_rgba_unmultiplied(size, image.as_raw());
-            entry.insert(ctx.load_texture(
-                format!("asset-{}", asset.id),
-                color,
-                egui::TextureOptions::LINEAR,
-            ));
-        }
-        self.asset_textures.get(&asset.id)
     }
 
     /// The layer that currently owns the selected object.

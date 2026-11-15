@@ -12,7 +12,6 @@ use nova_core::model::{
 };
 use nova_core::tilemap::{self, PaintTool};
 use std::path::PathBuf;
-use uuid::Uuid;
 
 fn main() {
     let out = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -140,8 +139,8 @@ fn tilemap_editing_demo(dir: &std::path::Path) {
         .expect("floor tilemap");
     if let ObjectKind::Tilemap(map) = &mut floor.kind {
         // Tile ids: water = index 10 -> cell 11, path = index 11 -> cell 12.
-        tilemap::paint(map, 1, PaintTool::Rect, 30, 30, 44, 38, 11, 0, 0).unwrap();
-        tilemap::paint(map, 1, PaintTool::Rect, 46, 30, 60, 33, 12, 0, 0).unwrap();
+        tilemap::paint(map, 1, PaintTool::Rect, (30, 30, 44, 38), 11, 0, 0).unwrap();
+        tilemap::paint(map, 1, PaintTool::Rect, (46, 30, 60, 33), 12, 0, 0).unwrap();
     }
 
     project

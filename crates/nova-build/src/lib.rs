@@ -400,14 +400,14 @@ pub fn build_swf(project: &Project) -> Result<BuildOutput, BuildError> {
             let Some(object_id) = script.linked_object else {
                 continue;
             };
-            if let Some(existing) = object_script_ids.get(&object_id) {
-                if *existing != script.id {
-                    warnings.push(format!(
+            if let Some(existing) = object_script_ids.get(&object_id)
+                && *existing != script.id
+            {
+                warnings.push(format!(
                         "{}: Das verknüpfte Objekt ist bereits einem anderen Skript zugewiesen; die direkte Objektzuweisung hat Vorrang.",
                         script.path
                     ));
-                    continue;
-                }
+                continue;
             }
             let targets = script_targets.entry(script.id).or_default();
             if !targets.contains(&object_id) {
@@ -729,13 +729,12 @@ pub fn build_swf(project: &Project) -> Result<BuildOutput, BuildError> {
         movie.tags.push(Tag::ShowFrame);
     }
 
-    if avm2_inert {
-        if let Some(Tag::FileAttributes {
+    if avm2_inert
+        && let Some(Tag::FileAttributes {
             action_script_3, ..
         }) = movie.tags.first_mut()
-        {
-            *action_script_3 = false;
-        }
+    {
+        *action_script_3 = false;
     }
 
     let compression = match export.compression {
@@ -1091,36 +1090,35 @@ impl CharacterTables {
                 });
             }
             for layer in &symbol.timeline.layers {
-                if let Some(cue) = layer.frames.get(frame_index).and_then(|frame| frame.sound) {
-                    if let Some(sound_id) =
+                if let Some(cue) = layer.frames.get(frame_index).and_then(|frame| frame.sound)
+                    && let Some(sound_id) =
                         self.define_sound(project, cue.asset, movie, warnings, stats)?
-                    {
-                        let rate = self
-                            .sound_sample_rates
-                            .get(&cue.asset)
-                            .copied()
-                            .unwrap_or(44_100);
-                        let in_point = (cue.offset > 0.0)
-                            .then(|| (cue.offset * rate as f32).round().max(0.0) as u32);
-                        let out_point = (cue.duration > 0.0).then(|| {
-                            ((cue.offset.max(0.0) + cue.duration) * rate as f32)
-                                .round()
-                                .max(0.0) as u32
-                        });
-                        if !cue.event && !warned_timeline_sound {
-                            warnings.push(format!(
+                {
+                    let rate = self
+                        .sound_sample_rates
+                        .get(&cue.asset)
+                        .copied()
+                        .unwrap_or(44_100);
+                    let in_point = (cue.offset > 0.0)
+                        .then(|| (cue.offset * rate as f32).round().max(0.0) as u32);
+                    let out_point = (cue.duration > 0.0).then(|| {
+                        ((cue.offset.max(0.0) + cue.duration) * rate as f32)
+                            .round()
+                            .max(0.0) as u32
+                    });
+                    if !cue.event && !warned_timeline_sound {
+                        warnings.push(format!(
                                 "Timeline-Sound im Symbol '{}' wird als StartSound-Ereignis exportiert; echtes SoundStreaming ist nicht implementiert.",
                                 symbol.name
                             ));
-                            warned_timeline_sound = true;
-                        }
-                        tags.push(Tag::StartSound {
-                            sound_id,
-                            loop_count: cue.loop_count.max(1),
-                            in_point,
-                            out_point,
-                        });
+                        warned_timeline_sound = true;
                     }
+                    tags.push(Tag::StartSound {
+                        sound_id,
+                        loop_count: cue.loop_count.max(1),
+                        in_point,
+                        out_point,
+                    });
                 }
             }
             let objects = nova_core::resolve_symbol_frame(symbol, frame_index);
@@ -1952,16 +1950,16 @@ fn nova_game_data_source(
                     follow
                 ));
             }
-            if let Some(world) = &game.world {
-                if world.width > 0.0 || world.height > 0.0 {
-                    out.push_str(&format!(
-                        "            WORLDS[\"{scene_key}\"] = \"{}|{}|{}|{}\";\n",
-                        num(world.width),
-                        num(world.height),
-                        num(world.spawn.0),
-                        num(world.spawn.1)
-                    ));
-                }
+            if let Some(world) = &game.world
+                && (world.width > 0.0 || world.height > 0.0)
+            {
+                out.push_str(&format!(
+                    "            WORLDS[\"{scene_key}\"] = \"{}|{}|{}|{}\";\n",
+                    num(world.width),
+                    num(world.height),
+                    num(world.spawn.0),
+                    num(world.spawn.1)
+                ));
             }
             if let Some(input) = &game.input {
                 out.push_str(&format!(
@@ -2118,7 +2116,7 @@ fn collider_spec(
 ) -> Option<(String, String)> {
     let (collision, physics) = match (&game.collision, &game.physics) {
         (None, None) => return None,
-        (c, p) => (c.clone(), p.clone()),
+        (c, p) => (c.clone(), *p),
     };
     // No physics spec => the body is not integrated by the preview either;
     // it acts as static geometry (body type 0).
@@ -2295,15 +2293,16 @@ fn key_code_opt(name: &str) -> Option<u32> {
         "F11" => 122,
         "F12" => 123,
         _ => {
-            if let Some(rest) = name.strip_prefix("Key") {
-                if rest.len() == 1 {
-                    return Some(rest.chars().next().unwrap().to_ascii_uppercase() as u32);
-                }
+            if let Some(rest) = name.strip_prefix("Key")
+                && rest.len() == 1
+            {
+                return Some(rest.chars().next().unwrap().to_ascii_uppercase() as u32);
             }
-            if let Some(rest) = name.strip_prefix("Digit") {
-                if rest.len() == 1 && rest.chars().next().unwrap().is_ascii_digit() {
-                    return Some(rest.chars().next().unwrap() as u32);
-                }
+            if let Some(rest) = name.strip_prefix("Digit")
+                && rest.len() == 1
+                && rest.chars().next().unwrap().is_ascii_digit()
+            {
+                return Some(rest.chars().next().unwrap() as u32);
             }
             return None;
         }
@@ -2340,8 +2339,7 @@ fn sanitize_as3_name(name: &str) -> String {
 fn as3_string(s: &str) -> String {
     s.replace('\\', "\\\\")
         .replace('"', "\\\"")
-        .replace('\n', " ")
-        .replace('\r', " ")
+        .replace(['\n', '\r'], " ")
 }
 
 /// Compact float formatting for generated data (no exponent noise).

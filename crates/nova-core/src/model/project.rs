@@ -760,13 +760,14 @@ impl Project {
                     asset.name
                 )));
             }
-            if asset.kind == AssetKind::Bitmap {
-                if !asset.data.is_empty() && (asset.width == 0 || asset.height == 0) {
-                    return Err(ProjectError::Validation(format!(
-                        "Bitmap-Asset '{}' hat keine gültigen Maße",
-                        asset.name
-                    )));
-                }
+            if asset.kind == AssetKind::Bitmap
+                && !asset.data.is_empty()
+                && (asset.width == 0 || asset.height == 0)
+            {
+                return Err(ProjectError::Validation(format!(
+                    "Bitmap-Asset '{}' hat keine gültigen Maße",
+                    asset.name
+                )));
             }
             if asset.kind == AssetKind::Audio
                 && (!asset.duration.is_finite() || asset.duration < 0.0)
@@ -840,13 +841,13 @@ impl Project {
             // A missing bitmap asset is tolerated (the tilemap keeps its data
             // and renders as a placeholder), but a referenced asset of the
             // wrong kind is a real authoring error.
-            if let Some(asset) = self.assets.iter().find(|a| a.id == tileset.asset) {
-                if asset.kind != AssetKind::Bitmap {
-                    return Err(ProjectError::Validation(format!(
-                        "Tileset '{}' referenziert ein Nicht-Bitmap-Asset",
-                        tileset.name
-                    )));
-                }
+            if let Some(asset) = self.assets.iter().find(|a| a.id == tileset.asset)
+                && asset.kind != AssetKind::Bitmap
+            {
+                return Err(ProjectError::Validation(format!(
+                    "Tileset '{}' referenziert ein Nicht-Bitmap-Asset",
+                    tileset.name
+                )));
             }
         }
         // Nested symbols must not form cycles. A cycle cannot be exported as a
@@ -866,12 +867,12 @@ impl Project {
                 )));
             }
         }
-        if let Some(active) = self.active_scene {
-            if !self.scenes.iter().any(|s| s.id == active) {
-                return Err(ProjectError::Validation(
-                    "Aktive Szene existiert nicht".into(),
-                ));
-            }
+        if let Some(active) = self.active_scene
+            && !self.scenes.iter().any(|s| s.id == active)
+        {
+            return Err(ProjectError::Validation(
+                "Aktive Szene existiert nicht".into(),
+            ));
         }
         Ok(())
     }
@@ -1053,10 +1054,8 @@ impl Project {
                 if asset.mime.is_empty() {
                     asset.mime = guess_mime(&asset.file, asset.kind).into();
                 }
-            } else if asset.kind == AssetKind::Audio {
-                if asset.mime.is_empty() {
-                    asset.mime = guess_mime(&asset.file, asset.kind).into();
-                }
+            } else if asset.kind == AssetKind::Audio && asset.mime.is_empty() {
+                asset.mime = guess_mime(&asset.file, asset.kind).into();
             }
             asset.data = data;
         }
@@ -1065,10 +1064,10 @@ impl Project {
     pub fn save(&self, path: &Path) -> ProjectResult<()> {
         self.validate()?;
         let json = self.to_json()?;
-        if let Some(parent) = path.parent() {
-            if !parent.as_os_str().is_empty() {
-                std::fs::create_dir_all(parent)?;
-            }
+        if let Some(parent) = path.parent()
+            && !parent.as_os_str().is_empty()
+        {
+            std::fs::create_dir_all(parent)?;
         }
         let tmp = path.with_extension("nova.tmp");
         std::fs::write(&tmp, json)?;

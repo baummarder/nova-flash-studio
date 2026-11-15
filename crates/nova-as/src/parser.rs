@@ -423,11 +423,8 @@ impl<'a> Parser<'a> {
 
     fn modifiers(&mut self) -> Modifiers {
         let mut modifiers = Modifiers::default();
-        loop {
-            let keyword = match &self.current().kind {
-                TokenKind::Keyword(keyword) => *keyword,
-                _ => break,
-            };
+        while let TokenKind::Keyword(keyword) = &self.current().kind {
+            let keyword = *keyword;
             match keyword {
                 Keyword::Public => modifiers.public = true,
                 Keyword::Private => modifiers.private = true,

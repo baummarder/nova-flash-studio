@@ -281,8 +281,8 @@ impl AiEditor {
                         }
                     }
                 });
-            if let Some(provider) = self.providers.selected(self.session.provider_override.as_deref()) {
-                if provider.is_cloud() {
+            if let Some(provider) = self.providers.selected(self.session.provider_override.as_deref())
+                && provider.is_cloud() {
                     ui.checkbox(
                         &mut self.session.cloud_consent,
                         RichText::new("Cloud-Zustimmung").color(theme::AMBER),
@@ -291,7 +291,6 @@ impl AiEditor {
                         "Ohne diese Zustimmung wird kein Projektkontext an einen Cloud-Anbieter gesendet.",
                     );
                 }
-            }
             if self.busy {
                 ui.spinner();
                 ui.label(
@@ -386,22 +385,21 @@ impl AiEditor {
     fn load_editor(&mut self, project: &Project) {
         self.editor_script = self.selected_script;
         self.editor_selection.clear();
-        if let Some(id) = self.selected_script {
-            if let Some(script) = project.scripts.iter().find(|script| script.id == id) {
-                self.editor_path = script.path.clone();
-                self.editor_buffer = script.source.clone();
-                self.last_synced_source = script.source.clone();
-                return;
-            }
+        if let Some(id) = self.selected_script
+            && let Some(script) = project.scripts.iter().find(|script| script.id == id)
+        {
+            self.editor_path = script.path.clone();
+            self.editor_buffer = script.source.clone();
+            self.last_synced_source = script.source.clone();
+            return;
         }
-        if !self.editor_path.is_empty() {
-            if let Some(workspace) = &self.workspace {
-                if let Ok(source) = workspace.read(&self.editor_path) {
-                    self.editor_buffer = source.clone();
-                    self.last_synced_source = source;
-                    return;
-                }
-            }
+        if !self.editor_path.is_empty()
+            && let Some(workspace) = &self.workspace
+            && let Ok(source) = workspace.read(&self.editor_path)
+        {
+            self.editor_buffer = source.clone();
+            self.last_synced_source = source;
+            return;
         }
         self.editor_path.clear();
         self.editor_buffer.clear();
@@ -575,14 +573,13 @@ impl AiEditor {
                 .scripts
                 .iter()
                 .find(|script| script.path == change.path)
+                && script.abc.is_some()
             {
-                if script.abc.is_some() {
-                    self.preview_errors.push(format!(
+                self.preview_errors.push(format!(
                         "{}: Preserved ABC wird geschützt. Der erhaltene Bytecode darf weder durch Quelltext ersetzt noch gelöscht werden.",
                         change.path
                     ));
-                    continue;
-                }
+                continue;
             }
             match workspace.preview(change) {
                 Ok(preview) => self.pending_previews.push(preview),
@@ -1075,17 +1072,15 @@ impl AiEditor {
                     .collect::<String>()
             })
             .unwrap_or_default();
-        if !read_only {
-            if let Some((id, _, source, _, _)) = script {
-                if self.editor_buffer != source {
-                    if let Some(script) = project.scripts.iter_mut().find(|script| script.id == id)
-                    {
-                        script.source = self.editor_buffer.clone();
-                    }
-                    self.last_synced_source = self.editor_buffer.clone();
-                    state.dirty = true;
-                }
+        if !read_only
+            && let Some((id, _, source, _, _)) = script
+            && self.editor_buffer != source
+        {
+            if let Some(script) = project.scripts.iter_mut().find(|script| script.id == id) {
+                script.source = self.editor_buffer.clone();
             }
+            self.last_synced_source = self.editor_buffer.clone();
+            state.dirty = true;
         }
         if !self.editor_selection.is_empty() {
             ui.label(
@@ -1104,14 +1099,13 @@ impl AiEditor {
             .scripts
             .iter()
             .find(|script| self.editor_script == Some(script.id) || script.path == self.editor_path)
+            && script.abc.is_some()
         {
-            if script.abc.is_some() {
-                self.error = Some(
+            self.error = Some(
                     "Preserved ABC wird geschützt; die Datei darf nicht mit Quelltext überschrieben werden."
                         .into(),
                 );
-                return;
-            }
+            return;
         }
         let Some(workspace) = &self.workspace else {
             self.error = Some("Kein gültiger Projektordner ausgewählt.".into());
@@ -1135,20 +1129,20 @@ impl AiEditor {
     }
 
     fn apply_editor_to_project(&mut self, project: &mut Project, state: &mut AppState) {
-        if let Some(id) = self.editor_script {
-            if let Some(script) = project.scripts.iter_mut().find(|script| script.id == id) {
-                if script.abc.is_some() {
-                    self.error =
-                        Some("Preserved ABC kann nicht durch Quelltext ersetzt werden.".into());
-                    return;
-                }
-                script.source = self.editor_buffer.clone();
-                self.last_synced_source = self.editor_buffer.clone();
-                state.dirty = true;
-                self.status = format!("Projektmodell für '{}' aktualisiert.", script.path);
-                self.refresh_diagnostics(project);
+        if let Some(id) = self.editor_script
+            && let Some(script) = project.scripts.iter_mut().find(|script| script.id == id)
+        {
+            if script.abc.is_some() {
+                self.error =
+                    Some("Preserved ABC kann nicht durch Quelltext ersetzt werden.".into());
                 return;
             }
+            script.source = self.editor_buffer.clone();
+            self.last_synced_source = self.editor_buffer.clone();
+            state.dirty = true;
+            self.status = format!("Projektmodell für '{}' aktualisiert.", script.path);
+            self.refresh_diagnostics(project);
+            return;
         }
         if let Some(script) = project
             .scripts

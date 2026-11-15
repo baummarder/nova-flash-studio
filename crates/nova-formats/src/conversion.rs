@@ -83,12 +83,11 @@ pub fn load_path(path: &Path) -> FormatResult<ImportedProject> {
     let format = FormatKind::from_path(path).unwrap_or_else(|| detect_format(&bytes));
     let mut imported = import_bytes(format, Some(path), bytes)?;
     if matches!(format, FormatKind::Fla | FormatKind::Swf) {
-        if let Some(stem) = path.file_stem().and_then(|stem| stem.to_str()) {
-            if imported.project.metadata.name == "FLA-Import"
-                || imported.project.metadata.name == "SWF-Import"
-            {
-                imported.project.metadata.name = stem.to_string();
-            }
+        if let Some(stem) = path.file_stem().and_then(|stem| stem.to_str())
+            && (imported.project.metadata.name == "FLA-Import"
+                || imported.project.metadata.name == "SWF-Import")
+        {
+            imported.project.metadata.name = stem.to_string();
         }
         if let Some(source) = &mut imported.project.source {
             source.original_path = Some(path.to_string_lossy().into_owned());

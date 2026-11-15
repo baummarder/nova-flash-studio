@@ -539,11 +539,11 @@ pub fn step_camera(
     config: &crate::model::CameraConfig,
     bodies: &[GameBody],
     states: &HashMap<Uuid, BodyState>,
-    scene_w: f32,
-    scene_h: f32,
+    scene: (f32, f32),
     dt: f32,
     time: f32,
 ) {
+    let (scene_w, scene_h) = scene;
     if !config.enabled {
         *camera = CameraState {
             x: scene_w / 2.0,
@@ -622,10 +622,7 @@ pub fn scene_config(scene: &Scene) -> GameSceneConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::{
-        CollisionSpec, Frame, GameObjectConfig, Layer, ObjectInstance, ObjectKind, Rgba, Scene,
-        Transform,
-    };
+    use crate::model::{CollisionSpec, Frame, GameObjectConfig, ObjectInstance, Rgba, Scene};
 
     fn game_object(
         name: &str,
@@ -674,7 +671,7 @@ mod tests {
         }
     }
 
-    fn static_floor(y: f32) -> GameObjectConfig {
+    fn static_floor(_y: f32) -> GameObjectConfig {
         GameObjectConfig {
             collision: Some(CollisionSpec {
                 shape: CollisionShape::Rectangle,
@@ -832,8 +829,7 @@ mod tests {
                 &config,
                 &bodies,
                 &states,
-                400.0,
-                300.0,
+                (400.0, 300.0),
                 1.0 / 60.0,
                 0.0,
             );
@@ -972,8 +968,7 @@ mod tests {
             &config,
             &[],
             &HashMap::new(),
-            400.0,
-            300.0,
+            (400.0, 300.0),
             0.016,
             0.0,
         );
@@ -1005,8 +1000,7 @@ mod tests {
                 &config,
                 &[],
                 &HashMap::new(),
-                400.0,
-                300.0,
+                (400.0, 300.0),
                 0.016,
                 0.0,
             );
@@ -1037,10 +1031,7 @@ mod tests {
             &mut map,
             0,
             crate::tilemap::PaintTool::Rect,
-            0,
-            3,
-            3,
-            3,
+            (0, 3, 3, 3),
             1,
             0,
             0,
@@ -1067,7 +1058,6 @@ mod tests {
             height: 16.0,
             layer: 1,
             mask: u32::MAX,
-            ..Default::default()
         });
         let scene = scene_with(vec![
             // x=192 is the centre of tile column 1 (cells are 16 px wide
@@ -1111,10 +1101,10 @@ mod tests {
         let mut bodies = collect_bodies(&scene, &[]);
         // Patch the player spec mask directly on the collected body.
         for body in bodies.iter_mut() {
-            if body.name == "Spieler" {
-                if let Some(c) = body.collision.as_mut() {
-                    c.mask = 1; // sees only layer 1; tiles are layer 2
-                }
+            if body.name == "Spieler"
+                && let Some(c) = body.collision.as_mut()
+            {
+                c.mask = 1; // sees only layer 1; tiles are layer 2
             }
         }
         attach_tile_colliders(&mut bodies, &scene, &project);

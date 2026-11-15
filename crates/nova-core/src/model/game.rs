@@ -10,7 +10,9 @@ use serde::{Deserialize, Serialize};
 /// Shape used for collision tests in the editor preview simulation.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum CollisionShape {
+    #[default]
     Rectangle,
     Circle,
     /// Convex polygon, points relative to the object origin in pixels.
@@ -19,12 +21,6 @@ pub enum CollisionShape {
     Polygon {
         points: Vec<(f32, f32)>,
     },
-}
-
-impl Default for CollisionShape {
-    fn default() -> Self {
-        Self::Rectangle
-    }
 }
 
 impl CollisionShape {

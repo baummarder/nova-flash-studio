@@ -131,38 +131,6 @@ fn handle_cli(args: &[String]) -> bool {
     false
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn positional_project_argument_is_accepted() {
-        let args = vec!["C:/Projekte/Mein Film.nova".to_string()];
-        assert_eq!(
-            startup_project_arg(&args),
-            Some(PathBuf::from("C:/Projekte/Mein Film.nova"))
-        );
-    }
-
-    #[test]
-    fn explicit_open_argument_is_accepted() {
-        let args = vec![
-            "--open".to_string(),
-            "C:/Projekte/Ø mit Leerzeichen.nova".to_string(),
-        ];
-        assert_eq!(
-            startup_project_arg(&args),
-            Some(PathBuf::from("C:/Projekte/Ø mit Leerzeichen.nova"))
-        );
-    }
-
-    #[test]
-    fn options_without_a_project_do_not_create_a_path() {
-        assert_eq!(startup_project_arg(&["--startup-check".to_string()]), None);
-        assert_eq!(startup_project_arg(&["--open".to_string()]), None);
-    }
-}
-
 /// Minimal fallback used only if core application state cannot be created. It
 /// still presents a readable diagnostic instead of closing silently.
 struct StartupFailure {
@@ -210,5 +178,37 @@ impl eframe::App for StartupFailure {
                 }
             });
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn positional_project_argument_is_accepted() {
+        let args = vec!["C:/Projekte/Mein Film.nova".to_string()];
+        assert_eq!(
+            startup_project_arg(&args),
+            Some(PathBuf::from("C:/Projekte/Mein Film.nova"))
+        );
+    }
+
+    #[test]
+    fn explicit_open_argument_is_accepted() {
+        let args = vec![
+            "--open".to_string(),
+            "C:/Projekte/Ø mit Leerzeichen.nova".to_string(),
+        ];
+        assert_eq!(
+            startup_project_arg(&args),
+            Some(PathBuf::from("C:/Projekte/Ø mit Leerzeichen.nova"))
+        );
+    }
+
+    #[test]
+    fn options_without_a_project_do_not_create_a_path() {
+        assert_eq!(startup_project_arg(&["--startup-check".to_string()]), None);
+        assert_eq!(startup_project_arg(&["--open".to_string()]), None);
     }
 }

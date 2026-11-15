@@ -97,11 +97,11 @@ pub fn paint_stamp(
                 continue;
             }
             let idx = cy as usize * map.columns + cx as usize;
-            if target.cells.get(idx).copied() != Some(value) {
-                if let Some(cell) = target.cells.get_mut(idx) {
-                    *cell = value;
-                    changed += 1;
-                }
+            if target.cells.get(idx).copied() != Some(value)
+                && let Some(cell) = target.cells.get_mut(idx)
+            {
+                *cell = value;
+                changed += 1;
             }
         }
     }
@@ -115,14 +115,12 @@ pub fn paint(
     map: &mut TilemapData,
     layer: usize,
     tool: PaintTool,
-    x0: i32,
-    y0: i32,
-    x1: i32,
-    y1: i32,
+    rect: (i32, i32, i32, i32),
     tile: u16,
     from: u16,
     to: u16,
 ) -> Result<usize, String> {
+    let (x0, y0, x1, y1) = rect;
     let Some(target) = map.layers.get(layer) else {
         return Err(format!("Ebene {layer} existiert nicht"));
     };
@@ -348,13 +346,11 @@ pub fn clear_region(
 pub fn flip_region(
     map: &mut TilemapData,
     layer: usize,
-    x0: i32,
-    y0: i32,
-    x1: i32,
-    y1: i32,
+    rect: (i32, i32, i32, i32),
     flip_h: bool,
     flip_v: bool,
 ) -> usize {
+    let (x0, y0, x1, y1) = rect;
     if !flip_h && !flip_v {
         return 0;
     }
@@ -560,8 +556,8 @@ pub fn validate_tileset(
 mod tests {
     use super::*;
     use crate::model::Project;
-    use crate::model::Rgba;
-    use crate::model::{Asset, AssetKind};
+
+    use crate::model::Asset;
     use uuid::Uuid;
 
     fn map() -> TilemapData {
@@ -572,13 +568,13 @@ mod tests {
     fn pencil_and_eraser_paint_cells() {
         let mut m = map();
         assert_eq!(
-            paint(&mut m, 0, PaintTool::Pencil, 1, 1, 1, 1, 5, 0, 0).unwrap(),
+            paint(&mut m, 0, PaintTool::Pencil, (1, 1, 1, 1), 5, 0, 0).unwrap(),
             1
         );
         assert_eq!(sample(&m, 0, 1, 1), Some(5));
         assert_eq!(sample(&m, 0, 1, 2), Some(0));
         assert_eq!(
-            paint(&mut m, 0, PaintTool::Eraser, 1, 1, 1, 1, 0, 0, 0).unwrap(),
+            paint(&mut m, 0, PaintTool::Eraser, (1, 1, 1, 1), 0, 0, 0).unwrap(),
             1
         );
         assert_eq!(sample(&m, 0, 1, 1), Some(0));
@@ -587,7 +583,7 @@ mod tests {
     #[test]
     fn rect_fill_is_inclusive() {
         let mut m = map();
-        paint(&mut m, 0, PaintTool::Rect, 0, 0, 2, 1, 3, 0, 0).unwrap();
+        paint(&mut m, 0, PaintTool::Rect, (0, 0, 2, 1), 3, 0, 0).unwrap();
         for y in 0..=1 {
             for x in 0..=2 {
                 assert_eq!(sample(&m, 0, x, y), Some(3));
@@ -601,21 +597,21 @@ mod tests {
     fn flood_fill_respects_region_boundary() {
         let mut m = map();
         // Fill left half with tile 1 via rect, right half stays empty.
-        paint(&mut m, 0, PaintTool::Rect, 0, 0, 1, 2, 1, 0, 0).unwrap();
-        paint(&mut m, 0, PaintTool::Flood, 0, 0, 0, 0, 7, 0, 0).unwrap();
+        paint(&mut m, 0, PaintTool::Rect, (0, 0, 1, 2), 1, 0, 0).unwrap();
+        paint(&mut m, 0, PaintTool::Flood, (0, 0, 0, 0), 7, 0, 0).unwrap();
         assert_eq!(sample(&m, 0, 1, 2), Some(7));
         assert_eq!(sample(&m, 0, 2, 0), Some(0)); // untouched
         // Flood on empty region fills the rest.
-        paint(&mut m, 0, PaintTool::Flood, 3, 0, 3, 0, 9, 0, 0).unwrap();
+        paint(&mut m, 0, PaintTool::Flood, (3, 0, 3, 0), 9, 0, 0).unwrap();
         assert_eq!(sample(&m, 0, 3, 2), Some(9));
     }
 
     #[test]
     fn replace_swaps_all_matching_cells() {
         let mut m = map();
-        paint(&mut m, 0, PaintTool::Rect, 0, 0, 3, 2, 4, 0, 0).unwrap();
+        paint(&mut m, 0, PaintTool::Rect, (0, 0, 3, 2), 4, 0, 0).unwrap();
         assert_eq!(
-            paint(&mut m, 0, PaintTool::Replace, 0, 0, 0, 0, 0, 4, 8).unwrap(),
+            paint(&mut m, 0, PaintTool::Replace, (0, 0, 0, 0), 0, 4, 8).unwrap(),
             12
         );
         assert_eq!(sample(&m, 0, 3, 2), Some(8));
@@ -626,14 +622,14 @@ mod tests {
     fn locked_layer_rejects_painting() {
         let mut m = map();
         m.layers[0].locked = true;
-        assert!(paint(&mut m, 0, PaintTool::Pencil, 0, 0, 0, 0, 1, 0, 0).is_err());
+        assert!(paint(&mut m, 0, PaintTool::Pencil, (0, 0, 0, 0), 1, 0, 0).is_err());
         assert_eq!(paint_stamp(&mut m, 0, 0, 0, &BrushStamp::single(1)), 0);
     }
 
     #[test]
     fn brush_stamp_honours_transparent_cells() {
         let mut m = map();
-        paint(&mut m, 0, PaintTool::Pencil, 0, 0, 0, 0, 2, 0, 0).unwrap();
+        paint(&mut m, 0, PaintTool::Pencil, (0, 0, 0, 0), 2, 0, 0).unwrap();
         let stamp = BrushStamp {
             width: 2,
             height: 1,
@@ -647,7 +643,7 @@ mod tests {
     #[test]
     fn resize_preserves_top_left_content() {
         let mut m = map();
-        paint(&mut m, 0, PaintTool::Pencil, 1, 1, 1, 1, 6, 0, 0).unwrap();
+        paint(&mut m, 0, PaintTool::Pencil, (1, 1, 1, 1), 6, 0, 0).unwrap();
         resize(&mut m, 8, 5);
         assert_eq!(m.columns, 8);
         assert_eq!(m.rows, 5);
@@ -677,7 +673,7 @@ mod tests {
     fn serialization_roundtrip() {
         let mut project = Project::new_empty("T");
         let mut m = map();
-        paint(&mut m, 1, PaintTool::Pencil, 2, 2, 2, 2, 11, 0, 0).unwrap();
+        paint(&mut m, 1, PaintTool::Pencil, (2, 2, 2, 2), 11, 0, 0).unwrap();
         m.layers[1].opacity = 0.5;
         project.tilesets.push(Tileset {
             name: "Terrain".into(),
@@ -699,7 +695,7 @@ mod tests {
     #[test]
     fn copy_paste_and_clear_region() {
         let mut m = map();
-        paint(&mut m, 0, PaintTool::Rect, 0, 0, 1, 1, 5, 0, 0).unwrap();
+        paint(&mut m, 0, PaintTool::Rect, (0, 0, 1, 1), 5, 0, 0).unwrap();
         let region = copy_region(&m, 0, 0, 0, 1, 1).unwrap();
         assert_eq!((region.width, region.height), (2, 2));
         assert!(region.cells.iter().all(|c| *c == 5));
@@ -732,17 +728,26 @@ mod tests {
             .iter()
             .enumerate()
         {
-            paint(&mut m, 0, PaintTool::Pencil, x, y, x, y, i as u16 + 1, 0, 0).unwrap();
+            paint(
+                &mut m,
+                0,
+                PaintTool::Pencil,
+                (x, y, x, y),
+                i as u16 + 1,
+                0,
+                0,
+            )
+            .unwrap();
         }
-        flip_region(&mut m, 0, 0, 0, 2, 1, true, false);
+        flip_region(&mut m, 0, (0, 0, 2, 1), true, false);
         assert_eq!(sample(&m, 0, 0, 0), Some(3));
         assert_eq!(sample(&m, 0, 2, 0), Some(1));
         assert_eq!(sample(&m, 0, 0, 1), Some(6));
-        flip_region(&mut m, 0, 0, 0, 2, 1, false, true);
+        flip_region(&mut m, 0, (0, 0, 2, 1), false, true);
         assert_eq!(sample(&m, 0, 0, 0), Some(6));
         assert_eq!(sample(&m, 0, 0, 1), Some(3));
         // Both flips = 180° rotation of the region.
-        flip_region(&mut m, 0, 0, 0, 2, 1, true, true);
+        flip_region(&mut m, 0, (0, 0, 2, 1), true, true);
         assert_eq!(sample(&m, 0, 0, 0), Some(1));
         assert_eq!(sample(&m, 0, 2, 1), Some(6));
     }

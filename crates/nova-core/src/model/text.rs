@@ -211,7 +211,7 @@ impl TextObject {
                 -height / 2.0,
                 width / 2.0,
                 height / 2.0,
-                Rgba::rgba(fill.r, fill.g, fill.b, 0),
+                Rgba::new(fill.r, fill.g, fill.b, 0),
             ));
         }
         paths

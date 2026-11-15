@@ -324,9 +324,7 @@ impl TypeWorld {
         let mut current = self.class(class_qname);
         let mut guard = 0;
         while let Some(class) = current {
-            let Some(base) = class.base.as_deref() else {
-                return None;
-            };
+            let base = class.base.as_deref()?;
             match self.class(base) {
                 Some(base_class) => current = Some(base_class),
                 None => return Some(base.to_string()),

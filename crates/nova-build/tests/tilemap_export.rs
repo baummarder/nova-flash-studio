@@ -53,8 +53,8 @@ fn project_with_tilemap() -> Project {
     let tileset_id = project.tilesets[0].id;
 
     let mut map = tilemap::new_tilemap(tileset_id, 8.0, 8.0, 4, 3, &["Ground"]);
-    tilemap::paint(&mut map, 0, PaintTool::Rect, 0, 0, 3, 0, 1, 0, 0).unwrap();
-    tilemap::paint(&mut map, 0, PaintTool::Pencil, 1, 1, 1, 1, 3, 0, 0).unwrap();
+    tilemap::paint(&mut map, 0, PaintTool::Rect, (0, 0, 3, 0), 1, 0, 0).unwrap();
+    tilemap::paint(&mut map, 0, PaintTool::Pencil, (1, 1, 1, 1), 3, 0, 0).unwrap();
     let object = ObjectInstance::new(
         "Map",
         ObjectKind::Tilemap(map),
@@ -91,14 +91,12 @@ fn tilemap_bakes_to_lossless_bitmap() {
 fn missing_tileset_warns_and_skips() {
     let mut project = project_with_tilemap();
     // Break the reference: point the tilemap at a random tileset id.
-    if let Some(scene) = project.scenes.first_mut() {
-        if let Some(layer) = scene.layers.last_mut() {
-            if let Some(object) = layer.frames[0].objects.first_mut() {
-                if let ObjectKind::Tilemap(map) = &mut object.kind {
-                    map.tileset = Uuid::new_v4();
-                }
-            }
-        }
+    if let Some(scene) = project.scenes.first_mut()
+        && let Some(layer) = scene.layers.last_mut()
+        && let Some(object) = layer.frames[0].objects.first_mut()
+        && let ObjectKind::Tilemap(map) = &mut object.kind
+    {
+        map.tileset = Uuid::new_v4();
     }
     let output = build_swf(&project).expect("build still succeeds");
     assert!(

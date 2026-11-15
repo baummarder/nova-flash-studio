@@ -20,8 +20,8 @@ use crate::state::{
     Tool, UiAction,
 };
 use crate::{
-    autosave, branding, code_view, console, flash, properties, stage_view, theme, tilemap_view,
-    timeline_view, tree, util,
+    autosave, branding, code_view, console, edition, flash, properties, stage_view, theme,
+    tilemap_view, timeline_view, tree, util,
 };
 
 fn egui_key_for_letter(index: usize) -> Key {
@@ -159,7 +159,10 @@ impl NovaApp {
         } else if app.pending_swf.is_some() {
             app.open_pending_swf();
         } else if let Some((path, recovery)) = autosave::recover_for(None, &app.project) {
-            app.state.dialog = Dialog::AutosaveRecovery { path, recovery };
+            app.state.dialog = Dialog::AutosaveRecovery {
+                path,
+                recovery: Box::new(recovery),
+            };
         }
         if let Some(warning) = warning {
             app.state.log(LogLevel::Warn, warning);
@@ -902,9 +905,7 @@ impl NovaApp {
                 UiAction::EnterSymbol(id) => self.enter_symbol(id),
                 UiAction::ExitSymbol => self.exit_symbol(),
                 UiAction::DuplicateSymbol(id) => self.duplicate_symbol(id),
-                UiAction::RenameSymbol(id, name) => self.rename_symbol(id, name),
                 UiAction::SetTool(tool) => self.set_tool(tool),
-                UiAction::SetLayerKind(kind) => self.set_layer_kind(kind),
                 UiAction::SetTweenKind(kind) => self.set_tween_kind(kind),
                 UiAction::AddScene => self.add_scene(),
                 UiAction::DeleteScene => self.delete_scene(),
@@ -1651,7 +1652,7 @@ impl NovaApp {
                 {
                     self.state.dialog = Dialog::AutosaveRecovery {
                         path: recovery_path,
-                        recovery,
+                        recovery: Box::new(recovery),
                     };
                 }
             }
@@ -2317,71 +2318,10 @@ impl NovaApp {
         }
     }
 
-    fn rename_symbol(&mut self, id: Uuid, name: String) {
-        let name = name.trim().to_string();
-        if name.is_empty() {
-            return;
-        }
-        let Some(symbol) = self.project.symbol_mut(id) else {
-            return;
-        };
-        if symbol.name == name {
-            return;
-        }
-        symbol.name = name.clone();
-        symbol.timeline.name = name.clone();
-        self.project.touch();
-        self.state.dirty = true;
-        self.last_history_label = "Symbol umbenennen";
-        self.state
-            .set_status(format!("Symbol in '{name}' umbenannt"));
-    }
-
     fn set_tool(&mut self, tool: Tool) {
         self.state.tool = tool;
         self.state.draft = None;
         self.state.set_status(format!("Werkzeug: {}", tool.label()));
-    }
-
-    fn set_layer_kind(&mut self, kind: LayerKind) {
-        let Some(target) = self.target_layer() else {
-            self.state.log(LogLevel::Warn, "Keine Ebene ausgewählt.");
-            return;
-        };
-        let Some(layer_index) = self
-            .project
-            .edit_scene(self.state.edit_symbol)
-            .and_then(|scene| scene.layers.iter().position(|layer| layer.id == target))
-        else {
-            return;
-        };
-        if kind == LayerKind::Mask
-            && self
-                .project
-                .edit_scene(self.state.edit_symbol)
-                .is_some_and(|scene| scene.mask_target_index(layer_index).is_none())
-        {
-            self.state.log(
-                LogLevel::Warn,
-                "Maske braucht eine sichtbare Ebene darunter.",
-            );
-            return;
-        }
-        let Some(scene) = self.project.edit_scene_mut(self.state.edit_symbol) else {
-            return;
-        };
-        let Some(layer) = scene.layers.iter_mut().find(|layer| layer.id == target) else {
-            return;
-        };
-        if layer.kind == kind {
-            return;
-        }
-        layer.kind = kind;
-        self.project.touch();
-        self.state.dirty = true;
-        self.last_history_label = "Ebenentyp ändern";
-        self.state
-            .set_status(format!("Ebene ist jetzt {}", kind.label()));
     }
 
     fn set_tween_kind(&mut self, kind: TweenKind) {
@@ -2652,14 +2592,12 @@ impl NovaApp {
                 Ok(()) => {
                     self.state
                         .set_status(format!("Audio-Vorschau: {}", asset.name));
-                    return;
                 }
                 Err(error) => {
                     self.state.log(
                         LogLevel::Warn,
                         format!("Audiovorschau nicht möglich: {error}"),
                     );
-                    return;
                 }
             }
         }
@@ -3259,12 +3197,11 @@ impl NovaApp {
         let mut scene_failed = false;
         if let (Some(runtime), Some((scene_id, scene_name))) =
             (self.state.game_preview.as_mut(), active_scene)
+            && runtime.scene != scene_id
         {
-            if runtime.scene != scene_id {
-                match runtime.goto_scene(&self.project, &scene_name) {
-                    Ok(()) => scene_switched = true,
-                    Err(_) => scene_failed = true,
-                }
+            match runtime.goto_scene(&self.project, &scene_name) {
+                Ok(()) => scene_switched = true,
+                Err(_) => scene_failed = true,
             }
         }
         if scene_failed {
@@ -3548,21 +3485,55 @@ impl NovaApp {
                     );
                     ui.add_space(4.0);
                     ui.label(
+                        RichText::new(format!("Edition: {}", edition::edition_name()))
+                            .small()
+                            .color(theme::ACCENT),
+                    );
+                    ui.add_space(4.0);
+                    ui.label(
                         "Rust · egui/eframe · wgpu · QuickJS\nEigene Timeline, eigenes Projektdatenmodell, eigener SWF-Writer.",
                     );
                     ui.add_space(6.0);
                     ui.label(RichText::new("Was bereits funktioniert").strong());
                     ui.label(
                         RichText::new(
-                            "• Bühne, Ebenen, Ebenenordner, Frames, Schlüsselbilder, Motion-Tweens und Onion Skin\n• Mehrfachauswahl, Ausrichten/Verteilen, Raster-Snapping, Undo/Redo\n• Objekt- und Schlüsselbild-Workflow mit Kopieren, Einfügen, Duplizieren und Ebenenwechsel\n• Textobjekte mit eingebauter Vektor-Schrift (Export als Shapes)\n• Mehrere Szenen, vier echte Projektvorlagen und Symbolbibliothek\n• Suchen/Ersetzen im Code und projektweite Textsuche\n• Autosave mit Crash-Recovery\n• SWF-Export mit DefineShape3, DefineSprite und Frame-für-Frame-Backen\n• AS3-Teilmenge als echter AVM2-ABC-Bytecode (DoABC2 + SymbolClass)\n• JavaScript-Konsole über QuickJS\n• Branded Splash, natives App-Icon und plattformspezifische Packaging-Skripte\n• „Open in Flash Player“ mit Adobe-Projector als Standard und optionalem Ruffle",
+                            "• Bühne, Ebenen, Ebenenordner, Frames, Schlüsselbilder, Motion-/Shape-Tweens, Masken und Onion Skin\n• Text, Bitmaps und Sounds als Projekt-Assets; verschachtelte Symbol-Timelines und Skelett-Animation (SKINNING)\n• Mehrfachauswahl, Ausrichten/Verteilen, Raster-Snapping, Undo/Redo\n• Szenen, Projektvorlagen, Symbolbibliothek, Suchen/Ersetzen und projektweite Textsuche\n• Autosave mit Crash-Recovery\n• Tilemaps, Partikel und Game-Vorschau mit Physik\n• SWF-Export (DefineShape3, DefineSprite, Frame-für-Frame-Backen) sowie FLA/XFL-Import und -Export im dokumentierten Umfang\n• AS3-Teilmenge als echter AVM2-ABC-Bytecode (DoABC2 + SymbolClass)\n• JavaScript-Konsole über QuickJS und optionale KI-Unterstützung (lokal oder Cloud mit Zustimmung)\n• „Open in Flash Player“ mit Adobe-Projector als Standard und optionalem Ruffle",
                         )
                         .small(),
                     );
                     ui.add_space(4.0);
+                    ui.label(RichText::new("Module dieser Edition").strong());
+                    ui.label(
+                        RichText::new(
+                            edition::active_modules()
+                                .iter()
+                                .map(|module| module.label)
+                                .collect::<Vec<_>>()
+                                .join(" · "),
+                        )
+                        .small(),
+                    );
+                    let planned: Vec<_> = edition::profile()
+                        .modules
+                        .iter()
+                        .filter(|module| module.reserved)
+                        .map(|module| module.label)
+                        .collect();
+                    if !planned.is_empty() {
+                        ui.label(
+                            RichText::new(format!(
+                                "Geplant, noch nicht implementiert: {}",
+                                planned.join(" · ")
+                            ))
+                            .small()
+                            .color(theme::AMBER),
+                        );
+                    }
+                    ui.add_space(4.0);
                     ui.label(RichText::new("Bewusste Grenzen").strong());
                     ui.label(
                         RichText::new(
-                            "• Nur eine dokumentierte AS3-Teilmenge; nicht unterstützte Konstrukte sind Compilerfehler\n• Script-Objekte werden einmal platziert und danach von ActionScript gesteuert\n• Keine Bitmaps, Sounds, System-/OpenType-Fonts oder editierbaren Laufzeittext\n• Keine verschachtelten Symbol-Timelines und keine Masken/Shape-Tweens\n• ABC/SWF strukturell validiert; keine automatische Runtime-/Playback-Prüfung",
+                            "• Nur eine dokumentierte AS3-Teilmenge; nicht unterstützte Konstrukte sind Compilerfehler\n• Script-Objekte werden einmal platziert und danach von ActionScript gesteuert; ihre Timeline-Tweens werden nicht zusätzlich gebacken\n• Text nutzt die eingebaute Vektor-Schrift und wird als Shapes exportiert; System-/OpenType-Fonts und editierbarer Laufzeittext fehlen\n• Die Audio-Vorschau spielt jede Cue einmal pro Frame-Eintrag; Offset- und Dauer-Trimming werden in der Vorschau nicht angewendet\n• ABC/SWF strukturell validiert; keine automatische Runtime-/Playback-Prüfung\n• Classroom-, Lehrkräfte-/Schülerrollen und Enterprise-Administration sind noch nicht implementiert\n• Noch keine native Windows-Dateizuordnung für .nova (Spezifikation für M20.1)",
                         )
                         .small()
                         .color(theme::TEXT_DIM),
@@ -3641,7 +3612,7 @@ impl NovaApp {
                             ui.label(RichText::new("Ehrliche Grenzen").strong());
                             ui.label(
                                 RichText::new(
-                                    "• ActionScript wird für eine dokumentierte Teilmenge zu echtem AVM2-ABC kompiliert. Nicht unterstützte Syntax ist ein Compilerfehler mit Datei/Zeile.\n• Die ABC- und SWF-Struktur wird mit einem unabhängigen Parser validiert. „Open in Flash Player“ startet die konfigurierte Runtime (Adobe-Projector als Standard, Ruffle nur nach ausdrücklicher Auswahl); eine automatische Playback-Prüfung oder eingebettete Runtime gibt es nicht.\n• Skript-Objekte werden einmal platziert und danach von ActionScript gesteuert; ihre Timeline-Tweens werden nicht zusätzlich gebacken.\n• Nicht-Skript-Objekte werden weiterhin Frame für Frame gebacken.\n• Text ist statisch: die eingebaute 5×7-Vektorschrift wird als Shapes exportiert. System-/OpenType-Fonts, editierbarer Laufzeittext, Bitmaps, Sounds, verschachtelte Symbol-Timelines, Masken und Shape-Tweens fehlen.\n• Array-, Objekt- und Index-Zugriffe in AS3 sind strukturell geprüft, aber nicht gegen eine echte Runtime getestet.",
+                                    "• ActionScript wird für eine dokumentierte Teilmenge zu echtem AVM2-ABC kompiliert. Nicht unterstützte Syntax ist ein Compilerfehler mit Datei/Zeile.\n• Die ABC- und SWF-Struktur wird mit einem unabhängigen Parser validiert. „Open in Flash Player“ startet die konfigurierte Runtime (Adobe-Projector als Standard, Ruffle nur nach ausdrücklicher Auswahl); eine automatische Playback-Prüfung oder eingebettete Runtime gibt es nicht.\n• Skript-Objekte werden einmal platziert und danach von ActionScript gesteuert; ihre Timeline-Tweens werden nicht zusätzlich gebacken.\n• Nicht-Skript-Objekte werden weiterhin Frame für Frame gebacken.\n• Text ist statisch: die eingebaute 5×7-Vektorschrift wird als Shapes exportiert. System-/OpenType-Fonts und editierbarer Laufzeittext fehlen; Bitmaps und Sounds werden als Assets unterstützt.\n• Bitmaps, Sounds, verschachtelte Symbol-Timelines, Masken, Shape-Tweens und Skelett-Animation sind implementiert; die Audio-Vorschau wendet Offset-/Dauer-Trimming nicht an.\n• Array-, Objekt- und Index-Zugriffe in AS3 sind strukturell geprüft, aber nicht gegen eine echte Runtime getestet.\n• Classroom-, Lehrkräfte-/Schülerrollen und Enterprise-Administration sind noch nicht implementiert; die native Windows-Dateizuordnung für .nova folgt in M20.1.",
                                 )
                                 .small()
                                 .color(theme::TEXT_DIM),

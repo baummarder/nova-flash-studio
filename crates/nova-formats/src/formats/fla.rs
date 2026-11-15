@@ -333,7 +333,7 @@ fn import_files(
             }
             symbols[index].timeline.width = symbols[index].width;
             symbols[index].timeline.height = symbols[index].height;
-            symbols[index].timeline.background = Rgba::rgba(0, 0, 0, 0);
+            symbols[index].timeline.background = Rgba::new(0, 0, 0, 0);
             symbols[index].timeline.name = symbols[index].name.clone();
             symbols[index].normalize();
         }
@@ -1184,7 +1184,7 @@ fn parse_element(
                 attr_f32(element, "y").unwrap_or(0.0),
                 width,
                 height,
-                Rgba::rgba(200, 200, 200, 80),
+                Rgba::new(200, 200, 200, 80),
             );
             apply_xfl_transform(element, &mut object.transform);
             objects.push(object);
@@ -1207,10 +1207,10 @@ fn shape_bounds(element: Node<'_, '_>) -> (f32, f32) {
             element
                 .descendants()
                 .find(|node| node.has_tag_name("bounds"))
-                .and_then(|bounds| {
+                .map(|bounds| {
                     let x_min = attr_f32(bounds, "xMin").unwrap_or(0.0);
                     let x_max = attr_f32(bounds, "xMax").unwrap_or(100.0);
-                    Some((x_max - x_min).abs())
+                    (x_max - x_min).abs()
                 })
         })
         .unwrap_or(100.0);
@@ -1220,10 +1220,10 @@ fn shape_bounds(element: Node<'_, '_>) -> (f32, f32) {
             element
                 .descendants()
                 .find(|node| node.has_tag_name("bounds"))
-                .and_then(|bounds| {
+                .map(|bounds| {
                     let y_min = attr_f32(bounds, "yMin").unwrap_or(0.0);
                     let y_max = attr_f32(bounds, "yMax").unwrap_or(100.0);
-                    Some((y_max - y_min).abs())
+                    (y_max - y_min).abs()
                 })
         })
         .unwrap_or(100.0);
@@ -1628,7 +1628,7 @@ fn parse_color(value: &str) -> Option<Rgba> {
         let g = u8::from_str_radix(&value[2..4], 16).ok()?;
         let b = u8::from_str_radix(&value[4..6], 16).ok()?;
         let a = u8::from_str_radix(&value[6..8], 16).ok()?;
-        Some(Rgba::rgba(r, g, b, a))
+        Some(Rgba::new(r, g, b, a))
     } else {
         None
     }
@@ -2110,16 +2110,16 @@ fn write_xfl_object(
             ),
         );
     }
-    if let Some(game) = &object.game {
-        if game.collision.is_some() || game.physics.is_some() {
-            report.warning(
+    if let Some(game) = &object.game
+        && (game.collision.is_some() || game.physics.is_some())
+    {
+        report.warning(
                 IssueCategory::Export,
                 format!(
                     "Objekt '{}': Game-Metadaten (Kollision/Physik) werden im XFL-Paket nicht exportiert.",
                     object.name
                 ),
             );
-        }
     }
     match &object.kind {
         ObjectKind::Rect {
@@ -2652,9 +2652,7 @@ mod tests {
     /// guide layers must survive two export/import cycles.
     #[test]
     fn m9_structural_roundtrip_preserves_symbols_assets_and_layers() {
-        use nova_core::{
-            Asset, Layer, LayerKind, ObjectInstance, Scene, SoundCue, Symbol, SymbolKind,
-        };
+        use nova_core::{Asset, Layer, LayerKind, ObjectInstance, SoundCue, Symbol, SymbolKind};
 
         let mut project = Project::demo();
         // Add a movieclip symbol whose timeline instances a graphic symbol.
@@ -2664,7 +2662,7 @@ mod tests {
             SymbolKind::MovieClip,
             80.0,
             80.0,
-            Rgba::rgba(0, 0, 0, 0),
+            Rgba::new(0, 0, 0, 0),
         );
         clip.timeline.ensure_frame_count(3);
         let graphic_id = graphic.id;
@@ -2735,7 +2733,7 @@ mod tests {
         project.validate().unwrap();
 
         let first = export_xfl(&project).unwrap();
-        let mut once = import(&first.bytes).unwrap();
+        let once = import(&first.bytes).unwrap();
         let mut twice = export_xfl(&once.project).unwrap();
         let twice_imported = import(&twice.bytes).unwrap();
 
@@ -2819,10 +2817,7 @@ mod tests {
             &mut map,
             0,
             nova_core::tilemap::PaintTool::Rect,
-            0,
-            0,
-            3,
-            3,
+            (0, 0, 3, 3),
             1,
             0,
             0,

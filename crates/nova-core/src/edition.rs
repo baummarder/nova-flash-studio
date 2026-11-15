@@ -95,10 +95,10 @@ impl Edition {
         if let Some(edition) = option_env!("NOVA_EDITION").and_then(Edition::parse) {
             return edition;
         }
-        if let Ok(value) = std::env::var(EDITION_ENV) {
-            if let Some(edition) = Edition::parse(&value) {
-                return edition;
-            }
+        if let Ok(value) = std::env::var(EDITION_ENV)
+            && let Some(edition) = Edition::parse(&value)
+        {
+            return edition;
         }
         Edition::User
     }

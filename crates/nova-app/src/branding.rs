@@ -5,9 +5,6 @@ use std::sync::Arc;
 use egui::{ColorImage, Context, IconData, TextureHandle, TextureOptions};
 use image::GenericImageView;
 
-pub const APP_NAME: &str = "NØVA Flash Studio";
-pub const BUNDLE_ID: &str = "studio.nova.flash";
-
 /// Edition-aware display name (M19): base name, Edu or Enterprise variant.
 pub fn app_name() -> &'static str {
     crate::edition::profile().app_name
@@ -79,8 +76,8 @@ mod tests {
 
     #[test]
     fn identity_is_consistent() {
-        assert_eq!(APP_NAME, "NØVA Flash Studio");
+        assert!(app_name().contains("NØVA Flash Studio"));
+        assert!(bundle_id().starts_with("studio.nova.flash"));
         assert_eq!(VERSION, env!("CARGO_PKG_VERSION"));
-        assert_eq!(BUNDLE_ID, "studio.nova.flash");
     }
 }

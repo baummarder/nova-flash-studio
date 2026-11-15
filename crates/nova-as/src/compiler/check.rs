@@ -49,8 +49,10 @@ struct Checker {
 
 impl Checker {
     fn new(unit: CompilationUnit, package: &str) -> Self {
-        let mut world = TypeWorld::default();
-        world.package = package.to_string();
+        let world = TypeWorld {
+            package: package.to_string(),
+            ..TypeWorld::default()
+        };
         Self {
             unit,
             world,
@@ -92,7 +94,7 @@ impl Checker {
                 }
                 continue;
             }
-            let Some((_, simple)) = import.path.rsplit_once('.').or_else(|| {
+            let Some((_, simple)) = import.path.rsplit_once('.').or({
                 if import.path.is_empty() {
                     None
                 } else {
@@ -302,14 +304,12 @@ impl Checker {
         let mut current = self.world.class(class_qname);
         let mut guard = 0;
         while let Some(class) = current {
-            if let Some(method) = class.instance_method(name) {
-                if method.access != Access::Private {
-                    return Some(method.clone());
-                }
+            if let Some(method) = class.instance_method(name)
+                && method.access != Access::Private
+            {
+                return Some(method.clone());
             }
-            let Some(base) = class.base.as_deref() else {
-                return None;
-            };
+            let base = class.base.as_deref()?;
             current = self.world.class(base);
             guard += 1;
             if guard > 64 {
@@ -460,17 +460,17 @@ impl Checker {
 
     fn resolve_base(&mut self, class: &ClassDecl) -> Option<String> {
         let name = class.base.as_deref()?;
-        if let Some(ty) = self.world.resolve_type_name(name) {
-            if matches!(
+        if let Some(ty) = self.world.resolve_type_name(name)
+            && matches!(
                 ty,
                 Type::Int | Type::Uint | Type::Number | Type::Boolean | Type::String | Type::Object
-            ) {
-                self.error(
-                    format!("Klasse kann nicht von Werttyp '{name}' erben"),
-                    class.span,
-                );
-                return None;
-            }
+            )
+        {
+            self.error(
+                format!("Klasse kann nicht von Werttyp '{name}' erben"),
+                class.span,
+            );
+            return None;
         }
         match self.world.resolve_class_name(name) {
             Some(qname) => {
@@ -1127,86 +1127,83 @@ impl Checker {
             };
         }
 
-        if let Some(class_qname) = self.current_class.clone() {
-            if self.world.class(&class_qname).is_some() {
-                if !self.is_static {
-                    if let Some((declaring, field)) =
-                        self.world.find_instance_field(&class_qname, name)
-                    {
-                        return ExprInfo {
-                            ty: field.ty,
-                            reference: Some(RefKind::InstanceField { class: declaring }),
-                            call: None,
-                        };
-                    }
-                    if let Some((declaring, _)) =
-                        self.world.find_instance_method(&class_qname, name)
-                    {
-                        return ExprInfo {
-                            ty: Type::Any,
-                            reference: Some(RefKind::InstanceMethod { class: declaring }),
-                            call: None,
-                        };
-                    }
-                }
-                if let Some((declaring, field)) = self.world.find_static_field(&class_qname, name) {
+        if let Some(class_qname) = self.current_class.clone()
+            && self.world.class(&class_qname).is_some()
+        {
+            if !self.is_static {
+                if let Some((declaring, field)) = self.world.find_instance_field(&class_qname, name)
+                {
                     return ExprInfo {
                         ty: field.ty,
-                        reference: Some(RefKind::StaticField { class: declaring }),
+                        reference: Some(RefKind::InstanceField { class: declaring }),
                         call: None,
                     };
                 }
-                if let Some((declaring, _)) = self.world.find_static_method(&class_qname, name) {
+                if let Some((declaring, _)) = self.world.find_instance_method(&class_qname, name) {
                     return ExprInfo {
                         ty: Type::Any,
-                        reference: Some(RefKind::StaticMethod { class: declaring }),
+                        reference: Some(RefKind::InstanceMethod { class: declaring }),
                         call: None,
                     };
                 }
-                if let Some(ty) = builtin_global(name) {
+            }
+            if let Some((declaring, field)) = self.world.find_static_field(&class_qname, name) {
+                return ExprInfo {
+                    ty: field.ty,
+                    reference: Some(RefKind::StaticField { class: declaring }),
+                    call: None,
+                };
+            }
+            if let Some((declaring, _)) = self.world.find_static_method(&class_qname, name) {
+                return ExprInfo {
+                    ty: Type::Any,
+                    reference: Some(RefKind::StaticMethod { class: declaring }),
+                    call: None,
+                };
+            }
+            if let Some(ty) = builtin_global(name) {
+                return ExprInfo {
+                    ty,
+                    reference: Some(RefKind::GlobalFunction),
+                    call: None,
+                };
+            }
+            if self.world.external_ancestor(&class_qname).is_some() {
+                // Imported/local class names must win over the generic
+                // "inherited Flash member" fallback, otherwise `Event` in
+                // `Event.ENTER_FRAME` would be treated as `this.Event`.
+                if let Some(qname) = self.world.resolve_class_name(name) {
                     return ExprInfo {
-                        ty,
+                        ty: Type::Class(qname.clone()),
+                        reference: Some(RefKind::ClassRef { class: qname }),
+                        call: None,
+                    };
+                }
+                if self.world.function(name).is_some() {
+                    return ExprInfo {
+                        ty: Type::Any,
                         reference: Some(RefKind::GlobalFunction),
                         call: None,
                     };
                 }
-                if self.world.external_ancestor(&class_qname).is_some() {
-                    // Imported/local class names must win over the generic
-                    // "inherited Flash member" fallback, otherwise `Event` in
-                    // `Event.ENTER_FRAME` would be treated as `this.Event`.
-                    if let Some(qname) = self.world.resolve_class_name(name) {
-                        return ExprInfo {
-                            ty: Type::Class(qname.clone()),
-                            reference: Some(RefKind::ClassRef { class: qname }),
-                            call: None,
-                        };
-                    }
-                    if self.world.function(name).is_some() {
-                        return ExprInfo {
-                            ty: Type::Any,
-                            reference: Some(RefKind::GlobalFunction),
-                            call: None,
-                        };
-                    }
-                    // M13/M14: top-level playerglobal/gamekit classes resolve
-                    // as class references (`Math` shim, `JSON`, …).
-                    if let Some(class) = playerglobal_class(name) {
-                        return ExprInfo {
-                            ty: Type::Class(class.to_string()),
-                            reference: Some(RefKind::ClassRef {
-                                class: class.to_string(),
-                            }),
-                            call: None,
-                        };
-                    }
-                    // The member may be inherited from a Flash class whose
-                    // members are not modelled.
+                // M13/M14: top-level playerglobal/gamekit classes resolve
+                // as class references (`Math` shim, `JSON`, …).
+                if let Some(class) = playerglobal_class(name) {
                     return ExprInfo {
-                        ty: Type::Any,
-                        reference: Some(RefKind::Dynamic),
+                        ty: Type::Class(class.to_string()),
+                        reference: Some(RefKind::ClassRef {
+                            class: class.to_string(),
+                        }),
                         call: None,
                     };
                 }
+                // The member may be inherited from a Flash class whose
+                // members are not modelled.
+                return ExprInfo {
+                    ty: Type::Any,
+                    reference: Some(RefKind::Dynamic),
+                    call: None,
+                };
             }
         }
 
@@ -1744,11 +1741,10 @@ impl Checker {
                     return local.is_const;
                 }
                 if let Some(class_qname) = &self.current_class {
-                    if !self.is_static {
-                        if let Some((_, field)) = self.world.find_instance_field(class_qname, name)
-                        {
-                            return field.is_const;
-                        }
+                    if !self.is_static
+                        && let Some((_, field)) = self.world.find_instance_field(class_qname, name)
+                    {
+                        return field.is_const;
                     }
                     if let Some((_, field)) = self.world.find_static_field(class_qname, name) {
                         return field.is_const;
@@ -1758,15 +1754,15 @@ impl Checker {
             }
             ExprKind::Member { target, name } => {
                 let target_info = self.info_of(target);
-                if let Type::Class(qname) = &target_info.ty {
-                    if let Some((_, field)) = self.world.find_instance_field(qname, name) {
-                        return field.is_const;
-                    }
+                if let Type::Class(qname) = &target_info.ty
+                    && let Some((_, field)) = self.world.find_instance_field(qname, name)
+                {
+                    return field.is_const;
                 }
-                if let Some(RefKind::ClassRef { class }) = &target_info.reference {
-                    if let Some((_, field)) = self.world.find_static_field(class, name) {
-                        return field.is_const;
-                    }
+                if let Some(RefKind::ClassRef { class }) = &target_info.reference
+                    && let Some((_, field)) = self.world.find_static_field(class, name)
+                {
+                    return field.is_const;
                 }
                 false
             }

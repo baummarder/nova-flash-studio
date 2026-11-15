@@ -299,7 +299,7 @@ fn terrain_tileset_png() -> Vec<u8> {
                     9 => {
                         // brick
                         let row = (v * 4.0) as u32;
-                        let off = if row % 2 == 0 { 0.0 } else { 0.5 };
+                        let off = if row.is_multiple_of(2) { 0.0 } else { 0.5 };
                         let seam = (u * 4.0 + off).fract() < 0.14 || (v * 4.0).fract() < 0.14;
                         if seam {
                             image::Rgba([70, 60, 66, 255])
@@ -309,7 +309,7 @@ fn terrain_tileset_png() -> Vec<u8> {
                     }
                     10 => {
                         // water with moving-looking stripes
-                        let wave = ((u * 3.0 + v * 1.5).sin() * 0.5 + 0.5) as f32;
+                        let wave = (u * 3.0 + v * 1.5).sin() * 0.5 + 0.5;
                         image::Rgba([
                             (30.0 + wave * 30.0) as u8,
                             (110.0 + wave * 40.0) as u8,
@@ -443,7 +443,7 @@ const T_BUSH: u16 = 12 + 1;
 const T_FLOWER: u16 = 13 + 1;
 const T_HILL_FAR: u16 = 2 + 1;
 const T_HILL_NEAR: u16 = 3 + 1;
-const T_SKY: u16 = 0 + 1;
+const T_SKY: u16 = 1;
 const T_WATER: u16 = 10 + 1;
 const T_BRICK: u16 = 9 + 1;
 const T_CRYSTAL: u16 = 15 + 1;
@@ -464,10 +464,10 @@ fn tilemap_object(
         Rgba::WHITE,
     );
     // Terrain layer: opaque; Details layer: slightly transparent decor.
-    if let ObjectKind::Tilemap(map) = &mut object.kind {
-        if map.layers.len() > 1 {
-            map.layers[1].opacity = 0.9;
-        }
+    if let ObjectKind::Tilemap(map) = &mut object.kind
+        && map.layers.len() > 1
+    {
+        map.layers[1].opacity = 0.9;
     }
     object
 }
@@ -476,16 +476,14 @@ fn paint(
     map: &mut TilemapData,
     layer: usize,
     tool: PaintTool,
-    x0: i32,
-    y0: i32,
-    x1: i32,
-    y1: i32,
+    rect: (i32, i32, i32, i32),
     tile: u16,
 ) {
-    tilemap::paint(map, layer, tool, x0, y0, x1, y1, tile, 0, 0).expect("template paint");
+    let (x0, y0, x1, y1) = rect;
+    tilemap::paint(map, layer, tool, (x0, y0, x1, y1), tile, 0, 0).expect("template paint");
 }
 
-fn tilemap_mut<'a>(object: &'a mut ObjectInstance) -> &'a mut TilemapData {
+fn tilemap_mut(object: &mut ObjectInstance) -> &mut TilemapData {
     match &mut object.kind {
         ObjectKind::Tilemap(map) => map,
         _ => panic!("expected tilemap"),
@@ -510,7 +508,6 @@ fn build_tilemap_platformer(project: &mut Project) {
         width: 1600.0,
         height: 360.0,
         spawn: (80.0, 300.0),
-        ..Default::default()
     });
     scene.game = Some(config);
 
@@ -518,27 +515,24 @@ fn build_tilemap_platformer(project: &mut Project) {
     let mut object = tilemap_object("Landschaft", tileset, 100, 23, 800.0, 184.0);
     let map = tilemap_mut(&mut object);
     // Layer 0 (Terrain): sky base + hill bands + ground strip.
-    paint(map, 0, PaintTool::Rect, 0, 0, 99, 13, T_SKY);
-    paint(map, 0, PaintTool::Rect, 0, 14, 99, 15, T_HILL_FAR);
-    paint(map, 0, PaintTool::Rect, 0, 16, 99, 18, T_HILL_NEAR);
-    paint(map, 0, PaintTool::Rect, 0, 19, 99, 21, T_DIRT);
-    paint(map, 0, PaintTool::Rect, 0, 22, 99, 22, T_GRASS);
+    paint(map, 0, PaintTool::Rect, (0, 0, 99, 13), T_SKY);
+    paint(map, 0, PaintTool::Rect, (0, 14, 99, 15), T_HILL_FAR);
+    paint(map, 0, PaintTool::Rect, (0, 16, 99, 18), T_HILL_NEAR);
+    paint(map, 0, PaintTool::Rect, (0, 19, 99, 21), T_DIRT);
+    paint(map, 0, PaintTool::Rect, (0, 22, 99, 22), T_GRASS);
     // Scattered bushes/flowers on the grass row.
     for x in (3..96).step_by(7) {
         paint(
             map,
             0,
             PaintTool::Pencil,
-            x,
-            21,
-            x,
-            21,
+            (x, 21, x, 21),
             if x % 14 == 3 { T_BUSH } else { T_FLOWER },
         );
     }
     // Layer 1 (Details): water pond + path.
-    paint(map, 1, PaintTool::Rect, 62, 20, 72, 21, T_WATER);
-    paint(map, 1, PaintTool::Rect, 74, 20, 90, 21, T_PATH);
+    paint(map, 1, PaintTool::Rect, (62, 20, 72, 21), T_WATER);
+    paint(map, 1, PaintTool::Rect, (74, 20, 90, 21), T_PATH);
 
     // Put the tilemap on its own bottom layer so platforms draw on top.
     let mut terrain_layer = Layer::new("Terrain-Map", 1);
@@ -564,19 +558,18 @@ fn build_tilemap_dungeon(project: &mut Project) {
         width: 1400.0,
         height: 900.0,
         spawn: (100.0, 100.0),
-        ..Default::default()
     });
     scene.game = Some(config);
 
     // Floor tilemap: 88x57 cells of 16px = 1408x912 covering the world.
     let mut floor = tilemap_object("Floor", tileset, 88, 57, 700.0, 450.0);
     let map = tilemap_mut(&mut floor);
-    paint(map, 0, PaintTool::Rect, 0, 0, 87, 56, T_STONE);
+    paint(map, 0, PaintTool::Rect, (0, 0, 87, 56), T_STONE);
     // Border walls (brick) — visual only; collision lives on script objects.
-    paint(map, 0, PaintTool::Rect, 0, 0, 87, 1, T_BRICK);
-    paint(map, 0, PaintTool::Rect, 0, 55, 87, 55, T_BRICK);
-    paint(map, 0, PaintTool::Rect, 0, 0, 1, 56, T_BRICK);
-    paint(map, 0, PaintTool::Rect, 86, 0, 86, 56, T_BRICK);
+    paint(map, 0, PaintTool::Rect, (0, 0, 87, 1), T_BRICK);
+    paint(map, 0, PaintTool::Rect, (0, 55, 87, 55), T_BRICK);
+    paint(map, 0, PaintTool::Rect, (0, 0, 1, 56), T_BRICK);
+    paint(map, 0, PaintTool::Rect, (86, 0, 86, 56), T_BRICK);
     // Scattered detail: crystals and paths.
     for y in (4..52).step_by(9) {
         for x in (4..84).step_by(11) {
@@ -584,10 +577,7 @@ fn build_tilemap_dungeon(project: &mut Project) {
                 map,
                 1,
                 PaintTool::Pencil,
-                x,
-                y,
-                x,
-                y,
+                (x, y, x, y),
                 if (x + y) % 3 == 0 { T_CRYSTAL } else { T_PATH },
             );
         }

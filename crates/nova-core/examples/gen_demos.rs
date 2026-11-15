@@ -47,10 +47,10 @@ fn put(scene: &mut Scene, layer_index: usize, frame: usize, object: ObjectInstan
     layer.ensure_frames(frame + 1);
     if !layer.frames[frame].keyframe {
         layer.frames[frame].keyframe = true;
-        if frame > 0 {
-            if let Some(prev) = layer.last_keyframe_at_or_before(frame - 1) {
-                layer.frames[frame].objects = layer.frames[prev].objects.clone();
-            }
+        if frame > 0
+            && let Some(prev) = layer.last_keyframe_at_or_before(frame - 1)
+        {
+            layer.frames[frame].objects = layer.frames[prev].objects.clone();
         }
     }
     layer.frames[frame].objects.push(object);
@@ -99,7 +99,7 @@ fn nested_symbols_demo(dir: &std::path::Path) {
         SymbolKind::MovieClip,
         120.0,
         120.0,
-        Rgba::rgba(0, 0, 0, 0),
+        Rgba::new(0, 0, 0, 0),
     );
     let mut rim_layer = layer_with("Felge", 1);
     rim_layer.frames[0].objects.push(ellipse(
@@ -165,7 +165,7 @@ fn movieclip_animation_demo(dir: &std::path::Path) {
         SymbolKind::MovieClip,
         60.0,
         60.0,
-        Rgba::rgba(0, 0, 0, 0),
+        Rgba::new(0, 0, 0, 0),
     );
     let mut track = layer_with("Sprung", 24);
     track.frames[0].objects.push(ellipse(
@@ -181,17 +181,21 @@ fn movieclip_animation_demo(dir: &std::path::Path) {
         kind: TweenKind::Motion,
     });
     // Duplicate the keyframe content at frame 12 with a moved object.
-    let mut mid = Frame::default();
-    mid.keyframe = true;
-    mid.objects = track.frames[0].objects.clone();
+    let mut mid = Frame {
+        keyframe: true,
+        objects: track.frames[0].objects.clone(),
+        ..Frame::default()
+    };
     for object in &mut mid.objects {
         object.transform.y = 120.0;
     }
     track.frames[11] = mid;
     // End keyframe back at the top.
-    let mut end = Frame::default();
-    end.keyframe = true;
-    end.objects = track.frames[0].objects.clone();
+    let end = Frame {
+        keyframe: true,
+        objects: track.frames[0].objects.clone(),
+        ..Frame::default()
+    };
     track.frames[23] = end;
     ball.timeline.layers.clear();
     ball.timeline.layers.push(track);
@@ -229,14 +233,7 @@ fn movieclip_animation_demo(dir: &std::path::Path) {
         scene,
         2,
         0,
-        ellipse(
-            "Schatten",
-            320.0,
-            320.0,
-            90.0,
-            14.0,
-            Rgba::rgba(0, 0, 0, 90),
-        ),
+        ellipse("Schatten", 320.0, 320.0, 90.0, 14.0, Rgba::new(0, 0, 0, 90)),
     );
 
     project.metadata.name = "M9 MovieClip Animation".into();

@@ -174,10 +174,10 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
                     .on_hover_text("Ordner auf-/zuklappen")
                     .clicked()
                 {
-                    if let Some(scene) = project.edit_scene_mut(state.edit_symbol) {
-                        if let Some(folder) = scene.layers.get_mut(layer.index) {
-                            folder.expanded = !folder.expanded;
-                        }
+                    if let Some(scene) = project.edit_scene_mut(state.edit_symbol)
+                        && let Some(folder) = scene.layers.get_mut(layer.index)
+                    {
+                        folder.expanded = !folder.expanded;
                     }
                     state.dirty = true;
                 }
@@ -194,10 +194,10 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
                 .clicked()
             {
                 visible = !visible;
-                if let Some(scene) = project.edit_scene_mut(state.edit_symbol) {
-                    if let Some(layer) = scene.layers.get_mut(layer.index) {
-                        layer.visible = visible;
-                    }
+                if let Some(scene) = project.edit_scene_mut(state.edit_symbol)
+                    && let Some(layer) = scene.layers.get_mut(layer.index)
+                {
+                    layer.visible = visible;
                 }
                 state.dirty = true;
             }
@@ -213,10 +213,10 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
                 .clicked()
             {
                 locked = !locked;
-                if let Some(scene) = project.edit_scene_mut(state.edit_symbol) {
-                    if let Some(layer) = scene.layers.get_mut(layer.index) {
-                        layer.locked = locked;
-                    }
+                if let Some(scene) = project.edit_scene_mut(state.edit_symbol)
+                    && let Some(layer) = scene.layers.get_mut(layer.index)
+                {
+                    layer.locked = locked;
                 }
                 state.dirty = true;
             }
@@ -443,7 +443,7 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
                 (asset.id, label, glyph)
             })
             .collect();
-        assets.sort_by(|a, b| a.1.to_lowercase().cmp(&b.1.to_lowercase()));
+        assets.sort_by_key(|a| a.1.to_lowercase());
         for (id, name, glyph) in assets {
             let selected = state.selection == Selection::Asset(id);
             let response = ui

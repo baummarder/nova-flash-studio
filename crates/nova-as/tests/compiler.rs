@@ -30,7 +30,7 @@ fn parse_abc(unit: &CompiledUnit) -> AbcFile {
         .expect("generated ABC must parse")
 }
 
-fn string<'a>(abc: &'a AbcFile, index: swf::avm2::types::Index<String>) -> &'a str {
+fn string(abc: &AbcFile, index: swf::avm2::types::Index<String>) -> &str {
     let index = index.as_u30();
     if index == 0 {
         return "";

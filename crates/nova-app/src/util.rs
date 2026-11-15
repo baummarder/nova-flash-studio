@@ -16,7 +16,7 @@ pub fn to_color32(color: Rgba) -> egui::Color32 {
 
 pub fn from_color32(color: egui::Color32) -> Rgba {
     let [r, g, b, a] = color.to_srgba_unmultiplied();
-    Rgba::rgba(r, g, b, a)
+    Rgba::new(r, g, b, a)
 }
 
 /// Width and height of an instance, resolving symbol dimensions from the
@@ -162,12 +162,12 @@ pub fn shared_transform(
 /// Important: the same object id may appear in several keyframes (tween start
 /// and end). Editing the *resolved* object would only change a temporary copy,
 /// so property edits must always go through this function.
-pub fn governing_object_mut<'a>(
-    scene: &'a mut Scene,
+pub fn governing_object_mut(
+    scene: &mut Scene,
     layer_id: Uuid,
     frame: usize,
     object_id: Uuid,
-) -> Option<&'a mut ObjectInstance> {
+) -> Option<&mut ObjectInstance> {
     let layer = scene.layers.iter_mut().find(|layer| layer.id == layer_id)?;
     let keyframe = layer.last_keyframe_at_or_before(frame)?;
     layer

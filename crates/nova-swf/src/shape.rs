@@ -184,21 +184,21 @@ impl Shape {
             return Err(SwfError::TooManyLines(self.lines.len()));
         }
         for path in &self.paths {
-            if let Some(index) = path.fill {
-                if index == 0 || index as usize > self.fills.len() {
-                    return Err(SwfError::Range(format!(
-                        "fill style index {index} out of range ({} fills)",
-                        self.fills.len()
-                    )));
-                }
+            if let Some(index) = path.fill
+                && (index == 0 || index as usize > self.fills.len())
+            {
+                return Err(SwfError::Range(format!(
+                    "fill style index {index} out of range ({} fills)",
+                    self.fills.len()
+                )));
             }
-            if let Some(index) = path.line {
-                if index == 0 || index as usize > self.lines.len() {
-                    return Err(SwfError::Range(format!(
-                        "line style index {index} out of range ({} lines)",
-                        self.lines.len()
-                    )));
-                }
+            if let Some(index) = path.line
+                && (index == 0 || index as usize > self.lines.len())
+            {
+                return Err(SwfError::Range(format!(
+                    "line style index {index} out of range ({} lines)",
+                    self.lines.len()
+                )));
             }
         }
 

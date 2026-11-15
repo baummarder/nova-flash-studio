@@ -920,12 +920,12 @@ fn apply_one(
             scene,
         } => {
             check_size(*width, *height, "Bühne")?;
-            if let Some(fps) = fps {
-                if !fps.is_finite() || !(1.0..=120.0).contains(fps) {
-                    return Err(OperationError::invalid(
-                        "Die Bildrate muss zwischen 1 und 120 liegen.",
-                    ));
-                }
+            if let Some(fps) = fps
+                && (!fps.is_finite() || !(1.0..=120.0).contains(fps))
+            {
+                return Err(OperationError::invalid(
+                    "Die Bildrate muss zwischen 1 und 120 liegen.",
+                ));
             }
             let background = background.as_deref().map(parse_color).transpose()?;
             let scene = scene_mut(project, scene.as_deref())?;
@@ -1088,39 +1088,39 @@ fn apply_one(
                 ));
             }
             for (value, label) in [(x, "x"), (y, "y"), (rotation, "rotation")] {
-                if let Some(value) = value {
-                    if !value.is_finite() {
-                        return Err(OperationError::invalid(format!(
-                            "Objekt-Eigenschaft '{label}' muss eine endliche Zahl sein."
-                        )));
-                    }
+                if let Some(value) = value
+                    && !value.is_finite()
+                {
+                    return Err(OperationError::invalid(format!(
+                        "Objekt-Eigenschaft '{label}' muss eine endliche Zahl sein."
+                    )));
                 }
             }
             for (value, label) in [(scale_x, "scale_x"), (scale_y, "scale_y")] {
-                if let Some(value) = value {
-                    if !value.is_finite() || *value <= 0.0 || *value > 1_000.0 {
-                        return Err(OperationError::invalid(format!(
-                            "Objekt-Eigenschaft '{label}' muss zwischen 0 und 1000 liegen."
-                        )));
-                    }
+                if let Some(value) = value
+                    && (!value.is_finite() || *value <= 0.0 || *value > 1_000.0)
+                {
+                    return Err(OperationError::invalid(format!(
+                        "Objekt-Eigenschaft '{label}' muss zwischen 0 und 1000 liegen."
+                    )));
                 }
             }
-            if let Some(size) = font_size {
-                if !size.is_finite() || !(1.0..=512.0).contains(size) {
-                    return Err(OperationError::invalid(
-                        "Die Textgröße muss zwischen 1 und 512 liegen.",
-                    ));
-                }
+            if let Some(size) = font_size
+                && (!size.is_finite() || !(1.0..=512.0).contains(size))
+            {
+                return Err(OperationError::invalid(
+                    "Die Textgröße muss zwischen 1 und 512 liegen.",
+                ));
             }
             let fill = fill.as_deref().map(parse_color).transpose()?;
             let scene = scene_mut(project, scene.as_deref())?;
             let scene_name = scene.name.clone();
             let mut matches = Vec::new();
             for (layer_index, candidate) in scene.layers.iter().enumerate() {
-                if let Some(selector) = layer.as_deref().map(str::trim).filter(|v| !v.is_empty()) {
-                    if candidate.name != selector {
-                        continue;
-                    }
+                if let Some(selector) = layer.as_deref().map(str::trim).filter(|v| !v.is_empty())
+                    && candidate.name != selector
+                {
+                    continue;
                 }
                 for (frame_index, frame) in candidate.frames.iter().enumerate() {
                     for (object_index, object) in frame.objects.iter().enumerate() {
@@ -1170,15 +1170,15 @@ fn apply_one(
             if let Some(fill) = fill {
                 object.fill = fill;
             }
-            if let Some(text) = text {
-                if let nova_core::ObjectKind::Text(text_object) = &mut object.kind {
-                    text_object.text = text.clone();
-                }
+            if let Some(text) = text
+                && let nova_core::ObjectKind::Text(text_object) = &mut object.kind
+            {
+                text_object.text = text.clone();
             }
-            if let Some(size) = font_size {
-                if let nova_core::ObjectKind::Text(text_object) = &mut object.kind {
-                    text_object.size = *size;
-                }
+            if let Some(size) = font_size
+                && let nova_core::ObjectKind::Text(text_object) = &mut object.kind
+            {
+                text_object.size = *size;
             }
             project.touch();
             Ok(format!(
@@ -2767,7 +2767,13 @@ fn apply_one(
                 )));
             }
             let changed = nova_core::tilemap::paint(
-                map, *layer, *tool, *x0, *y0, *x1, *y1, *tile, *from, *to,
+                map,
+                *layer,
+                *tool,
+                (*x0, *y0, *x1, *y1),
+                *tile,
+                *from,
+                *to,
             )
             .map_err(OperationError::invalid)?;
             project.touch();
@@ -2888,7 +2894,7 @@ fn apply_one(
                     "Kachelebene {layer} ist gesperrt."
                 )));
             }
-            nova_core::tilemap::flip_region(map, *layer, *x0, *y0, *x1, *y1, *flip_h, *flip_v);
+            nova_core::tilemap::flip_region(map, *layer, (*x0, *y0, *x1, *y1), *flip_h, *flip_v);
             project.touch();
             Ok(format!(
                 "Region ({x0},{y0})-({x1},{y1}) auf '{needle}' Ebene {layer} gespiegelt"
@@ -3025,12 +3031,12 @@ fn apply_one(
                     "Kollisionsausmaße müssen positive endliche Zahlen sein.",
                 ));
             }
-            if let Some(layer) = col_layer {
-                if *layer == 0 || *layer > 31 {
-                    return Err(OperationError::invalid(
-                        "Kollisions-Layer muss 1..=31 sein.",
-                    ));
-                }
+            if let Some(layer) = col_layer
+                && (*layer == 0 || *layer > 31)
+            {
+                return Err(OperationError::invalid(
+                    "Kollisions-Layer muss 1..=31 sein.",
+                ));
             }
             let mut config = target.game.clone().unwrap_or_default();
             config.collision = Some(nova_core::CollisionSpec {
@@ -3100,10 +3106,10 @@ fn apply_one(
                 }
                 camera.dead_zone = (*dx, *dy);
             }
-            if let Some(z) = zoom {
-                if *z <= 0.0 || *z > 16.0 {
-                    return Err(OperationError::invalid("Zoom muss 0 < z <= 16 sein."));
-                }
+            if let Some(z) = zoom
+                && (*z <= 0.0 || *z > 16.0)
+            {
+                return Err(OperationError::invalid("Zoom muss 0 < z <= 16 sein."));
             }
             scene.game = Some(config);
             project.touch();
@@ -3295,14 +3301,16 @@ fn apply_one(
             camera_follow,
         } => apply_game_level(
             project,
-            scene,
-            *world_width,
-            *world_height,
-            *spawn,
-            tileset.as_ref(),
-            tilemap.as_ref(),
-            objects,
-            camera_follow.as_deref(),
+            GameLevelRequest {
+                scene_name: scene,
+                world_width: *world_width,
+                world_height: *world_height,
+                spawn: *spawn,
+                tileset: tileset.as_ref(),
+                tilemap: tilemap.as_ref(),
+                objects,
+                camera_follow: camera_follow.as_deref(),
+            },
         )
         .map(|notes| notes.join("; ")),
         ProjectOperation::RenameAsset { asset, name } => {
@@ -3456,24 +3464,24 @@ fn validate_particle_patch(patch: &ParticlePatch) -> Result<(), OperationError> 
             return Err(OperationError::invalid("Partikelparameter ungueltig."));
         }
     }
-    if let Some((a, b)) = patch.lifetime {
-        if !a.is_finite() || !b.is_finite() || a <= 0.0 || b < a || b > 3600.0 {
-            return Err(OperationError::invalid("Partikel-Lebensdauer ungueltig."));
-        }
+    if let Some((a, b)) = patch.lifetime
+        && (!a.is_finite() || !b.is_finite() || a <= 0.0 || b < a || b > 3600.0)
+    {
+        return Err(OperationError::invalid("Partikel-Lebensdauer ungueltig."));
     }
-    if let Some((a, b)) = patch.speed {
-        if !a.is_finite() || !b.is_finite() || a < 0.0 || b < a || b > 100_000.0 {
-            return Err(OperationError::invalid(
-                "Partikel-Geschwindigkeit ungueltig.",
-            ));
-        }
+    if let Some((a, b)) = patch.speed
+        && (!a.is_finite() || !b.is_finite() || a < 0.0 || b < a || b > 100_000.0)
+    {
+        return Err(OperationError::invalid(
+            "Partikel-Geschwindigkeit ungueltig.",
+        ));
     }
-    if let Some(max) = patch.max_particles {
-        if max == 0 || max > 100_000 {
-            return Err(OperationError::invalid(
-                "max_particles muss 1..=100000 sein.",
-            ));
-        }
+    if let Some(max) = patch.max_particles
+        && (max == 0 || max > 100_000)
+    {
+        return Err(OperationError::invalid(
+            "max_particles muss 1..=100000 sein.",
+        ));
     }
     Ok(())
 }
@@ -3620,17 +3628,31 @@ fn import_audio_asset_op(
 }
 
 /// Applies the composite [`ProjectOperation::CreateGameLevel`].
-fn apply_game_level(
-    project: &mut Project,
-    scene_name: &str,
+struct GameLevelRequest<'a> {
+    scene_name: &'a str,
     world_width: Option<f32>,
     world_height: Option<f32>,
     spawn: Option<(f32, f32)>,
-    tileset: Option<&LevelTileset>,
-    tilemap: Option<&LevelTilemap>,
-    objects: &[LevelObject],
-    camera_follow: Option<&str>,
+    tileset: Option<&'a LevelTileset>,
+    tilemap: Option<&'a LevelTilemap>,
+    objects: &'a [LevelObject],
+    camera_follow: Option<&'a str>,
+}
+
+fn apply_game_level(
+    project: &mut Project,
+    request: GameLevelRequest<'_>,
 ) -> Result<Vec<String>, OperationError> {
+    let GameLevelRequest {
+        scene_name,
+        world_width,
+        world_height,
+        spawn,
+        tileset,
+        tilemap,
+        objects,
+        camera_follow,
+    } = request;
     let mut notes: Vec<String> = Vec::new();
     // 1. Scene: create when missing.
     if !project.scenes.iter().any(|s| s.name == scene_name.trim()) {
@@ -4616,7 +4638,7 @@ mod tests {
         wav.extend_from_slice(&16u16.to_le_bytes()); // bits
         wav.extend_from_slice(b"data");
         wav.extend_from_slice(&data_size.to_le_bytes());
-        wav.extend(std::iter::repeat(0u8).take(data_size as usize));
+        wav.extend(std::iter::repeat_n(0u8, data_size as usize));
         wav
     }
 
@@ -5322,7 +5344,7 @@ mod tests {
         assert_eq!(map.layers[1].opacity, 0.5);
         // Moved region now occupies cells x=2..5, y=1 on layer 0.
         for x in 2..=5 {
-            assert_eq!(map.layers[0].cells[1 * 8 + x], 1, "cell ({x},1)");
+            assert_eq!(map.layers[0].cells[8 + x], 1, "cell ({x},1)");
         }
         assert_eq!(map.layers[0].cells[0], 0, "source cleared");
         project.validate().expect("project valid");

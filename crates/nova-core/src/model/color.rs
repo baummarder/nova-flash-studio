@@ -17,7 +17,7 @@ impl Rgba {
         Self { r, g, b, a: 255 }
     }
 
-    pub const fn rgba(r: u8, g: u8, b: u8, a: u8) -> Self {
+    pub const fn new(r: u8, g: u8, b: u8, a: u8) -> Self {
         Self { r, g, b, a }
     }
 
@@ -31,7 +31,7 @@ impl Rgba {
                 parse(&hex[2..4])?,
                 parse(&hex[4..6])?,
             )),
-            8 => Some(Self::rgba(
+            8 => Some(Self::new(
                 parse(&hex[0..2])?,
                 parse(&hex[2..4])?,
                 parse(&hex[4..6])?,
@@ -64,7 +64,7 @@ mod tests {
     #[test]
     fn hex_roundtrip() {
         let c = Rgba::from_hex("#1e90ff80").unwrap();
-        assert_eq!(c, Rgba::rgba(30, 144, 255, 128));
+        assert_eq!(c, Rgba::new(30, 144, 255, 128));
         assert_eq!(c.to_hex(), "#1e90ff80");
         assert!(Rgba::from_hex("blue").is_none());
     }

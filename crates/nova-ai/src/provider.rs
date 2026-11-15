@@ -702,10 +702,10 @@ mod tests {
     ) -> (ProviderManager, Arc<MockTransport>) {
         let transport = Arc::new(MockTransport::new(responses));
         let credentials = Box::new(MemoryCredentialStore::new());
-        if let Some(key) = key {
-            if let Some(provider) = settings.providers.first() {
-                credentials.set(&provider.id, key).unwrap();
-            }
+        if let Some(key) = key
+            && let Some(provider) = settings.providers.first()
+        {
+            credentials.set(&provider.id, key).unwrap();
         }
         let manager = ProviderManager::with_parts(
             settings,

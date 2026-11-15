@@ -228,6 +228,15 @@ fn profile_for(edition: Edition) -> EditionProfile {
     }
 }
 
+/// Short human-readable edition name for the About dialog.
+pub fn edition_name() -> &'static str {
+    match profile().edition {
+        Edition::User => "User",
+        Edition::Edu => "Edu",
+        Edition::Enterprise => "Enterprise",
+    }
+}
+
 /// Active modules only (excludes reserved future slots).
 pub fn active_modules() -> Vec<&'static EditionModule> {
     profile().modules.iter().filter(|m| !m.reserved).collect()

@@ -50,10 +50,9 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
             .add_enabled(has_script, egui::Button::new("Prüfen"))
             .on_hover_text("Lexer, Parser und Deklarationsprüfung ausführen")
             .clicked()
+            && let Some(id) = state.active_script
         {
-            if let Some(id) = state.active_script {
-                actions.push(UiAction::CheckScript(id));
-            }
+            actions.push(UiAction::CheckScript(id));
         }
         ui.checkbox(&mut state.auto_check, "Automatisch prüfen");
 
@@ -359,17 +358,17 @@ pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiA
                     }
                 }
 
-                if output.response.has_focus() {
-                    if let Some(cursor) = output.cursor_range {
-                        let char_index = cursor.primary.index.0;
-                        let (line, column) = line_column(&source, char_index);
-                        state.set_status(format!(
-                            "{}:{}:{}",
-                            project.script_path(script_id).unwrap_or("Skript"),
-                            line,
-                            column
-                        ));
-                    }
+                if output.response.has_focus()
+                    && let Some(cursor) = output.cursor_range
+                {
+                    let char_index = cursor.primary.index.0;
+                    let (line, column) = line_column(&source, char_index);
+                    state.set_status(format!(
+                        "{}:{}:{}",
+                        project.script_path(script_id).unwrap_or("Skript"),
+                        line,
+                        column
+                    ));
                 }
             });
         });
@@ -498,36 +497,6 @@ pub(crate) fn report_diagnostics(
     state.diagnostics_for = Some(script_id);
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn finds_and_replaces_unicode_safely() {
-        let source = "trace(\"NØVA\");\nvar nøva = 1;";
-        let (start, length) = find_match(source, "nøva", 0, false).expect("match");
-        assert_eq!(length, 4);
-        let mut replaced = source.to_string();
-        replace_chars(&mut replaced, start, length, "NOVA");
-        assert_eq!(replaced, "trace(\"NØVA\");\nvar NOVA = 1;");
-    }
-
-    #[test]
-    fn replace_all_reports_count() {
-        let (result, count) = replace_all("a A a", "a", "x", false);
-        assert_eq!(count, 3);
-        assert_eq!(result, "x x x");
-    }
-
-    #[test]
-    fn search_can_start_after_a_match() {
-        let source = "one one one";
-        let first = find_match(source, "one", 0, true).unwrap();
-        let second = find_match(source, "one", first.0 + first.1, true).unwrap();
-        assert_eq!(second.0, 4);
-    }
-}
-
 fn line_column(source: &str, char_index: usize) -> (usize, usize) {
     let mut line = 1;
     let mut column = 1;
@@ -630,14 +599,14 @@ pub fn problems(ui: &mut Ui, state: &mut AppState, project: &Project) -> Vec<UiA
 #[allow(dead_code)]
 pub fn status_line(ui: &mut Ui, project: &Project, state: &AppState) {
     ui.horizontal(|ui| {
-        if let Some(id) = state.active_script {
-            if let Some(script) = project.script(id) {
-                ui.label(
-                    RichText::new(format!("{} · {}", script.path, script.source.len()))
-                        .small()
-                        .color(theme::TEXT_FAINT),
-                );
-            }
+        if let Some(id) = state.active_script
+            && let Some(script) = project.script(id)
+        {
+            ui.label(
+                RichText::new(format!("{} · {}", script.path, script.source.len()))
+                    .small()
+                    .color(theme::TEXT_FAINT),
+            );
         }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             ui.label(
@@ -658,4 +627,34 @@ pub fn jump_target(line: usize, column: usize) -> (usize, usize) {
 #[allow(dead_code)]
 fn dim(color: Color32) -> Color32 {
     color.gamma_multiply(0.7)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn finds_and_replaces_unicode_safely() {
+        let source = "trace(\"NØVA\");\nvar nøva = 1;";
+        let (start, length) = find_match(source, "nøva", 0, false).expect("match");
+        assert_eq!(length, 4);
+        let mut replaced = source.to_string();
+        replace_chars(&mut replaced, start, length, "NOVA");
+        assert_eq!(replaced, "trace(\"NØVA\");\nvar NOVA = 1;");
+    }
+
+    #[test]
+    fn replace_all_reports_count() {
+        let (result, count) = replace_all("a A a", "a", "x", false);
+        assert_eq!(count, 3);
+        assert_eq!(result, "x x x");
+    }
+
+    #[test]
+    fn search_can_start_after_a_match() {
+        let source = "one one one";
+        let first = find_match(source, "one", 0, true).unwrap();
+        let second = find_match(source, "one", first.0 + first.1, true).unwrap();
+        assert_eq!(second.0, 4);
+    }
 }

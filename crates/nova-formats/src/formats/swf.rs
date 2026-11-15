@@ -191,7 +191,7 @@ pub fn import(bytes: &[u8]) -> FormatResult<ImportedData> {
         24.0
     };
     if let Some(background) = movie.header.background_color() {
-        scene.background = Rgba::rgba(background.r, background.g, background.b, background.a);
+        scene.background = Rgba::new(background.r, background.g, background.b, background.a);
     }
     scene.layers.clear();
 
@@ -209,8 +209,7 @@ pub fn import(bytes: &[u8]) -> FormatResult<ImportedData> {
                     entry,
                     entry.character_id,
                     frame_index,
-                    &shapes,
-                    &sprite_defs,
+                    (&shapes, &sprite_defs),
                     &mut objects,
                     &mut report,
                     0,
@@ -260,7 +259,7 @@ pub fn import(bytes: &[u8]) -> FormatResult<ImportedData> {
                 abc_count += 1;
                 project.scripts.push(imported_abc(
                     format!("ImportedBytecode{abc_count}.as"),
-                    *data,
+                    data,
                     &mut report,
                 ));
             }
@@ -508,12 +507,12 @@ fn expand_entry(
     entry: &DisplayEntry,
     root_character: u16,
     frame_index: usize,
-    shapes: &HashMap<u16, ShapeDef>,
-    sprites: &HashMap<u16, SpriteDef>,
+    tables: (&HashMap<u16, ShapeDef>, &HashMap<u16, SpriteDef>),
     out: &mut Vec<ObjectInstance>,
     report: &mut CompatibilityReport,
     depth_limit: usize,
 ) {
+    let (shapes, sprites) = tables;
     if depth_limit > 24 {
         report.warning(
             IssueCategory::Timeline,
@@ -579,8 +578,7 @@ fn expand_entry(
                 &child,
                 root_character,
                 frame_index,
-                shapes,
-                sprites,
+                (shapes, sprites),
                 out,
                 report,
                 depth_limit + 1,
@@ -645,10 +643,10 @@ fn shape_to_def(shape: &swf::Shape, report: &mut CompatibilityReport) -> Option<
                     );
                 }
                 if let Some(move_to) = change.move_to {
-                    if let Some(path) = current_path.take() {
-                        if !path.commands.is_empty() {
-                            paths.push(path);
-                        }
+                    if let Some(path) = current_path.take()
+                        && !path.commands.is_empty()
+                    {
+                        paths.push(path);
                     }
                     current = (
                         move_to.x.to_pixels() as f32 - center_x,
@@ -698,10 +696,10 @@ fn shape_to_def(shape: &swf::Shape, report: &mut CompatibilityReport) -> Option<
             }
         }
     }
-    if let Some(path) = current_path.take() {
-        if !path.commands.is_empty() {
-            paths.push(path);
-        }
+    if let Some(path) = current_path.take()
+        && !path.commands.is_empty()
+    {
+        paths.push(path);
     }
     if paths.is_empty() {
         let (fill, gradient) = fill_style(fills.first(), report);
@@ -762,7 +760,7 @@ fn fill_style(
         return (Rgba::rgb(180, 180, 180), None);
     };
     match fill {
-        FillStyle::Color(color) => (Rgba::rgba(color.r, color.g, color.b, color.a), None),
+        FillStyle::Color(color) => (Rgba::new(color.r, color.g, color.b, color.a), None),
         FillStyle::LinearGradient(gradient) => {
             let m = gradient.matrix;
             // Gradient space x-axis (1,0) mapped into shape space.
@@ -778,7 +776,7 @@ fn fill_style(
                 .iter()
                 .map(|record| nova_core::GradientStop {
                     position: (record.ratio as f32) / 255.0,
-                    color: Rgba::rgba(
+                    color: Rgba::new(
                         record.color.r,
                         record.color.g,
                         record.color.b,
@@ -809,7 +807,7 @@ fn fill_style(
                 .iter()
                 .map(|record| nova_core::GradientStop {
                     position: (record.ratio as f32) / 255.0,
-                    color: Rgba::rgba(
+                    color: Rgba::new(
                         record.color.r,
                         record.color.g,
                         record.color.b,

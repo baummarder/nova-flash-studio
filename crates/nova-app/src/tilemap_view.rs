@@ -288,10 +288,11 @@ fn tilemap_context(
     let mut found = None;
     for frame in 0..scene.frame_count() {
         for resolved in nova_core::resolve_scene(scene, frame) {
-            if resolved.layer_id == layer_id && resolved.instance.id == object_id {
-                if let ObjectKind::Tilemap(map) = &resolved.instance.kind {
-                    found = Some(map.clone());
-                }
+            if resolved.layer_id == layer_id
+                && resolved.instance.id == object_id
+                && let ObjectKind::Tilemap(map) = &resolved.instance.kind
+            {
+                found = Some(map.clone());
             }
         }
     }
@@ -538,10 +539,10 @@ fn canvas(
             }
         }
     }
-    if let Some(mesh) = mesh {
-        if !mesh.indices.is_empty() {
-            painter.add(Shape::mesh(mesh));
-        }
+    if let Some(mesh) = mesh
+        && !mesh.indices.is_empty()
+    {
+        painter.add(Shape::mesh(mesh));
     }
 
     // ------------------------------------------------- map outline
@@ -646,52 +647,51 @@ fn canvas(
     }
 
     // Paste ghost: clipboard outline at the hovered cell.
-    if state.tilemap.paste_armed {
-        if let (Some(cell), Some(region)) = (pointer_cell, &state.tilemap.clipboard) {
-            let mut preview = region.clone();
-            tilemap::flip_region_cells(&mut preview, state.tilemap.flip_h, state.tilemap.flip_v);
-            let r = cell_rect_screen(
-                origin,
-                cell_w,
-                cell_h,
-                cell.0,
-                cell.1,
-                cell.0 + preview.width as i32 - 1,
-                cell.1 + preview.height as i32 - 1,
-            );
-            painter.rect_stroke(
-                r,
-                0.0,
-                Stroke::new(1.5, Color32::from_rgba_unmultiplied(120, 255, 120, 230)),
-                egui::StrokeKind::Inside,
-            );
-        }
+    if state.tilemap.paste_armed
+        && let (Some(cell), Some(region)) = (pointer_cell, &state.tilemap.clipboard)
+    {
+        let mut preview = region.clone();
+        tilemap::flip_region_cells(&mut preview, state.tilemap.flip_h, state.tilemap.flip_v);
+        let r = cell_rect_screen(
+            origin,
+            cell_w,
+            cell_h,
+            cell.0,
+            cell.1,
+            cell.0 + preview.width as i32 - 1,
+            cell.1 + preview.height as i32 - 1,
+        );
+        painter.rect_stroke(
+            r,
+            0.0,
+            Stroke::new(1.5, Color32::from_rgba_unmultiplied(120, 255, 120, 230)),
+            egui::StrokeKind::Inside,
+        );
     }
 
     // Brush preview for pencil/eraser.
     if matches!(
         state.tilemap.tool,
         TilemapTool::Pencil | TilemapTool::Eraser
-    ) {
-        if let Some(cell) = pointer_cell {
-            let brush = state.tilemap.brush.max(1) as i32;
-            let half = brush / 2;
-            let r = cell_rect_screen(
-                origin,
-                cell_w,
-                cell_h,
-                cell.0 - half,
-                cell.1 - half,
-                cell.0 - half + brush - 1,
-                cell.1 - half + brush - 1,
-            );
-            painter.rect_stroke(
-                r,
-                0.0,
-                Stroke::new(1.0, Color32::from_white_alpha(140)),
-                egui::StrokeKind::Inside,
-            );
-        }
+    ) && let Some(cell) = pointer_cell
+    {
+        let brush = state.tilemap.brush.max(1) as i32;
+        let half = brush / 2;
+        let r = cell_rect_screen(
+            origin,
+            cell_w,
+            cell_h,
+            cell.0 - half,
+            cell.1 - half,
+            cell.0 - half + brush - 1,
+            cell.1 - half + brush - 1,
+        );
+        painter.rect_stroke(
+            r,
+            0.0,
+            Stroke::new(1.0, Color32::from_white_alpha(140)),
+            egui::StrokeKind::Inside,
+        );
     }
 
     // ------------------------------------------------- interaction
@@ -734,13 +734,9 @@ fn canvas(
                     project,
                     state,
                     PaintTool::Replace,
-                    cell.0,
-                    cell.1,
-                    cell.0,
-                    cell.1,
+                    (cell.0, cell.1, cell.0, cell.1),
                     0,
-                    current,
-                    state.tilemap.tile,
+                    (current, state.tilemap.tile),
                 );
             }
         }
@@ -748,22 +744,18 @@ fn canvas(
             if response.drag_started() {
                 state.tilemap.stroke_start = Some(cell);
             }
-            if let Some(start) = state.tilemap.stroke_start {
-                if response.drag_stopped() {
-                    paint_cells(
-                        project,
-                        state,
-                        PaintTool::Rect,
-                        start.0,
-                        start.1,
-                        cell.0,
-                        cell.1,
-                        state.tilemap.tile,
-                        0,
-                        0,
-                    );
-                    state.tilemap.stroke_start = None;
-                }
+            if let Some(start) = state.tilemap.stroke_start
+                && response.drag_stopped()
+            {
+                paint_cells(
+                    project,
+                    state,
+                    PaintTool::Rect,
+                    (start.0, start.1, cell.0, cell.1),
+                    state.tilemap.tile,
+                    (0, 0),
+                );
+                state.tilemap.stroke_start = None;
             }
         }
         TilemapTool::Flood => {
@@ -772,13 +764,9 @@ fn canvas(
                     project,
                     state,
                     PaintTool::Flood,
-                    cell.0,
-                    cell.1,
-                    cell.0,
-                    cell.1,
+                    (cell.0, cell.1, cell.0, cell.1),
                     state.tilemap.tile,
-                    0,
-                    0,
+                    (0, 0),
                 );
             }
         }
@@ -798,13 +786,14 @@ fn canvas(
                                     project,
                                     state,
                                     PaintTool::Eraser,
-                                    cell.0 + dx - half,
-                                    cell.1 + dy - half,
-                                    cell.0 + dx - half,
-                                    cell.1 + dy - half,
+                                    (
+                                        cell.0 + dx - half,
+                                        cell.1 + dy - half,
+                                        cell.0 + dx - half,
+                                        cell.1 + dy - half,
+                                    ),
                                     0,
-                                    0,
-                                    0,
+                                    (0, 0),
                                 );
                             }
                         }
@@ -963,11 +952,12 @@ fn layer_is_locked(project: &nova_core::Project, state: &AppState) -> bool {
         return true;
     };
     for resolved in nova_core::resolve_scene(scene, state.frame) {
-        if resolved.layer_id == layer_id && resolved.instance.id == object_id {
-            if let ObjectKind::Tilemap(map) = &resolved.instance.kind {
-                let layer = state.tilemap.layer.min(map.layers.len().saturating_sub(1));
-                return map.layers.get(layer).is_none_or(|l| l.locked);
-            }
+        if resolved.layer_id == layer_id
+            && resolved.instance.id == object_id
+            && let ObjectKind::Tilemap(map) = &resolved.instance.kind
+        {
+            let layer = state.tilemap.layer.min(map.layers.len().saturating_sub(1));
+            return map.layers.get(layer).is_none_or(|l| l.locked);
         }
     }
     true
@@ -978,23 +968,18 @@ fn paint_cells(
     project: &mut nova_core::Project,
     state: &AppState,
     tool: PaintTool,
-    x0: i32,
-    y0: i32,
-    x1: i32,
-    y1: i32,
+    rect: (i32, i32, i32, i32),
     tile: u16,
-    from: u16,
-    to: u16,
+    replace: (u16, u16),
 ) {
+    let (x0, y0, x1, y1) = rect;
+    let (from, to) = replace;
     edit_active_layer(project, state, |map| {
         tilemap::paint(
             map,
             state.tilemap.layer.min(map.layers.len().saturating_sub(1)),
             tool,
-            x0,
-            y0,
-            x1,
-            y1,
+            (x0, y0, x1, y1),
             tile,
             from,
             to,
@@ -1034,14 +1019,14 @@ fn tilemap_tileset(project: &nova_core::Project, state: &AppState) -> Option<Til
     let (_, object_id) = state.tilemap.object?;
     let scene = project.edit_scene(state.edit_symbol)?;
     for resolved in nova_core::resolve_scene(scene, state.frame) {
-        if resolved.instance.id == object_id {
-            if let ObjectKind::Tilemap(map) = &resolved.instance.kind {
-                return project
-                    .tilesets
-                    .iter()
-                    .find(|t| t.id == map.tileset)
-                    .cloned();
-            }
+        if resolved.instance.id == object_id
+            && let ObjectKind::Tilemap(map) = &resolved.instance.kind
+        {
+            return project
+                .tilesets
+                .iter()
+                .find(|t| t.id == map.tileset)
+                .cloned();
         }
     }
     None
@@ -1096,17 +1081,17 @@ fn read_region(
     let (_, object_id) = state.tilemap.object?;
     let scene = project.edit_scene(state.edit_symbol)?;
     for resolved in nova_core::resolve_scene(scene, state.frame) {
-        if resolved.instance.id == object_id {
-            if let ObjectKind::Tilemap(map) = &resolved.instance.kind {
-                return tilemap::copy_region(
-                    map,
-                    state.tilemap.layer.min(map.layers.len().saturating_sub(1)),
-                    x0,
-                    y0,
-                    x1,
-                    y1,
-                );
-            }
+        if resolved.instance.id == object_id
+            && let ObjectKind::Tilemap(map) = &resolved.instance.kind
+        {
+            return tilemap::copy_region(
+                map,
+                state.tilemap.layer.min(map.layers.len().saturating_sub(1)),
+                x0,
+                y0,
+                x1,
+                y1,
+            );
         }
     }
     None
@@ -1374,24 +1359,21 @@ fn tileset_dialog(ui: &mut Ui, project: &mut nova_core::Project, state: &mut App
                         }
                     }
                     // Click toggles solidity of the tile under the pointer.
-                    if response.clicked() {
-                        if let Some(pointer) = response.interact_pointer_pos() {
-                            let lx = (pointer.x - off.x) / scale;
-                            let ly = (pointer.y - off.y) / scale;
-                            let col = ((lx - draft.margin_x as f32) / stride_x).floor() as i64;
-                            let row = ((ly - draft.margin_y as f32) / stride_y).floor() as i64;
-                            if col >= 0
-                                && row >= 0
-                                && (col as u32) < draft.columns
-                                && row < rows as i64
-                            {
-                                let idx = row as usize * draft.columns as usize + col as usize;
-                                if idx < tile_count {
-                                    if dialog.solid.len() <= idx {
-                                        dialog.solid.resize(tile_count, false);
-                                    }
-                                    dialog.solid[idx] = !dialog.solid[idx];
+                    if response.clicked()
+                        && let Some(pointer) = response.interact_pointer_pos()
+                    {
+                        let lx = (pointer.x - off.x) / scale;
+                        let ly = (pointer.y - off.y) / scale;
+                        let col = ((lx - draft.margin_x as f32) / stride_x).floor() as i64;
+                        let row = ((ly - draft.margin_y as f32) / stride_y).floor() as i64;
+                        if col >= 0 && row >= 0 && (col as u32) < draft.columns && row < rows as i64
+                        {
+                            let idx = row as usize * draft.columns as usize + col as usize;
+                            if idx < tile_count {
+                                if dialog.solid.len() <= idx {
+                                    dialog.solid.resize(tile_count, false);
                                 }
+                                dialog.solid[idx] = !dialog.solid[idx];
                             }
                         }
                     }

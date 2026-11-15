@@ -177,72 +177,72 @@ pub fn build_context(
         }
     }
 
-    if selection.include_timeline {
-        if let Some(scene) = project.active_scene() {
-            let _ = writeln!(out, "\nAktive Szene '{}':", scene.name);
-            for layer in &scene.layers {
-                let keyframes: Vec<String> = layer
-                    .frames
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, frame)| frame.keyframe)
-                    .map(|(index, _)| (index + 1).to_string())
-                    .collect();
-                let tween_count = layer
-                    .frames
-                    .iter()
-                    .filter(|frame| frame.tween.is_some())
-                    .count();
-                let _ = writeln!(
-                    out,
-                    "- Ebene '{}': {} Frames, Keyframes [{}], Tweens {}, sichtbar {}, gesperrt {}, Typ {:?}",
-                    layer.name,
-                    layer.frames.len(),
-                    keyframes.join(", "),
-                    tween_count,
-                    layer.visible,
-                    layer.locked,
-                    layer.kind
-                );
-                let mut object_count = 0;
-                for (frame_index, frame) in layer.frames.iter().enumerate() {
-                    for object in &frame.objects {
-                        if object_count >= 120 {
-                            break;
-                        }
-                        object_count += 1;
-                        let selected = if selection.selected_objects.contains(&object.id) {
-                            " [ausgewählt]"
-                        } else {
-                            ""
-                        };
-                        let kind = object.kind.type_name();
-                        let symbol = match &object.kind {
-                            ObjectKind::Symbol { symbol } => format!(", Symbol {}", symbol),
-                            _ => String::new(),
-                        };
-                        let script = object
-                            .script
-                            .map(|id| format!(", Skript {}", id))
-                            .unwrap_or_default();
-                        let character = object
-                            .source_character
-                            .map(|id| format!(", SWF-Charakter {}", id))
-                            .unwrap_or_default();
-                        let _ = writeln!(
-                            out,
-                            "  Frame {}: {}{} ({}{}{}{}) bei ({:.1}, {:.1})",
-                            frame_index + 1,
-                            object.name,
-                            selected,
-                            kind,
-                            symbol,
-                            script,
-                            character,
-                            object.transform.x,
-                            object.transform.y
-                        );
+    if selection.include_timeline
+        && let Some(scene) = project.active_scene()
+    {
+        let _ = writeln!(out, "\nAktive Szene '{}':", scene.name);
+        for layer in &scene.layers {
+            let keyframes: Vec<String> = layer
+                .frames
+                .iter()
+                .enumerate()
+                .filter(|(_, frame)| frame.keyframe)
+                .map(|(index, _)| (index + 1).to_string())
+                .collect();
+            let tween_count = layer
+                .frames
+                .iter()
+                .filter(|frame| frame.tween.is_some())
+                .count();
+            let _ = writeln!(
+                out,
+                "- Ebene '{}': {} Frames, Keyframes [{}], Tweens {}, sichtbar {}, gesperrt {}, Typ {:?}",
+                layer.name,
+                layer.frames.len(),
+                keyframes.join(", "),
+                tween_count,
+                layer.visible,
+                layer.locked,
+                layer.kind
+            );
+            let mut object_count = 0;
+            for (frame_index, frame) in layer.frames.iter().enumerate() {
+                for object in &frame.objects {
+                    if object_count >= 120 {
+                        break;
                     }
+                    object_count += 1;
+                    let selected = if selection.selected_objects.contains(&object.id) {
+                        " [ausgewählt]"
+                    } else {
+                        ""
+                    };
+                    let kind = object.kind.type_name();
+                    let symbol = match &object.kind {
+                        ObjectKind::Symbol { symbol } => format!(", Symbol {}", symbol),
+                        _ => String::new(),
+                    };
+                    let script = object
+                        .script
+                        .map(|id| format!(", Skript {}", id))
+                        .unwrap_or_default();
+                    let character = object
+                        .source_character
+                        .map(|id| format!(", SWF-Charakter {}", id))
+                        .unwrap_or_default();
+                    let _ = writeln!(
+                        out,
+                        "  Frame {}: {}{} ({}{}{}{}) bei ({:.1}, {:.1})",
+                        frame_index + 1,
+                        object.name,
+                        selected,
+                        kind,
+                        symbol,
+                        script,
+                        character,
+                        object.transform.x,
+                        object.transform.y
+                    );
                 }
             }
         }
@@ -716,25 +716,31 @@ mod tests {
         if provider.needs_credential() {
             credentials.set(&provider.id, "secret").unwrap();
         }
-        let mut settings = ProviderSettings::default();
-        settings.default_provider = Some(provider.id.clone());
-        settings.providers.push(provider);
+        let settings = ProviderSettings {
+            default_provider: Some(provider.id.clone()),
+            providers: vec![provider],
+            ..ProviderSettings::default()
+        };
         let manager = ProviderManager::with_parts(
             settings,
             credentials,
             transport.clone(),
             std::env::temp_dir().join("nova-ai-agent-test"),
         );
-        let mut session = AgentSession::default();
-        session.cloud_consent = consent;
+        let session = AgentSession {
+            cloud_consent: consent,
+            ..AgentSession::default()
+        };
         (session, manager, transport)
     }
 
     #[test]
     fn context_contains_structure_and_only_selected_source() {
         let project = Project::demo();
-        let mut selection = ContextSelection::default();
-        selection.selected_scripts = vec![project.scripts[0].id];
+        let selection = ContextSelection {
+            selected_scripts: vec![project.scripts[0].id],
+            ..ContextSelection::default()
+        };
         let context = build_context(&project, &selection, 0, "Code", &[]);
         assert!(context.contains("Aktive Szene"));
         assert!(context.contains("scripts/Main.as"));
@@ -757,8 +763,10 @@ mod tests {
         project.scripts[0].abc = Some(vec![1, 2, 3, 4]);
         project.scripts[0].provenance = nova_core::CodeProvenance::CompiledBytecode;
         project.scripts[0].source = "NOT ORIGINAL SOURCE".into();
-        let mut selection = ContextSelection::default();
-        selection.selected_scripts = vec![project.scripts[0].id];
+        let selection = ContextSelection {
+            selected_scripts: vec![project.scripts[0].id],
+            ..ContextSelection::default()
+        };
         let context = build_context(&project, &selection, 0, "Code", &[]);
         assert!(context.contains("ABC erhalten"));
         assert!(context.contains("KEINE Originalquelle"));
@@ -842,18 +850,22 @@ mod tests {
         )]));
         let credentials = Box::new(MemoryCredentialStore::new());
         credentials.set(&cloud_id, "secret").unwrap();
-        let mut settings = ProviderSettings::default();
-        settings.default_provider = Some(local_id);
-        settings.providers = vec![local, cloud];
+        let settings = ProviderSettings {
+            default_provider: Some(local_id),
+            providers: vec![local, cloud],
+            ..ProviderSettings::default()
+        };
         let manager = ProviderManager::with_parts(
             settings,
             credentials,
             transport,
             std::env::temp_dir().join("nova-ai-agent-override"),
         );
-        let mut session = AgentSession::default();
-        session.provider_override = Some(cloud_id.clone());
-        session.cloud_consent = true;
+        let session = AgentSession {
+            provider_override: Some(cloud_id.clone()),
+            cloud_consent: true,
+            ..AgentSession::default()
+        };
         let outcome = session
             .request(&manager, &Project::demo(), 0, "Code", &[], "Hallo")
             .unwrap();
