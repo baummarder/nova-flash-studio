@@ -132,20 +132,27 @@ portable exe; it must:
 | Uninstall Edu | only `NOVAFlashStudioEdu.*` removed; User default untouched |
 | Uninstall all | `.nova` has no NØVA handler; `UserChoice` may linger until Windows cleans it (harmless) |
 
-## 10. Implementation checklist (M20.2)
+## 10. Implementation checklist (M20.2 — implemented)
 
-- [x] `.nova` → per-edition ProgId registration exists today via
-      `AssociateNova` → `RegisterAssociation(".nova", EditionInfo.ProgIdNova, …)`
+- [x] `.nova` -> per-edition ProgId registration exists via
+      `AssociateNova` -> `RegisterAssociation(".nova", EditionInfo.ProgIdNova, ...)`
       with snapshot/restore in `install-manifest.json`.
-- [ ] `Capabilities\FileAssociations` + `RegisteredApplications` writes
-      in `HKCU`/`HKLM` scope (currently missing → „Öffnen mit“ lists).
-- [ ] `OpenWithProgids`/`OpenWithList` entries for `.nova` (optional;
-      `Capabilities` usually suffices on Win10+).
-- [ ] Wizard default stays as-is: `.nova` association **on**,
+- [x] `Capabilities\FileAssociations` + `RegisteredApplications` writes
+      in `HKCU`/`HKLM` scope — `RegisterAppCapabilities`, recorded via
+      `InstallManifest.AppCapabilities` and removed on uninstall only
+      while values still name this edition's ProgIds.
+- [x] `OpenWithProgids`/`OpenWithList` entries for `.nova` under the
+      extension key, removed per-ProgId on uninstall.
+- [x] Context-menu verb `shell\openWithNOVA` ("Mit <Product> öffnen")
+      inside each ProgId — removed with the ProgId tree.
+- [x] Wizard default stays as-is: `.nova` association **on**,
       `.swf` association **off** (documented existing behaviour).
-- [ ] Uninstall: existing `RemoveAssociation` already restores the
-      previous extension default only when it still points to our ProgId;
-      verify the same guard covers the new `Capabilities` keys.
-- [ ] Tests: `test-edition-packaging.ps1` asserts distinct ProgIds per
-      edition; manual HKCU verification on a disposable profile.
-- [ ] Doku: `docs/PACKAGING.md` association section updated.
+- [x] Uninstall: `RemoveAssociation` restores the previous extension
+      default only when it still points to our ProgId; `UserChoice`
+      untouched; `RemoveAppCapabilities` guards per-value.
+- [x] Tests: `test-edition-packaging.ps1` asserts distinct ProgIds per
+      edition; manual HKCU verification on a disposable profile remains
+      a release-checklist item (no registry writes during agent runs).
+- [x] Doku: `docs/PACKAGING.md` association section updated.
+- [ ] Portable `--register-associations` opt-in flag (spec §8) —
+      documented future work, not implemented in M20.

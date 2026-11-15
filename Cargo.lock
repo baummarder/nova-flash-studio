@@ -2535,7 +2535,7 @@ dependencies = [
 
 [[package]]
 name = "nova-ai"
-version = "0.15.0-rc1"
+version = "0.16.0-rc1"
 dependencies = [
  "image",
  "nova-as",
@@ -2555,7 +2555,7 @@ dependencies = [
 
 [[package]]
 name = "nova-app"
-version = "0.15.0-rc1"
+version = "0.16.0-rc1"
 dependencies = [
  "eframe",
  "egui",
@@ -2579,7 +2579,7 @@ dependencies = [
 
 [[package]]
 name = "nova-as"
-version = "0.15.0-rc1"
+version = "0.16.0-rc1"
 dependencies = [
  "swf",
  "thiserror 2.0.21",
@@ -2587,7 +2587,7 @@ dependencies = [
 
 [[package]]
 name = "nova-build"
-version = "0.15.0-rc1"
+version = "0.16.0-rc1"
 dependencies = [
  "image",
  "nova-as",
@@ -2600,7 +2600,7 @@ dependencies = [
 
 [[package]]
 name = "nova-cli"
-version = "0.15.0-rc1"
+version = "0.16.0-rc1"
 dependencies = [
  "nova-ai",
  "nova-as",
@@ -2613,7 +2613,7 @@ dependencies = [
 
 [[package]]
 name = "nova-core"
-version = "0.15.0-rc1"
+version = "0.16.0-rc1"
 dependencies = [
  "i_overlay",
  "image",
@@ -2626,7 +2626,7 @@ dependencies = [
 
 [[package]]
 name = "nova-edu"
-version = "0.15.0-rc1"
+version = "0.16.0-rc1"
 dependencies = [
  "nova-core",
  "serde",
@@ -2639,7 +2639,7 @@ dependencies = [
 
 [[package]]
 name = "nova-formats"
-version = "0.15.0-rc1"
+version = "0.16.0-rc1"
 dependencies = [
  "image",
  "nova-build",
@@ -2656,7 +2656,7 @@ dependencies = [
 
 [[package]]
 name = "nova-script"
-version = "0.15.0-rc1"
+version = "0.16.0-rc1"
 dependencies = [
  "rquickjs",
  "thiserror 2.0.21",
@@ -2664,7 +2664,7 @@ dependencies = [
 
 [[package]]
 name = "nova-swf"
-version = "0.15.0-rc1"
+version = "0.16.0-rc1"
 dependencies = [
  "flate2",
  "swf",

@@ -46,9 +46,9 @@ for now**.
 | Tilemaps, particles, game preview with physics | **done (M10/M11)** |
 | Three independently distributable editions (User/Edu/Enterprise) | **done (M19)** |
 | M20.0 CI/help/README/roadmap/archive stabilization | **done** |
-| M20.0 Windows `.nova` file-association specification | **done (spec only)** |
-| M20.1 Education implementation (`nova-edu`, classroom mode) | **not started** |
-| Native `.nova` file association on Windows | **spec only; implementation planned M20.1** |
+| M20.0 Windows `.nova` file-association specification | **done** |
+| M20.1–M20.8 Education Edition (`nova-edu`, classroom mode, packages) | **done — `0.16.0-rc1`** |
+| Native `.nova` file association on Windows (Capabilities, OpenWith, uninstall) | **done** |
 | HTML5 export | **planned, secondary** |
 
 ---
@@ -96,26 +96,46 @@ sidecars, and classroom UI will be gated behind the new `nova-edu` crate.
 - [x] Document a Windows `.nova` file-association specification (no registry
       writes in M20.0) — see `docs/WINDOWS_FILE_ASSOCIATION.md`.
 
-### M20.1 — Education core (not started)
+### M20.1 — Education core (done)
 
-- [ ] New `nova-edu` crate and Edu-only `Mode::Classroom` registration.
-- [ ] Teacher/student roles, class roster and assignment sidecar data.
-- [ ] Classroom UI gated by the Edu edition; User and Enterprise editions keep
-      the existing two modes.
-- [ ] `.nova` v4 compatibility tests across all three editions stay green.
+- [x] New `nova-edu` crate and Edu-only `Mode::Classroom` registration
+      (gated by `edition::has_active_module("classroom")`).
+- [x] Teacher/student/assistant roles, class roster and assignment
+      sidecar data (`school.json`, `classrooms/`, `assignments/`,
+      `inbox/`, `feedback/`, `reports/`).
+- [x] Classroom UI gated by the Edu edition; User and Enterprise
+      editions keep the existing two modes.
+- [x] `.nova` v4 compatibility tests across all three editions stay green.
 
-### M20.2 — File association and packaging follow-up (not started)
+### M20.2 — File association and packaging follow-up (done)
 
-- [ ] Implement the reviewed `.nova` association spec (HKCU, UserChoice-aware,
-      per-edition ProgIds, portable opt-in).
-- [ ] Rebuild all six Windows edition artifacts and archive them with verified
-      checksums.
+- [x] `.nova` association implemented per spec: per-edition ProgIds,
+      `Capabilities\FileAssociations` + `RegisteredApplications`,
+      `OpenWithProgids`/`OpenWithList`, context-menu verb, uninstall
+      restoration; `UserChoice` never written.
+- [x] Portable opt-in remains a documented future flag (spec §8) —
+      installers register by default as before.
+- [ ] Rebuild all six Windows edition artifacts and archive them with
+      verified checksums (performed for the `0.16.0-rc1` candidate).
 
-### M20.3 — Release (not started)
+### M20.3 — Education workflows (done)
 
-- [ ] Release `0.16.0-rc1` only after M20.1/M20.2 tests pass.
-- [ ] Do not advertise Edu/Enterprise classroom or administration features before
-      they exist.
+- [x] Assignments with Markdown instructions, starter `.nova`, rubric,
+      due date/late policy → `.novaassignment` packages.
+- [x] Submissions: revisioned inbox entries with SHA-256 checksums,
+      never-overwrite storage, read-only teacher review, state
+      transitions (Submitted → Reviewed → Graded / Returned).
+- [x] Feedback: comments with categories, project anchors (object >
+      layer+frame > scene+label) and orphan marking → `.novafeedback`.
+- [x] Progress derived only from recorded events; CSV/Markdown/HTML
+      reports; `.novaclassroom` backup/restore; hardened package import.
+- [x] Sample workspace + built-in tutorials; honest "roles are not
+      authentication" labeling in UI and docs.
+
+### M20.4 — Release (done — candidate, not published)
+
+- [x] Workspace version `0.16.0-rc1`; all tests, Clippy, fmt green.
+- [ ] GitHub release/tag is created by the maintainer, not by the agent.
 
 ---
 

@@ -8,16 +8,24 @@ the project format is versioned JSON, and the SWF writer is implemented directly
 against the published SWF file-format specification. Tools and extensions run in
 an embedded QuickJS context; ActionScript is **not** executed by QuickJS.
 
-> **Status: M20.0 stabilization on top of `0.15.0-rc1`; M20 release target
-> is `0.16.0-rc1`, not stable.**
-> M20.0 repairs the Rust CI (Clippy with `-D warnings`), corrects stale
-> in-app help, brings README/roadmap and the three-edition release archive
-> in line with the code, and adds edition/packaging regression tests. The
-> **Education implementation starts in M20.1** (`nova-edu`, `Mode::Classroom`,
-> teacher/student roles) and is **not available yet**; Edu/Enterprise
-> classroom and administration modules remain reserved and are documented
-> as planned, not implemented. The `.nova` format stays at v4 and remains
-> edition-neutral.
+> **Status: M20 complete — release candidate `0.16.0-rc1`.**
+> M20 delivers the **Education Edition**: a real offline-first classroom
+> workflow in the new `nova-edu` crate — Edu workspaces (`school.json`),
+> teacher/student/assistant roles (workflow convenience, **not**
+> authentication), classes/groups/members, assignments with starter
+> projects and rubrics, revisioned submissions with SHA-256 checksums,
+> anchored feedback comments, progress tracking and CSV/Markdown/HTML
+> reports. Classroom mode is gated solely by the edition module
+> registry and exists **only in the Edu edition**. Offline exchange
+> packages (`.novaassignment`, `.novasubmission`, `.novafeedback`,
+> `.novaclassroom`) are hardened ZIPs with manifests, checksums and
+> transactional import — see `docs/CLASSROOM.md`.
+> Windows installers now register `.nova` per-edition ProgIds plus
+> Capabilities/RegisteredApplications ("Öffnen mit" lists), a
+> context-menu verb and safe uninstall restoration —
+> `docs/WINDOWS_FILE_ASSOCIATION.md`. The `.nova` format stays at v4
+> and remains edition-neutral; Edu data lives in sidecars, never in
+> `Project`.
 >
 > **M19 baseline `0.15.0-rc1`:** NØVA is **three independently distributable editions**
 > from one shared Rust codebase: **NØVA Flash Studio** (User),

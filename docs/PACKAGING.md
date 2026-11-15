@@ -204,11 +204,17 @@ The wizard offers:
   all-users installs);
 - opt-in file associations for `.nova` (default on) and `.swf` (default off)
   under `HKCU\Software\Classes` (per-user) or `HKLM\Software\Classes`
-  (all-users). The previous default value is recorded in the manifest and
-  restored on uninstall **only while the association still points to this
-  installation**. Windows 10/11 decides the actual default application in
-  system settings — the installer registers the open command but does not
-  and cannot forcibly override a user's default app;
+  (all-users), with per-edition ProgIds (`NOVAFlashStudio<Project|Edu|
+  Enterprise>.Project`), a "Mit <Product> öffnen" context-menu verb,
+  `Capabilities\FileAssociations` + `RegisteredApplications` and
+  `OpenWithProgids`/`OpenWithList` entries so the edition appears in
+  Windows' "Öffnen mit" lists. `UserChoice` is never written — choosing
+  the default app stays a user action in Windows Settings. The previous
+  default value is recorded in the manifest and restored on uninstall
+  **only while the association still points to this installation**;
+  Capabilities values are removed only when they still name this
+  edition's ProgIds (other editions are never clobbered). See
+  `docs/WINDOWS_FILE_ASSOCIATION.md` for the full contract;
 - **scope-separated upgrade handling:** existing per-user and machine-wide
   installs are detected independently (HKCU and HKLM uninstall keys). An
   install may only be upgraded in place — same scope **and** same directory.
@@ -261,8 +267,9 @@ Limitations:
   (`MIT OR Apache-2.0`, mirroring `Cargo.toml`) still needs owner/legal sign-off.
 - The wizard UI is German to match the application; CLI help is bilingual-
   neutral English/German mix (German primary).
-- File associations register `shell\open` only; no `Open With` capability
-  entries or icon overlays are written.
+- File associations register `shell\open` plus the `openWithNOVA`
+  context-menu verb and the `Capabilities`/`RegisteredApplications`
+  entries described above; icon overlays are not written.
 
 ### Milestone 7.2 release verification
 
