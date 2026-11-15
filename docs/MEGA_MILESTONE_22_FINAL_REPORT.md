@@ -1,23 +1,50 @@
 # MEGA MILESTONE 22 — Final Report
 
 **UI Redesign & Internationalization** · Branch `main` · Basis
-`48e2fa7` (post-M21-Remediation) · Deliverables: mode rail, i18n
-system (5 locales), first-run language wizard, per-edition language
-persistence, Windows console-window removal.
+`48e2fa7` (post-M21-Remediation) · Deliverables: classic-2009
+workspace, i18n system (5 locales), first-run language wizard,
+per-edition language persistence, Windows console-window removal.
+
+> **UI-Korrektur (nach Nutzer-Feedback):** Die anfängliche
+> Animate-Style-Mode-Leiste wurde durch die klassische
+> 2009-Desktop-Richtung ersetzt — siehe Abschnitt 1a.
+
+## 1a. UI-Korrektur — klassisches 2009-Design
+
+Nach Nutzer-Feedback wurde die moderne/flache Richtung verworfen
+und durch eine **Classic-Desktop-Ästhetik ca. 2008–2010** ersetzt
+(Flash-CS4/CS5-Workflow-Referenz; keine Adobe-Assets):
+
+- **Theme (`theme.rs`):** neue Charcoal-Palette — Pasteboard
+  `#18191B`, Panels `#34363A`/`#3D3F43`, Inputs `#26282B`, Hover
+  `#4C4F54`; Classic-Blue-Accent `#4C9BE0`; gedämpfte Statusfarben;
+  2-px-Corner-Radius, kompaktere Abstände und kleinere Fonts
+  (Body 12.5, Button 12, Small 11). Alle Views erben die Palette
+  ohne Call-Site-Änderungen.
+- **Neues `toolbox.rs`:** schmale vertikale Werkzeugleiste (48 px,
+  nur im Animationsmodus) mit allen neun vorhandenen Tools
+  (Select/Line/Pencil/Brush/Eraser/Fill/PathEdit/Pen/SkinPaint),
+  als Icon-Buttons mit `theme::tool_icon()`-Primitive-Glyphen
+  (16 px, keine Assets), Two-Tone-Bevels, Tooltips (Label+Hint).
+- **Mode-Auswahl:** Leiste entfernt; kompakte Segmentierung in der
+  Toolbar (Code/Animation/Klassenzimmer*/Enterprise*/AI Agent) +
+  Menüs — Edition-Gating unverändert.
+- **Rechtes Dock:** einzelnes `Panel::right "right_dock"` —
+  Properties oben, Projektbaum als Bibliothek unten, mit
+  ziehbarem Classic-Divider (`right_split`, 0.2–0.8).
+- **Stage:** horizontaler Text-Tool-Strip entfernt; dunklere
+  Pasteboard-Fläche. Toolbar 36 px mit dezenter Füllung +
+  Haarlinie.
+- Neue Helfer: `bevel()`, `bevel_frame()`, `tool_icon()`/
+  `ToolIcon` — kein neue Dependency.
 
 ## 1. Implementierte Funktionen
 
-- **M22.1 UI-Redesign (erste Ausbaustufe):** neue schlanke
-  Modus-Leiste links (`Panel::left "mode_rail"`, 56 px, Animate-
-  Workflow-Position): Code / Animation / Klassenzimmer* /
-  Enterprise* + AI-Agent-Umschalter. Die Leiste ist in allen Modi
-  sichtbar, damit Classroom/Enterprise/AI-Modi zurückwechseln
-  können. Toolbar behält Projektname, Dirty-Marker und
-  Export/Save/Open-in-Player; Moduswahl wurde aus der Toolbar
-  entfernt (Menü „Ansicht“ bleibt als zweiter Pfad). Panels bleiben
-  resizable; Dark-Theme unverändert konsistent.
-  - *Edition-Gating unverändert:* `has_active_module("classroom")`
-    bzw. `("administration")` — kein Cross-Edition-Leak.
+- **M22.1 UI-Redesign:** klassisches 2009-Layout — Toolbox links,
+  Stage/Code zentriert, Properties+Bibliothek rechts (teilbar),
+  Timeline unten; kompakte Toolbar-Segmentierung für Modi.
+  *Edition-Gating unverändert:* `has_active_module("classroom")`
+  bzw. `("administration")` — kein Cross-Edition-Leak.
 - **M22.2 Terminal-Fenster beseitigt:** Ursache = fehlendes
   `windows_subsystem`; Binaries waren Konsolen-Subsystem. Jetzt
   `#![windows_subsystem = "windows"]` → PE-Subsystem **2 (GUI)** in
@@ -61,10 +88,11 @@ persistence, Windows console-window removal.
 
 ## 3. Neue/geänderte Dateien
 
-Neu: `i18n.rs`, `language_wizard.rs`, `i18n/*.json` (5),
-`docs/I18N.md`, `docs/MEGA_MILESTONE_22_PLAN.md`, dieser Report.
-Geändert: `main.rs`, `app.rs`, `edu_state.rs`, `ent_state.rs`,
-`Cargo.toml`, `README.md`.
+Neu: `i18n.rs`, `language_wizard.rs`, `toolbox.rs`,
+`i18n/*.json` (5), `docs/I18N.md`, `docs/MEGA_MILESTONE_22_PLAN.md`,
+dieser Report. Geändert: `main.rs`, `app.rs`, `edu_state.rs`,
+`ent_state.rs`, `theme.rs`, `stage_view.rs`, `Cargo.toml`,
+`README.md`, `CHANGELOG.md`.
 
 ## 4. Übersetzungsstatus je Sprache
 
@@ -112,8 +140,10 @@ ohne Architekturänderung.
 
 - UI-Text-Abdeckung: Chrome/Dialoge/Tab-Labels in 5 Sprachen;
   tiefe Panel-Inhalte + Domain-Fehlermeldungen noch Deutsch
-  (Literal-Fallback, kein Key-Verlust).
-- Panels sind resizable, nicht frei verschiebbar (egui-Standard;
+  (Literal-Fallback, kein Key-Verlust). Toolbox-Tooltips nutzen
+  weiterhin die deutschen `Tool::label()`/`hint()`-Literale.
+- Panels sind resizable (Properties/Bibliothek-Teilung per
+  Divider), nicht frei verschiebbar (egui-Standard;
   `egui_dock` wäre ein späterer Schritt).
 - Wizard hat keine Skip-Option (Sprachwahl ist Pflicht laut Spec);
   Settings-Combo erlaubt Wechsel ohne Neustart.
@@ -123,29 +153,31 @@ ohne Architekturänderung.
   verify-only; nach Rebuilds erneut manuell entfernt+rearchiviert
   (bekannte Script-Einschränkung, nicht M22-Neuheit).
 
-## 8. Build-Artefakte (`0.17.0-rc1`, SHA-256)
+## 8. Build-Artefakte (`0.17.0-rc1`, SHA-256 — nach UI-Korrektur)
 
 | Artefakt | SHA-256 |
 |---|---|
-| user `NOVA-User-Portable.zip` | `292CD9925FBDF96749656D7B10FE5E060B2BAA4432918FB4EBF5C37A223FADDD` |
-| user `NOVA-User-Setup.exe` | `6FB9B1276E7DD10E97938063AF2A07F4F75B7905C70891EA66D23E4CB7E29B0B` |
-| user App-EXE | `652291A272049F12B280CD5BA732B17CC6F12BEAFFCA303C3D6FD63FD11E45D4` |
-| edu `NOVA-Edu-Portable.zip` | `456BD47CE052435BC4421B0D84972E57442349DBC9206D699DA2E77EE03E14D7` |
-| edu `NOVA-Edu-Setup.exe` | `4ECF58BB578033589E786F622A1CAD29790A963AC0101414C12389C0CA8DFDDD` |
-| edu App-EXE | `44F944845B34437FC95D8DC1493656BEE17AD12C7D7C9D04F658A75D0E8C4EC6` |
-| enterprise `NOVA-Enterprise-Portable.zip` | `538CB1559834D85BF5F39136D89CB934605E183628DFE0101E26E903139C6159` |
-| enterprise `NOVA-Enterprise-Setup.exe` | `B94B178984261F485F52255815D26F0CBA5C559C1095C1495C7ADE7E4B3001FA` |
-| enterprise App-EXE | `3EA0D6625D879B92E4C0766FCF23ED5DFA7A8598A5513573812BB84F95D7173E` |
+| user `NOVA-User-Portable.zip` | `1688DAA83672F03BE040B5C2507E8592B5826ED8D04A155BD0584612C39F4AEC` |
+| user `NOVA-User-Setup.exe` | `3A482DD0B308EE8BAAF9EADF3A2642910049857665C30B58D94AC625D3A5A761` |
+| user App-EXE | `1CB3B177338A628156854573556659E21C034A6CA4BFB1E85C3F97163E3281D0` |
+| edu `NOVA-Edu-Portable.zip` | `7E0C99F359013820B7405AA95CDECDBEA0D2E35DFFD9D9544C9533EBD8640C39` |
+| edu `NOVA-Edu-Setup.exe` | `CF3136A1520D63DA81FD197065FC62F662E18F54C9459667CED593F247D32E7F` |
+| edu App-EXE | `D2BBBAE8654A4B8D1C49DAF8F382C2F0EE1FF2E2A2A34CA84F320EC835A21039` |
+| enterprise `NOVA-Enterprise-Portable.zip` | `F54869372F6AA82FE004576738878D2DE27C876B8A906D1125C8D0FB1DB334AB` |
+| enterprise `NOVA-Enterprise-Setup.exe` | `42FAFADAD9C407469048A833D8BB9F81710EB0F357598B874FDC2344048240F4` |
+| enterprise App-EXE | `05FEE4E7387597DC88F4B54020ABFE816270C597CDF0A3CB8D188A1A8FCE271D` |
 
 Archive `dist/archive/0.17.0-rc1/<edition>/` aktualisiert und per
 `test-edition-packaging.ps1` verifiziert.
 
 ## 9. Git-Commits
 
-- `M22 core` — i18n, wizard, rail, terminal fix, plan, tests
-  (Co-Authored-By: Devin AI Trailer verifiziert).
-- `M22 docs+artifacts` — README, I18N.md, Report, neue Hashes
-  (dieser Commit).
+- `86950e6` — M22 core: i18n, wizard, rail, terminal fix, plan,
+  tests (Co-Authored-By: Devin AI Trailer verifiziert).
+- UI-Korrektur-Commit — klassisches 2009-Design (Theme, Toolbox,
+  Right-Dock, Toolbar-Segmentierung).
+- `10f5b27` — README, I18N.md, Report, erste Hashes.
+- Dieser Commit — Report/Korrektur-Abschnitt + neue Hashes.
 
 ## 10. Verbleibende manuelle Tests
 
