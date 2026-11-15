@@ -162,5 +162,9 @@
   "shortcut.firstlast": "Første/sidste billede",
   "dialog.new_project_hint": "Vælg en skabelon og navngiv projektet.",
   "dialog.create": "Opret",
-  "dialog.project_name_hint": "Projektnavn"
+  "dialog.project_name_hint": "Projektnavn",
+  "layout.stage": "Scene",
+  "layout.split": "Scene + Kode",
+  "layout.code": "Kode",
+  "menu.view.split": "Layout Scene + Kode"
 }

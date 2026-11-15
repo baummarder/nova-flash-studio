@@ -162,5 +162,9 @@
   "shortcut.firstlast": "Erster/letzter Frame",
   "dialog.new_project_hint": "Vorlage wählen und Projektnamen festlegen.",
   "dialog.create": "Anlegen",
-  "dialog.project_name_hint": "Projektname"
+  "dialog.project_name_hint": "Projektname",
+  "layout.stage": "Bühne",
+  "layout.split": "Bühne + Code",
+  "layout.code": "Code",
+  "menu.view.split": "Layout Bühne + Code"
 }

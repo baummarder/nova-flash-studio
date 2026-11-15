@@ -417,6 +417,17 @@ pub enum Dialog {
     },
 }
 
+/// M23.1: editor workspace arrangement inside the standard editor area.
+/// `Stage` = animation only, `Split` = stage + code side by side,
+/// `Code` = code editor only. Classroom/Enterprise/AI keep their own
+/// full-area views and are not part of this layout.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EditorLayout {
+    Stage,
+    Split,
+    Code,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AlignMode {
     Left,
@@ -445,6 +456,8 @@ pub enum UiAction {
     About,
     Help,
     SetMode(Mode),
+    /// M23.1: switch the editor workspace layout (stage / split / code).
+    SetLayout(EditorLayout),
     /// Open a `.nova` project at an explicit path (edu starter projects).
     OpenProjectPath(PathBuf),
     SetBottomTab(BottomTab),
@@ -511,6 +524,8 @@ pub enum UiAction {
 
 pub struct AppState {
     pub mode: Mode,
+    /// M23.1: when `mode == Animation`, show stage + code editor split.
+    pub split_code: bool,
     pub selection: Selection,
     pub active_script: Option<ScriptId>,
     pub diagnostics: Vec<Diagnostic>,
@@ -601,6 +616,7 @@ impl AppState {
             .unwrap_or(egui::pos2(275.0, 200.0));
         let mut state = Self {
             mode: Mode::Animation,
+            split_code: false,
             selection: Selection::None,
             active_script,
             diagnostics: Vec::new(),

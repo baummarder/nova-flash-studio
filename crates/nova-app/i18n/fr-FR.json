@@ -162,5 +162,9 @@
   "shortcut.firstlast": "Première/dernière image",
   "dialog.new_project_hint": "Choisissez un modèle et nommez le projet.",
   "dialog.create": "Créer",
-  "dialog.project_name_hint": "Nom du projet"
+  "dialog.project_name_hint": "Nom du projet",
+  "layout.stage": "Scène",
+  "layout.split": "Scène + Code",
+  "layout.code": "Code",
+  "menu.view.split": "Disposition Scène + Code"
 }

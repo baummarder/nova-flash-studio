@@ -16,8 +16,8 @@ use crate::ai_editor::AiEditor;
 use crate::history::History;
 use crate::splash::Splash;
 use crate::state::{
-    AlignMode, AppState, BottomTab, Dialog, KeyframeRef, LogLevel, Mode, PendingAction, Selection,
-    Tool, UiAction,
+    AlignMode, AppState, BottomTab, Dialog, EditorLayout, KeyframeRef, LogLevel, Mode,
+    PendingAction, Selection, Tool, UiAction,
 };
 use crate::{
     autosave, branding, classroom_view, code_view, console, edition, enterprise_view, flash, i18n,
@@ -91,6 +91,8 @@ pub struct NovaApp {
     wizard: Option<i18n::Lang>,
     /// Right dock split: fraction of height given to Properties (rest = library).
     right_split: f32,
+    /// M23.1: stage/code divider position in split layout.
+    code_split: f32,
 }
 
 impl NovaApp {
@@ -155,7 +157,17 @@ impl NovaApp {
                 Some(i18n::language())
             },
             right_split: 0.55,
+            code_split: i18n::stored_split_ratio().unwrap_or(0.5).clamp(0.2, 0.8),
         };
+        // M23.1: restore the persisted workspace layout.
+        match i18n::stored_layout().as_deref() {
+            Some("code") => app.state.mode = Mode::Code,
+            Some("split") => {
+                app.state.mode = Mode::Animation;
+                app.state.split_code = true;
+            }
+            _ => {}
+        }
         if let Some(path) = startup_project {
             if is_swf_path(path) {
                 // A shell association or `--open` may pass a SWF directly. Do
@@ -463,6 +475,16 @@ impl NovaApp {
                     actions.push(UiAction::SetMode(Mode::Animation));
                     ui.close();
                 }
+                if ui
+                    .selectable_label(
+                        self.state.mode == Mode::Animation && self.state.split_code,
+                        i18n::t("menu.view.split"),
+                    )
+                    .clicked()
+                {
+                    actions.push(UiAction::SetLayout(EditorLayout::Split));
+                    ui.close();
+                }
                 ui.separator();
                 if ui.button(i18n::t("menu.view.fit_stage")).clicked() {
                     actions.push(UiAction::FitStage);
@@ -591,6 +613,110 @@ impl NovaApp {
         });
     }
 
+    /// M23.1: effective editor layout for the standard editor area.
+    fn editor_layout(&self) -> EditorLayout {
+        match self.state.mode {
+            Mode::Code => EditorLayout::Code,
+            Mode::Animation if self.state.split_code => EditorLayout::Split,
+            _ => EditorLayout::Stage,
+        }
+    }
+
+    /// Persist the current workspace arrangement (per edition).
+    fn persist_layout(&self) {
+        let layout = match self.editor_layout() {
+            EditorLayout::Stage => "stage",
+            EditorLayout::Split => "split",
+            EditorLayout::Code => "code",
+        };
+        i18n::save_layout(layout, self.code_split);
+    }
+
+    /// M23.1: Stage + Code side by side with a draggable divider.
+    /// Stage keeps the left share (`code_split` = code fraction is NOT
+    /// used; `code_split` stores the *stage* fraction for consistency
+    /// with the persisted ratio).
+    fn split_workspace(&mut self, ui: &mut Ui, actions: &mut Vec<UiAction>) {
+        let total = ui.available_width();
+        if total < 120.0 {
+            return;
+        }
+        // `code_split` stores the fraction given to the *code* pane.
+        let code_w = (total * self.code_split).clamp(240.0, total - 240.0);
+        let stage_w = total - code_w - 5.0;
+        let origin = ui.cursor().min;
+        let height = ui.available_height();
+
+        let stage_rect = egui::Rect::from_min_size(origin, egui::vec2(stage_w, height));
+        {
+            let mut stage_ui = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(stage_rect)
+                    .layout(egui::Layout::top_down(egui::Align::Min)),
+            );
+            actions.extend(stage_view::show(
+                &mut stage_ui,
+                &mut self.project,
+                &mut self.state,
+            ));
+        }
+
+        // Divider between stage and code.
+        let div_rect = egui::Rect::from_min_size(
+            egui::pos2(origin.x + stage_w, origin.y),
+            egui::vec2(5.0, height),
+        );
+        let div_response = ui.interact(
+            div_rect,
+            ui.scope_id().with("code_split_divider"),
+            Sense::drag(),
+        );
+        if div_response.dragged()
+            && let Some(pos) = div_response.interact_pointer_pos()
+        {
+            let rel = (pos.x - origin.x) / total.max(1.0);
+            // rel = stage fraction → code fraction = 1 - rel
+            self.code_split = (1.0 - rel).clamp(0.2, 0.8);
+            self.persist_layout();
+        }
+        {
+            let painter = ui.painter();
+            painter.rect_filled(
+                div_rect,
+                egui::CornerRadius::ZERO,
+                if div_response.hovered() {
+                    theme::BG_HOVER
+                } else {
+                    theme::BG_INPUT
+                },
+            );
+            let mid_x = div_rect.center().x;
+            painter.line_segment(
+                [
+                    egui::pos2(mid_x, div_rect.top()),
+                    egui::pos2(mid_x, div_rect.bottom()),
+                ],
+                egui::Stroke::new(1.0, theme::BORDER_SOFT),
+            );
+        }
+        ui.allocate_rect(div_rect, Sense::hover());
+
+        let code_rect = egui::Rect::from_min_size(
+            egui::pos2(origin.x + stage_w + 5.0, origin.y),
+            egui::vec2(code_w, height),
+        );
+        let mut code_ui = ui.new_child(
+            egui::UiBuilder::new()
+                .max_rect(code_rect)
+                .layout(egui::Layout::top_down(egui::Align::Min)),
+        );
+        actions.extend(code_view::show(
+            &mut code_ui,
+            &mut self.project,
+            &mut self.state,
+        ));
+    }
+
     /// Right dock: Properties on top, project library (tree) below,
     /// separated by a draggable classic divider.
     fn right_dock(&mut self, ui: &mut Ui, actions: &mut Vec<UiAction>) {
@@ -673,19 +799,16 @@ impl NovaApp {
 
     fn toolbar(&mut self, ui: &mut Ui, actions: &mut Vec<UiAction>) {
         ui.horizontal(|ui| {
-            // Compact classic workspace selector.
-            let mut modes = vec![
-                (Mode::Code, i18n::t("mode.code")),
-                (Mode::Animation, i18n::t("mode.animation")),
-            ];
-            if edition::has_active_module("classroom") {
-                modes.push((Mode::Classroom, i18n::t("mode.classroom")));
-            }
-            if edition::has_active_module("administration") {
-                modes.push((Mode::Enterprise, i18n::t("mode.enterprise")));
-            }
-            for (mode, label) in modes {
-                let active = self.state.mode == mode && !self.ai.open;
+            // Compact classic workspace selector: the three editor
+            // layouts, then edition-gated modes and the AI agent.
+            for (layout, label) in [
+                (EditorLayout::Stage, i18n::t("layout.stage")),
+                (EditorLayout::Split, i18n::t("layout.split")),
+                (EditorLayout::Code, i18n::t("layout.code")),
+            ] {
+                let active = self.editor_layout() == layout
+                    && !matches!(self.state.mode, Mode::Classroom | Mode::Enterprise)
+                    && !self.ai.open;
                 let text = if active {
                     RichText::new(&label).strong().color(theme::ACCENT)
                 } else {
@@ -695,9 +818,10 @@ impl NovaApp {
                     .add(egui::Button::new(text).min_size(egui::vec2(0.0, 22.0)))
                     .clicked()
                 {
-                    actions.push(UiAction::SetMode(mode));
+                    actions.push(UiAction::SetLayout(layout));
                 }
             }
+            ui.separator();
             if ui
                 .add(
                     egui::Button::new(RichText::new(i18n::t("toolbar.ai_agent")).color(
@@ -1040,7 +1164,28 @@ impl NovaApp {
                     if mode == Mode::Code {
                         self.state.playing = false;
                     }
+                    if matches!(mode, Mode::Code | Mode::Animation) {
+                        self.persist_layout();
+                    }
                     self.state.set_status(format!("{}modus", mode.label()));
+                }
+                UiAction::SetLayout(layout) => {
+                    // M23.1: map the workspace layout onto mode + split flag.
+                    match layout {
+                        EditorLayout::Code => {
+                            self.state.mode = Mode::Code;
+                            self.state.playing = false;
+                        }
+                        EditorLayout::Split => {
+                            self.state.mode = Mode::Animation;
+                            self.state.split_code = true;
+                        }
+                        EditorLayout::Stage => {
+                            self.state.mode = Mode::Animation;
+                            self.state.split_code = false;
+                        }
+                    }
+                    self.persist_layout();
                 }
                 UiAction::OpenProjectPath(path) => {
                     self.load_path(&path);
@@ -4693,7 +4838,11 @@ impl eframe::App for NovaApp {
                     actions.extend(code_view::show(ui, &mut self.project, &mut self.state));
                 }
                 Mode::Animation => {
-                    actions.extend(stage_view::show(ui, &mut self.project, &mut self.state));
+                    if self.state.split_code {
+                        self.split_workspace(ui, &mut actions);
+                    } else {
+                        actions.extend(stage_view::show(ui, &mut self.project, &mut self.state));
+                    }
                 }
             });
         }

@@ -2,6 +2,35 @@
 
 namespace NovaFlashStudio.Setup;
 
+/// <summary>Shared classic palette (2009 desktop look, matches the app).</summary>
+internal static class WizardTheme
+{
+    public static readonly Color Bg = Color.FromArgb(38, 40, 43);
+    public static readonly Color PanelBg = Color.FromArgb(48, 50, 54);
+    public static readonly Color HeaderTop = Color.FromArgb(56, 59, 64);
+    public static readonly Color HeaderBottom = Color.FromArgb(44, 46, 50);
+    public static readonly Color EdgeHi = Color.FromArgb(96, 100, 107);
+    public static readonly Color EdgeLo = Color.FromArgb(26, 28, 30);
+    public static readonly Color Accent = Color.FromArgb(76, 155, 224);
+    public static readonly Color TextMain = Color.FromArgb(216, 216, 216);
+    public static readonly Color TextDim = Color.FromArgb(168, 171, 176);
+    public static readonly Color TextFaint = Color.FromArgb(126, 130, 136);
+    public static readonly Color Border = Color.FromArgb(88, 91, 97);
+    public static readonly Color Warn = Color.FromArgb(230, 160, 60);
+    public static readonly Color Info = Color.FromArgb(120, 180, 230);
+
+    /// <summary>Classic etched group frame.</summary>
+    public static GroupBox MakeGroup(string text)
+    {
+        return new GroupBox
+        {
+            Text = text,
+            ForeColor = TextDim,
+            Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
+        };
+    }
+}
+
 /// <summary>Base class for wizard pages.</summary>
 internal abstract class WizardPage : UserControl
 {
@@ -21,7 +50,7 @@ internal abstract class WizardPage : UserControl
             Text = text,
             AutoSize = true,
             Font = new Font("Segoe UI", size, bold ? FontStyle.Bold : FontStyle.Regular),
-            ForeColor = Color.Gainsboro,
+            ForeColor = WizardTheme.TextMain,
         };
     }
 
@@ -111,8 +140,8 @@ internal sealed class LicensePage : WizardPage
         Controls.Add(box);
 
         var bottom = new Panel { Dock = DockStyle.Bottom, Height = 44, BackColor = Color.Transparent };
-        _accept.Left = 8; _accept.Top = 10; _accept.ForeColor = Color.Gainsboro;
-        _decline.Left = 280; _decline.Top = 10; _decline.ForeColor = Color.Gainsboro;
+        _accept.Left = 8; _accept.Top = 10; _accept.ForeColor = WizardTheme.TextMain;
+        _decline.Left = 280; _decline.Top = 10; _decline.ForeColor = WizardTheme.TextMain;
         bottom.Controls.Add(_accept);
         bottom.Controls.Add(_decline);
         Controls.Add(bottom);
@@ -141,12 +170,12 @@ internal sealed class ScopePage : WizardPage
     private readonly RadioButton _allUsers = new() { AutoSize = true, Text = "Für alle Benutzer (Administratorrechte erforderlich)" };
     private readonly TextBox _dir = new() { Width = 420 };
     private readonly Button _browse = new() { Text = "Durchsuchen …", Width = 110 };
-    private readonly Label _adminHint = new() { AutoSize = true, ForeColor = Color.Orange };
-    private readonly Label _existing = new() { AutoSize = true, ForeColor = Color.SkyBlue, MaximumSize = new Size(620, 0) };
+    private readonly Label _adminHint = new() { AutoSize = true, ForeColor = WizardTheme.Warn };
+    private readonly Label _existing = new() { AutoSize = true, ForeColor = WizardTheme.Info, MaximumSize = new Size(620, 0) };
     private readonly CheckBox _migrate = new()
     {
         AutoSize = true,
-        ForeColor = Color.Gainsboro,
+        ForeColor = WizardTheme.TextMain,
         Text = "Vorhandene Installation migrieren (wird zuerst entfernt; Projekte und Einstellungen bleiben erhalten)",
     };
 
@@ -161,8 +190,8 @@ internal sealed class ScopePage : WizardPage
     {
         _existingInstalls = existing.ToList();
         int top = 24;
-        _perUser.Top = top; _perUser.Left = 24; _perUser.ForeColor = Color.Gainsboro;
-        _allUsers.Top = top + 28; _allUsers.Left = 24; _allUsers.ForeColor = Color.Gainsboro;
+        _perUser.Top = top; _perUser.Left = 24; _perUser.ForeColor = WizardTheme.TextMain;
+        _allUsers.Top = top + 28; _allUsers.Left = 24; _allUsers.ForeColor = WizardTheme.TextMain;
         Controls.Add(_perUser); Controls.Add(_allUsers);
 
         var dirLabel = MakeLabel("Installationsordner:", 9.5f, bold: true);
@@ -171,7 +200,7 @@ internal sealed class ScopePage : WizardPage
 
         _dir.Top = top + 94; _dir.Left = 24;
         _dir.ForeColor = Color.Black;
-        _dir.BackColor = Color.White;
+        _dir.BackColor = Color.White; // classic light input
         Controls.Add(_dir);
 
         _browse.Top = _dir.Top; _browse.Left = _dir.Right + 8;
@@ -352,7 +381,7 @@ internal sealed class OptionsPage : WizardPage
         int top = 32;
         foreach (var cb in new[] { _desktop, _startMenu, _nova, _swf })
         {
-            cb.Top = top; cb.Left = 24; cb.ForeColor = Color.Gainsboro;
+            cb.Top = top; cb.Left = 24; cb.ForeColor = WizardTheme.TextMain;
             Controls.Add(cb);
             top += 34;
         }
@@ -380,7 +409,7 @@ internal sealed class ProgressPage : WizardPage
     public override string Subtitle => "Bitte warten …";
 
     private readonly ProgressBar _bar = new() { Left = 24, Top = 20, Width = 620, Height = 24, Style = ProgressBarStyle.Continuous };
-    private readonly Label _status = new() { Left = 24, Top = 58, Width = 620, Height = 60, ForeColor = Color.Gainsboro };
+    private readonly Label _status = new() { Left = 24, Top = 58, Width = 620, Height = 60, ForeColor = WizardTheme.TextMain };
 
     public ProgressPage()
     {
@@ -407,10 +436,19 @@ internal sealed class FinishPage : WizardPage
     {
         AutoSize = true,
         Text = $"{EditionInfo.ProductName} jetzt starten",
-        ForeColor = Color.Gainsboro,
+        ForeColor = WizardTheme.TextMain,
         Top = 60,
         Left = 24,
         Checked = true,
+    };
+
+    private readonly Button _docs = new()
+    {
+        AutoSize = true,
+        Text = "Dokumentation öffnen",
+        Top = 92,
+        Left = 24,
+        FlatStyle = FlatStyle.System,
     };
 
     public bool Launch => _launch.Checked;
@@ -424,21 +462,66 @@ internal sealed class FinishPage : WizardPage
             "Die Deinstallation finden Sie in den Windows-Einstellungen unter „Apps“.",
             9.5f), 56);
         Controls.Add(_launch);
+        Controls.Add(_docs);
+        _docs.Click += (_, _) => OpenDocs();
+    }
+
+    private void OpenDocs()
+    {
+        if (InstallDir is null) return;
+        // The payload ships docs/*.md next to the executable.
+        var docsDir = Path.Combine(InstallDir, "docs");
+        var target = Directory.Exists(docsDir) ? docsDir : InstallDir;
+        try
+        {
+            System.Diagnostics.Process.Start(
+                new System.Diagnostics.ProcessStartInfo("explorer.exe", $"\"{target}\"")
+                {
+                    UseShellExecute = true,
+                });
+        }
+        catch { /* explorer unavailable — nothing else to do */ }
     }
 }
 
-/// <summary>The setup wizard form.</summary>
+/// <summary>The setup wizard form — classic 2009 desktop styling:
+/// charcoal surfaces, subtle header gradient, beveled buttons and
+/// etched group frames, matching the NØVA application theme.</summary>
 internal sealed class WizardForm : Form
 {
-    private static readonly Color Bg = Color.FromArgb(28, 30, 36);
-    private static readonly Color PanelBg = Color.FromArgb(38, 41, 48);
-    private static readonly Color Accent = Color.FromArgb(64, 156, 255);
+    // Classic palette shared with the application's 2009 theme.
+    private static readonly Color Bg = WizardTheme.Bg;
+    private static readonly Color PanelBg = WizardTheme.PanelBg;
+    private static readonly Color HeaderTop = WizardTheme.HeaderTop;
+    private static readonly Color HeaderBottom = WizardTheme.HeaderBottom;
+    private static readonly Color EdgeHi = WizardTheme.EdgeHi;
+    private static readonly Color Accent = WizardTheme.Accent;
+    private static readonly Color TextFaint = WizardTheme.TextFaint;
+    private static readonly Color Border = WizardTheme.Border;
+
+    /// <summary>Header strip with a subtle top-down gradient.</summary>
+    private sealed class HeaderPanel : Panel
+    {
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            using var brush = new System.Drawing.Drawing2D.LinearGradientBrush(
+                ClientRectangle,
+                HeaderTop,
+                HeaderBottom,
+                System.Drawing.Drawing2D.LinearGradientMode.Vertical);
+            e.Graphics.FillRectangle(brush, ClientRectangle);
+            // Bottom hairline separating header from content.
+            using var pen = new Pen(Border);
+            e.Graphics.DrawLine(pen, 0, Height - 1, Width, Height - 1);
+        }
+    }
 
     private readonly List<WizardPage> _pages = new();
     private int _index;
-    private readonly Label _step = new() { AutoSize = true, ForeColor = Color.Gray, Font = new Font("Segoe UI", 8.5f) };
-    private readonly Label _title = new() { AutoSize = true, ForeColor = Color.White, Font = new Font("Segoe UI", 13f, FontStyle.Bold) };
-    private readonly Label _subtitle = new() { AutoSize = true, ForeColor = Color.Silver, Font = new Font("Segoe UI", 9f) };
+    private readonly Label _step = new() { AutoSize = true, ForeColor = WizardTheme.TextFaint, Font = new Font("Segoe UI", 8.5f) };
+    private readonly Label _title = new() { AutoSize = true, ForeColor = WizardTheme.TextMain, Font = new Font("Segoe UI", 13f, FontStyle.Bold) };
+    private readonly Label _subtitle = new() { AutoSize = true, ForeColor = WizardTheme.TextDim, Font = new Font("Segoe UI", 9f) };
     private readonly Panel _content = new() { Dock = DockStyle.Fill, BackColor = Bg, Padding = new Padding(0, 64, 0, 56) };
     private readonly Panel _footer = new() { Dock = DockStyle.Bottom, Height = 56, BackColor = PanelBg };
     private readonly Button _back = new() { Text = "Zurück", Width = 96, Height = 30 };
@@ -459,13 +542,13 @@ internal sealed class WizardForm : Form
         MaximizeBox = false;
         MinimizeBox = false;
         BackColor = Bg;
-        ForeColor = Color.Gainsboro;
+        ForeColor = WizardTheme.TextMain;
         Font = new Font("Segoe UI", 9f);
         Icon = LoadIcon();
 
         _existingInstalls = Installer.FindExistingInstalls();
 
-        var header = new Panel { Dock = DockStyle.Top, Height = 64, BackColor = PanelBg };
+        var header = new HeaderPanel { Dock = DockStyle.Top, Height = 64 };
         _title.Location = new Point(24, 12);
         _subtitle.Location = new Point(24, 38);
         header.Controls.Add(_title);
@@ -474,18 +557,26 @@ internal sealed class WizardForm : Form
         _step.AutoSize = true;
         _step.Anchor = AnchorStyles.Top | AnchorStyles.Right;
         _step.Location = new Point(600, 26);
+        _step.ForeColor = TextFaint;
         header.Controls.Add(_step);
 
         _back.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
         _back.Location = new Point(340, 14);
+        _back.FlatStyle = FlatStyle.System;
         _back.Click += (_, _) => Navigate(-1);
 
         _next.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
         _next.Location = new Point(450, 14);
+        _next.FlatStyle = FlatStyle.Flat;
+        _next.FlatAppearance.BorderColor = EdgeHi;
+        _next.FlatAppearance.BorderSize = 1;
+        _next.BackColor = Accent;
+        _next.ForeColor = Color.White;
         _next.Click += async (_, _) => await NavigateNext();
 
         _cancel.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
         _cancel.Location = new Point(574, 14);
+        _cancel.FlatStyle = FlatStyle.System;
         _cancel.Click += (_, _) =>
         {
             if (_index == _pages.Count - 1) MaybeLaunch();

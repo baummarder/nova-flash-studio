@@ -162,5 +162,9 @@
   "shortcut.firstlast": "First/last frame",
   "dialog.new_project_hint": "Choose a template and set the project name.",
   "dialog.create": "Create",
-  "dialog.project_name_hint": "Project name"
+  "dialog.project_name_hint": "Project name",
+  "layout.stage": "Stage",
+  "layout.split": "Stage + Code",
+  "layout.code": "Code",
+  "menu.view.split": "Stage + Code layout"
 }

@@ -178,15 +178,39 @@ fn settings_path() -> Option<PathBuf> {
 struct AppSettings {
     #[serde(default)]
     language: Option<String>,
+    /// M23.1: "stage" | "split" | "code" — editor workspace layout.
+    #[serde(default)]
+    layout: Option<String>,
+    /// M23.1: stage/code divider position (0.2..=0.8).
+    #[serde(default)]
+    split_ratio: Option<f32>,
+}
+
+fn read_settings() -> AppSettings {
+    settings_path()
+        .and_then(|path| std::fs::read(path).ok())
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+        .unwrap_or_default()
+}
+
+fn write_settings(settings: &AppSettings) {
+    let Some(path) = settings_path() else { return };
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    if let Ok(bytes) = serde_json::to_vec_pretty(settings) {
+        // Atomic-ish: write temp then rename.
+        let tmp = path.with_extension("json.tmp");
+        if std::fs::write(&tmp, bytes).is_ok() {
+            let _ = std::fs::rename(&tmp, &path);
+        }
+    }
 }
 
 /// Load the persisted language. Missing/corrupt config → `None`
 /// (caller decides: first-run wizard vs. en-GB fallback).
 pub fn stored_language() -> Option<Lang> {
-    let path = settings_path()?;
-    let bytes = std::fs::read(path).ok()?;
-    let settings: AppSettings = serde_json::from_slice(&bytes).ok()?;
-    settings.language.as_deref().and_then(Lang::parse)
+    read_settings().language.as_deref().and_then(Lang::parse)
 }
 
 /// Whether the language was ever explicitly chosen (drives the wizard).
@@ -205,20 +229,29 @@ fn set_language_silent(lang: Lang) {
 }
 
 fn save_language(lang: Lang) {
-    let Some(path) = settings_path() else { return };
-    if let Some(parent) = path.parent() {
-        let _ = std::fs::create_dir_all(parent);
-    }
-    let settings = AppSettings {
-        language: Some(lang.code().to_string()),
-    };
-    if let Ok(bytes) = serde_json::to_vec_pretty(&settings) {
-        // Atomic-ish: write temp then rename.
-        let tmp = path.with_extension("json.tmp");
-        if std::fs::write(&tmp, bytes).is_ok() {
-            let _ = std::fs::rename(&tmp, &path);
-        }
-    }
+    let mut settings = read_settings();
+    settings.language = Some(lang.code().to_string());
+    write_settings(&settings);
+}
+
+// ------------------------------------------------- workspace layout (M23.1)
+
+/// Persisted editor layout: "stage" | "split" | "code".
+pub fn stored_layout() -> Option<String> {
+    read_settings().layout
+}
+
+/// Persisted stage/code divider ratio.
+pub fn stored_split_ratio() -> Option<f32> {
+    read_settings().split_ratio
+}
+
+/// Persist the workspace arrangement (per edition, like the language).
+pub fn save_layout(layout: &str, split_ratio: f32) {
+    let mut settings = read_settings();
+    settings.layout = Some(layout.to_string());
+    settings.split_ratio = Some(split_ratio.clamp(0.2, 0.8));
+    write_settings(&settings);
 }
 
 #[cfg(test)]
@@ -302,8 +335,12 @@ mod tests {
         assert_eq!(Lang::parse("de"), None);
     }
 
+    /// Serializes tests that mutate the process-wide config-dir override.
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     #[test]
     fn language_persists_per_edition_config_dir() {
+        let _guard = ENV_LOCK.lock().unwrap();
         // Use the config-dir override so nothing touches the real profile.
         let dir = std::env::temp_dir().join(format!("nova-i18n-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
@@ -320,6 +357,29 @@ mod tests {
         // Corrupt config falls back to None (caller uses en-GB).
         std::fs::write(dir.join(SETTINGS_FILE), b"{not json").unwrap();
         assert_eq!(stored_language(), None);
+
+        unsafe { std::env::remove_var("NOVA_FLASH_STUDIO_CONFIG_DIR") };
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn workspace_layout_persists_and_preserves_language() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let dir = std::env::temp_dir().join(format!("nova-i18n-layout-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        // SAFETY: test-only env mutation, restored before returning.
+        unsafe { std::env::set_var("NOVA_FLASH_STUDIO_CONFIG_DIR", &dir) };
+
+        set_language(Lang::DaDk);
+        save_layout("split", 0.65);
+        assert_eq!(stored_layout().as_deref(), Some("split"));
+        assert_eq!(stored_split_ratio(), Some(0.65));
+        // Language must survive a layout save (shared settings file).
+        assert_eq!(stored_language(), Some(Lang::DaDk));
+
+        save_layout("code", 0.9); // clamped to 0.8
+        assert_eq!(stored_layout().as_deref(), Some("code"));
+        assert_eq!(stored_split_ratio(), Some(0.8));
 
         unsafe { std::env::remove_var("NOVA_FLASH_STUDIO_CONFIG_DIR") };
         let _ = std::fs::remove_dir_all(&dir);

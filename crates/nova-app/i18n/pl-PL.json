@@ -162,5 +162,9 @@
   "shortcut.firstlast": "Pierwsza/ostatnia klatka",
   "dialog.new_project_hint": "Wybierz szablon i nazwę projektu.",
   "dialog.create": "Utwórz",
-  "dialog.project_name_hint": "Nazwa projektu"
+  "dialog.project_name_hint": "Nazwa projektu",
+  "layout.stage": "Scena",
+  "layout.split": "Scena + Kod",
+  "layout.code": "Kod",
+  "menu.view.split": "Układ Scena + Kod"
 }
