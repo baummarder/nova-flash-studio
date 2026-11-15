@@ -23,7 +23,7 @@ registry that reserves slots for future edition-specific work.
 | Install dir | `%ProgramFiles%\NØVA Flash Studio` (or per-user) | `…\NØVA Flash Studio Edu` | `…\NØVA Flash Studio Enterprise` |
 | Uninstall key | `NOVAFlashStudio` | `NOVAFlashStudioEdu` | `NOVAFlashStudioEnterprise` |
 | `.nova` ProgId | `NOVAFlashStudio.Project` | `NOVAFlashStudioEdu.Project` | `NOVAFlashStudioEnterprise.Project` |
-| Reserved modules | — | — (classroom aktiv seit M20) | Administration & Zusammenarbeit (M21) |
+| Reserved modules | — | — (classroom aktiv seit M20) | - (administration aktiv seit M21) |
 
 All three editions contain the **full shared feature set**: vector editor,
 timeline/keyframes, skeletal animation + IK + skinning, game development,
@@ -105,9 +105,9 @@ cargo run -p nova-app -- --version   # -> NØVA Flash Studio Enterprise 0.15.0-r
 
 `crates/nova-app/src/edition.rs` defines `EditionProfile` per edition:
 app name, tagline, audience line, bundle id and a module list. Modules
-marked `reserved` are documented future work (administration &
-collaboration → M21) and are **not** presented as implemented. The Edu
-`classroom` module became active in M20 — it is the only gate for
-`Mode::Classroom` (`edition::has_active_module("classroom")`).
+marked `reserved` are documented future work and are **not** presented
+as implemented. Both planned modules are now active: Edu `classroom`
+(M20) and Enterprise `administration` (M21) — each gated solely by
+`edition::has_active_module` for its `Mode::*`.
 New edition-specific features should register there instead of adding
 scattered edition checks.

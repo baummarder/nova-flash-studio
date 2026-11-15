@@ -8,24 +8,37 @@ the project format is versioned JSON, and the SWF writer is implemented directly
 against the published SWF file-format specification. Tools and extensions run in
 an embedded QuickJS context; ActionScript is **not** executed by QuickJS.
 
-> **Status: M20 complete — release candidate `0.16.0-rc1`.**
-> M20 delivers the **Education Edition**: a real offline-first classroom
-> workflow in the new `nova-edu` crate — Edu workspaces (`school.json`),
-> teacher/student/assistant roles (workflow convenience, **not**
-> authentication), classes/groups/members, assignments with starter
-> projects and rubrics, revisioned submissions with SHA-256 checksums,
-> anchored feedback comments, progress tracking and CSV/Markdown/HTML
-> reports. Classroom mode is gated solely by the edition module
-> registry and exists **only in the Edu edition**. Offline exchange
-> packages (`.novaassignment`, `.novasubmission`, `.novafeedback`,
-> `.novaclassroom`) are hardened ZIPs with manifests, checksums and
-> transactional import — see `docs/CLASSROOM.md`.
-> Windows installers now register `.nova` per-edition ProgIds plus
+> **Status: M21 complete — release candidate `0.17.0-rc1`.**
+> M21 delivers the **Enterprise Edition**: an offline-first
+> administration & teamwork workspace in the new `nova-ent` crate —
+> enterprise workspaces (`org.json`), project registration by path,
+> 7-role team model with per-project overrides and a documented
+> *policy* permission matrix (roles are **not** authentication; OS file
+> permissions are the boundary), a shared asset library with SHA-256
+> integrity, project snapshots/version history with safe restore and
+> diff summaries, review workflows with anchored comments, build
+> profiles + history reusing the SWF/XFL pipelines, an append-only
+> audit log, opt-in local integrations (disabled by default, env-var
+> key references) and `.novaent` workspace packages — see
+> `docs/ENTERPRISE.md`.
+>
+> **M20 baseline `0.16.0-rc1`:** the **Education Edition** provides a
+> real offline-first classroom workflow in `nova-edu` — Edu workspaces
+> (`school.json`), teacher/student/assistant roles (workflow labels,
+> **not** authentication), classes/groups/members, assignments with
+> starter projects and rubrics, revisioned submissions with SHA-256
+> checksums, anchored feedback comments, progress tracking and
+> CSV/Markdown/HTML reports. Classroom mode is gated solely by the
+> edition module registry and exists **only in the Edu edition**.
+> Offline exchange packages (`.novaassignment`, `.novasubmission`,
+> `.novafeedback`, `.novaclassroom`) are hardened ZIPs with manifests,
+> checksums and transactional import — see `docs/CLASSROOM.md`.
+> Windows installers register `.nova` per-edition ProgIds plus
 > Capabilities/RegisteredApplications ("Öffnen mit" lists), a
 > context-menu verb and safe uninstall restoration —
 > `docs/WINDOWS_FILE_ASSOCIATION.md`. The `.nova` format stays at v4
-> and remains edition-neutral; Edu data lives in sidecars, never in
-> `Project`.
+> and remains edition-neutral; Edu/Enterprise data lives in sidecars,
+> never in `Project`.
 >
 > **M19 baseline `0.15.0-rc1`:** NØVA is **three independently distributable editions**
 > from one shared Rust codebase: **NØVA Flash Studio** (User),

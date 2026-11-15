@@ -49,6 +49,7 @@ for now**.
 | M20.0 Windows `.nova` file-association specification | **done** |
 | M20.1–M20.8 Education Edition (`nova-edu`, classroom mode, packages) | **done — `0.16.0-rc1`** |
 | Native `.nova` file association on Windows (Capabilities, OpenWith, uninstall) | **done** |
+| M21.0–M21.10 Enterprise Edition (`nova-ent`, admin workspace, teams, assets, versioning, reviews, builds, integrations) | **done — `0.17.0-rc1`** |
 | HTML5 export | **planned, secondary** |
 
 ---
@@ -73,6 +74,27 @@ well past them; the release reports are authoritative:
 | M19 | `0.15.0-rc1` | Three editions, isolated config dirs/installers, shared `.nova` compatibility |
 
 See `docs/MEGA_MILESTONE_*_REPORT.md` and the per-milestone test reports.
+
+## M21 — Enterprise Edition (`0.17.0-rc1`)
+
+Architectural basis: `docs/MEGA_MILESTONE_21_PREPARATION.md`. The `.nova`
+format stays at **v4** and remains edition-neutral; all Enterprise data
+lives in workspace sidecars via the new `nova-ent` crate. Roles are
+workflow policy, not authentication — OS file permissions remain the
+security boundary.
+
+- [x] M21.1 Enterprise workspace foundation (`org.json`, project registry by path).
+- [x] M21.2 Team & roles (7 roles, per-project overrides, permission matrix).
+- [x] M21.3 Shared asset library (folders/tags/versions, SHA-256 integrity).
+- [x] M21.4 Project versioning (snapshots, diff summaries, safe restore).
+- [x] M21.5 Review workflows (state machine, anchored comments, orphans).
+- [x] M21.6 Administration center + append-only audit log.
+- [x] M21.7 Build profiles & history (existing nova-build/nova-formats).
+- [x] M21.8 Optional local integrations + `.novaent` packages.
+- [x] M21.9 `Mode::Enterprise` gated by the edition module registry.
+- [x] M21.10 QA, packaging, archive `dist/archive/0.17.0-rc1/`.
+
+See `docs/ENTERPRISE.md` and `docs/MEGA_MILESTONE_21_FINAL_REPORT.md`.
 
 ## M20 — Education Edition and stabilization
 
