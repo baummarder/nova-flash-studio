@@ -166,5 +166,6 @@
   "layout.stage": "Stage",
   "layout.split": "Stage + Code",
   "layout.code": "Code",
-  "menu.view.split": "Stage + Code layout"
+  "menu.view.split": "Stage + Code layout",
+  "menu.help.eula": "View licence agreement (EULA)"
 }

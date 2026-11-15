@@ -166,5 +166,6 @@
   "layout.stage": "Bühne",
   "layout.split": "Bühne + Code",
   "layout.code": "Code",
-  "menu.view.split": "Layout Bühne + Code"
+  "menu.view.split": "Layout Bühne + Code",
+  "menu.help.eula": "Lizenzvereinbarung anzeigen (EULA)"
 }

@@ -192,6 +192,7 @@ internal sealed class LicensePage : WizardPage
 {
     private readonly RadioButton _accept = new() { AutoSize = true };
     private readonly RadioButton _decline = new() { AutoSize = true };
+    private readonly TextBox _box;
     private readonly Button _next;
 
     public override string Title => InstallerText.T("wiz.license.title");
@@ -202,8 +203,7 @@ internal sealed class LicensePage : WizardPage
     public LicensePage(Button nextButton)
     {
         _next = nextButton;
-        var text = Installer.ReadEulaText() ?? InstallerText.T("wiz.license.missing");
-        var box = new TextBox
+        _box = new TextBox
         {
             Multiline = true,
             ReadOnly = true,
@@ -212,9 +212,8 @@ internal sealed class LicensePage : WizardPage
             BackColor = Color.White,
             ForeColor = Color.Black,
             Font = new Font("Consolas", 9f),
-            Text = text,
         };
-        Controls.Add(box);
+        Controls.Add(_box);
 
         var bottom = new Panel { Dock = DockStyle.Bottom, Height = 44, BackColor = Color.Transparent };
         _accept.Left = 8; _accept.Top = 10; _accept.ForeColor = WizardTheme.TextMain;
@@ -222,13 +221,15 @@ internal sealed class LicensePage : WizardPage
         bottom.Controls.Add(_accept);
         bottom.Controls.Add(_decline);
         Controls.Add(bottom);
-        box.BringToFront();
+        _box.BringToFront();
         bottom.BringToFront();
 
         _accept.CheckedChanged += (_, _) => _next.Enabled = _accept.Checked;
         _decline.CheckedChanged += (_, _) => _next.Enabled = false;
-        _accept.Checked = true;
-        _next.Enabled = true;
+        // M27.8: explicit consent required — nothing is pre-accepted.
+        _accept.Checked = false;
+        _decline.Checked = false;
+        _next.Enabled = false;
         RefreshText();
     }
 
@@ -239,6 +240,11 @@ internal sealed class LicensePage : WizardPage
 
     public override void RefreshText()
     {
+        // M27.8: EULA follows the selected installer language with a
+        // controlled en-GB fallback; version is shown for auditability.
+        var eula = Installer.ReadEulaText(InstallerText.Current)
+            ?? InstallerText.T("wiz.license.missing");
+        _box.Text = $"EULA v{InstallerText.EulaVersion}\n\n{eula}";
         _accept.Text = InstallerText.T("wiz.license.accept");
         _decline.Text = InstallerText.T("wiz.license.decline");
     }

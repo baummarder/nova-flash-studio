@@ -206,6 +206,39 @@ impl NovaApp {
 
     // ------------------------------------------------------------- panels
 
+    /// M27.8: open the bundled EULA in the OS default viewer. Prefers the
+    /// file matching the UI language, falls back to en-GB then the legacy
+    /// draft shipped in the install dir.
+    fn open_eula_file(&mut self) {
+        let lang = i18n::language().code();
+        let names = [
+            format!("LICENSE-EULA.{lang}.md"),
+            "LICENSE-EULA.en-GB.md".to_string(),
+            "LICENSE-EULA.md".to_string(),
+            "EULA-DRAFT.md".to_string(),
+        ];
+        let mut dirs: Vec<PathBuf> = Vec::new();
+        if let Ok(exe) = std::env::current_exe()
+            && let Some(dir) = exe.parent()
+        {
+            dirs.push(dir.to_path_buf());
+        }
+        dirs.push(PathBuf::from("."));
+        for dir in dirs {
+            for name in &names {
+                let path = dir.join(name);
+                if path.is_file() {
+                    open_path(&path);
+                    return;
+                }
+            }
+        }
+        self.state.log(
+            LogLevel::Warn,
+            "EULA-Datei nicht gefunden (LICENSE-EULA*.md).".to_string(),
+        );
+    }
+
     fn menu_bar(&mut self, ui: &mut Ui, actions: &mut Vec<UiAction>) {
         egui::MenuBar::new().ui(ui, |ui| {
             ui.menu_button(i18n::t("menu.file"), |ui| {
@@ -594,6 +627,10 @@ impl NovaApp {
                 }
                 if ui.button(i18n::t("menu.help.about")).clicked() {
                     actions.push(UiAction::About);
+                    ui.close();
+                }
+                if ui.button(i18n::t("menu.help.eula")).clicked() {
+                    actions.push(UiAction::ShowEula);
                     ui.close();
                 }
                 ui.separator();
@@ -1146,6 +1183,7 @@ impl NovaApp {
                 }
                 UiAction::Quit => self.request_quit(ctx),
                 UiAction::About => self.state.dialog = Dialog::About,
+                UiAction::ShowEula => self.open_eula_file(),
                 UiAction::Help => self.state.dialog = Dialog::Help,
                 UiAction::SetMode(mode) => {
                     // Classroom is gated by the edition module registry —
@@ -5009,6 +5047,20 @@ fn frame_for(scene: &nova_core::Scene, index: usize) -> Option<&Frame> {
         .layers
         .iter()
         .find_map(|layer| layer.frames.get(index))
+}
+
+/// M27.8: open a document in the OS default application.
+fn open_path(path: &Path) {
+    #[cfg(windows)]
+    {
+        let _ = std::process::Command::new("cmd")
+            .args(["/C", "start", "", &path.to_string_lossy()])
+            .spawn();
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = std::process::Command::new("xdg-open").arg(path).spawn();
+    }
 }
 
 #[cfg(test)]

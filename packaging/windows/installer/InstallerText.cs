@@ -12,6 +12,9 @@ namespace NovaFlashStudio.Setup;
 /// </summary>
 internal static class InstallerText
 {
+    /// <summary>M27.8: EULA version shown/accepted by the license page.</summary>
+    public const string EulaVersion = "1.0";
+
     /// <summary>(code, native name) pairs, en-GB fallback.</summary>
     public static readonly (string Code, string Name)[] Languages =
     {

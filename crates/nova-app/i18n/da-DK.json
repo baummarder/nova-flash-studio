@@ -166,5 +166,6 @@
   "layout.stage": "Scene",
   "layout.split": "Scene + Kode",
   "layout.code": "Kode",
-  "menu.view.split": "Layout Scene + Kode"
+  "menu.view.split": "Layout Scene + Kode",
+  "menu.help.eula": "Vis licensaftale (EULA)"
 }

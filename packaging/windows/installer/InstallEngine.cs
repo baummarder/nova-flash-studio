@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO.Compression;
 using System.Reflection;
 using System.Security.Cryptography;
+using System.Text;
 using System.Security.Principal;
 using System.Text.Json;
 using Microsoft.Win32;
@@ -64,6 +65,8 @@ public sealed class InstallManifest
 {
     public string Product { get; set; } = Installer.ProductName;
     public string Version { get; set; } = "";
+    /// <summary>M27.8: EULA version accepted during this install.</summary>
+    public string? EulaVersion { get; set; }
     public string InstallDir { get; set; } = "";
     public string Scope { get; set; } = "";
     public string PayloadSha256 { get; set; } = "";
@@ -117,12 +120,26 @@ public static class Installer
         return string.IsNullOrWhiteSpace(info) ? "0.0.0" : info;
     }
 
-    public static string? ReadEulaText()
+    /// <summary>
+    /// Reads the EULA for the given installer language (`de-DE`, `en-GB`,
+    /// `da-DK`, `fr-FR`, `pl-PL`), falling back to English and finally to the
+    /// legacy embedded draft.
+    /// </summary>
+    public static string? ReadEulaText(string? lang = null)
     {
-        using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("EULA.txt");
-        if (stream is null) return null;
-        using var reader = new StreamReader(stream);
-        return reader.ReadToEnd();
+        var assembly = Assembly.GetExecutingAssembly();
+        foreach (var candidate in new[] { lang, "en-GB", "de-DE" })
+        {
+            if (string.IsNullOrEmpty(candidate)) continue;
+            using var stream = assembly.GetManifestResourceStream($"eula.{candidate}.txt");
+            if (stream is null) continue;
+            using var reader = new StreamReader(stream, Encoding.UTF8);
+            return reader.ReadToEnd();
+        }
+        using var legacy = assembly.GetManifestResourceStream("EULA.txt");
+        if (legacy is null) return null;
+        using var legacyReader = new StreamReader(legacy, Encoding.UTF8);
+        return legacyReader.ReadToEnd();
     }
 
     // ------------------------------------------------------------------
@@ -399,6 +416,7 @@ public static class Installer
             var manifest = new InstallManifest
             {
                 Version = version,
+                EulaVersion = InstallerText.EulaVersion,
                 InstallDir = installDir,
                 Scope = UninstallKeyHive(options.Scope),
                 PayloadSha256 = payloadHash,
@@ -449,6 +467,7 @@ public static class Installer
             {
                 key.SetValue("DisplayName", ProductName);
                 key.SetValue("DisplayVersion", version);
+                key.SetValue("EulaVersion", InstallerText.EulaVersion);
                 key.SetValue("DisplayIcon", $"\"{exePath}\",0");
                 key.SetValue("InstallLocation", $"\"{installDir}\\");
                 key.SetValue("Publisher", "NØVA Flash Studio contributors");

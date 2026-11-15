@@ -30,6 +30,22 @@
     <EmbeddedResource Include="..\..\..\legal\EULA-DRAFT.md">
       <LogicalName>EULA.txt</LogicalName>
     </EmbeddedResource>
+    <!-- M27.8: localized full EULAs (legal/LICENSE-EULA*), en-GB fallback -->
+    <EmbeddedResource Include="..\..\..\legal\LICENSE-EULA.md">
+      <LogicalName>eula.de-DE.txt</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\..\..\legal\LICENSE-EULA.en-GB.md">
+      <LogicalName>eula.en-GB.txt</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\..\..\legal\LICENSE-EULA.da-DK.md">
+      <LogicalName>eula.da-DK.txt</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\..\..\legal\LICENSE-EULA.fr-FR.md">
+      <LogicalName>eula.fr-FR.txt</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\..\..\legal\LICENSE-EULA.pl-PL.md">
+      <LogicalName>eula.pl-PL.txt</LogicalName>
+    </EmbeddedResource>
     <EmbeddedResource Include="..\..\..\assets\branding\nova-logo-256.png">
       <LogicalName>logo.png</LogicalName>
     </EmbeddedResource>

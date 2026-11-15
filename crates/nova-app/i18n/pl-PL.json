@@ -166,5 +166,6 @@
   "layout.stage": "Scena",
   "layout.split": "Scena + Kod",
   "layout.code": "Kod",
-  "menu.view.split": "Układ Scena + Kod"
+  "menu.view.split": "Układ Scena + Kod",
+  "menu.help.eula": "Pokaż umowę licencyjną (EULA)"
 }

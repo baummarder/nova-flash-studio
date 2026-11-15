@@ -455,6 +455,8 @@ pub enum UiAction {
     Quit,
     About,
     Help,
+    /// M27.8: open the bundled EULA document.
+    ShowEula,
     SetMode(Mode),
     /// M23.1: switch the editor workspace layout (stage / split / code).
     SetLayout(EditorLayout),
