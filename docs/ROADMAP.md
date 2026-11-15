@@ -13,14 +13,14 @@ for now**.
 
 | Area | Status |
 | --- | --- |
-| Workspace, model, validation, `.nova` persistence | **done** |
-| Spec-based SWF writer (shapes, sprites, timeline, compression) | **done** |
+| Workspace, model, validation, `.nova` persistence (format v4) | **done** |
+| Spec-based SWF writer (shapes, sprites, timeline, compression, gradients) | **done** |
 | Independent parser validation of emitted SWF | **done** |
 | Desktop shell, dark layout, two modes | **done** |
 | Stage camera, hit-testing, drag editing, onion skin | **done** |
 | Multi-select (shift-click/marquee), shared transforms | **done** |
 | Timeline keyframes, tweens, labels, ruler scrub | **done** |
-| Tween creation/easing/duration through the UI | **done** |
+| Tween creation/easing/duration through the UI (motion and shape) | **done** |
 | Keyframe copy/paste/duplicate, cross-layer moves, insert/remove | **done** |
 | Undo/redo with transaction grouping | **done** |
 | Autosave and crash recovery | **done** |
@@ -28,20 +28,94 @@ for now**.
 | AS3 lexer, parser, AST, declaration checks | **done** |
 | QuickJS console for tools | **done** |
 | AS3 type checking / ABC / `DoABC2` / `SymbolClass` | **done for the documented subset** |
+| AS3 `switch` and strict-equality lowering | **done (M18)** |
+| AS3 interfaces, `super`, try/catch/finally, full API declarations | **next** |
 | Ruffle playback and app launch path | **done for tested sample exports** |
 | Adobe Flash Player Projector path and process launch | **done in this development environment; visual playback NOT VERIFIED** |
 | Adobe-default runtime setup, first launch, explicit Ruffle, persisted settings | **done** |
 | AI Agent Editor, provider manager, DPAPI credentials, safe edits | **done; mocked tests, no live provider required** |
 | AS3 arrays, object literals, index access | **done structurally; runtime semantics NOT VERIFIED** |
-| AS3 interfaces, `super`, switch, try/catch/finally, full API declarations | **next** |
 | `.nova`, `.fla`/XFL and `.swf` import/export with compatibility reports | **done for documented subsets** |
 | `SymbolClass` character-link reconstruction for preserved ABC | **done where the character maps to a reconstructed object; unmappable links reported** |
 | Native `.fla` export validated in Adobe Animate/Flash | **blocked: no Adobe authoring app available** |
 | Layer folders, reorder, project-tree editing, editor find/replace, project search | **done** |
 | Static text authoring (built-in vector font, shapes export) | **done** |
-| Bitmaps, sounds, system fonts, runtime text | **partial import/preserved-only or unimplemented; planned** |
-| Nested symbol timelines, masks, shape tweens | **planned** |
+| Bitmaps, sounds, nested symbol timelines, masks, shape tweens | **done for the documented subset (M9/M12/M17)** |
+| System fonts and editable runtime text | **unimplemented; planned** |
+| Skeletal animation, mesh skinning and weight painting | **done (M15/M17)** |
+| Tilemaps, particles, game preview with physics | **done (M10/M11)** |
+| Three independently distributable editions (User/Edu/Enterprise) | **done (M19)** |
+| M20.0 CI/help/README/roadmap/archive stabilization | **done** |
+| M20.0 Windows `.nova` file-association specification | **done (spec only)** |
+| M20.1 Education implementation (`nova-edu`, classroom mode) | **not started** |
+| Native `.nova` file association on Windows | **spec only; implementation planned M20.1** |
 | HTML5 export | **planned, secondary** |
+
+---
+
+## Mega Milestones 9–19 — delivered baseline (`0.15.0-rc1`)
+
+The sections below preserve the historical M0–M8 plans. The actual project moved
+well past them; the release reports are authoritative:
+
+| Milestone | Release | Delivered focus |
+| --- | --- | --- |
+| M9 | `0.5.0-rc1` | Bitmaps, sounds, nested symbol timelines, masks, shape tweens, editor depth |
+| M10 / M10.1 | `0.6.0-rc1` | Game metadata, preview physics, game kit, templates, runtime lifecycle/event bus |
+| M11 / M11.1 | `0.7.1-rc1` | Tilemaps, tilesets, particles, world building, SAT collision, region editing |
+| M12 | `0.8.0-rc1` | Exported AS3 runtime bridge (`game.NovaGame`), release archive safety |
+| M13 | `0.9.0-rc1` | `Math` shim, body drive API, tilemap collision export, Ruffle runtime parity |
+| M14 | `0.10.0-rc1` | AVM2 playerglobal surface, SWF v13 script exports |
+| M15 | `0.11.0-rc1` | Skeletal animation, FK/IK, baked sprite matrices |
+| M16 | `0.12.0-rc1` | Pen tool, path nodes, bone overlay, FABRIK chains |
+| M17 | `0.13.0-rc1` | Cubic Béziers, native SWF gradients, Boolean operations, mesh skinning |
+| M18 | `0.14.0-rc1` | FLA/XFL honesty, SWF gradient import, AS3 `switch`, asset workflow |
+| M19 | `0.15.0-rc1` | Three editions, isolated config dirs/installers, shared `.nova` compatibility |
+
+See `docs/MEGA_MILESTONE_*_REPORT.md` and the per-milestone test reports.
+
+## M20 — Education Edition and stabilization
+
+Architectural basis: `docs/MEGA_MILESTONE_20_PREPARATION.md`. The `.nova` format
+stays at **v4** and remains edition-neutral; Education data will live in
+sidecars, and classroom UI will be gated behind the new `nova-edu` crate.
+
+### M20.0 — Stabilization (done)
+
+- [x] Repair CI: `cargo fmt --check` and
+      `cargo clippy --workspace --all-targets -- -D warnings` are green.
+- [x] Fix stale in-app About/Help text (bitmaps, sounds, nested symbols, masks,
+      shape tweens and skeletal animation are documented as implemented).
+- [x] Align README and roadmap with the actual M19/M20 state.
+- [x] Verify and complete the three-edition release archive without overwriting
+      unverified artifacts; edition artifacts carry `BUILD-INFO.json` and
+      `SHA256SUMS.txt`.
+- [x] Add precise edition/packaging regression tests (config directories,
+      installer identity, coexistence, portable archives, SHA-256, cross-edition
+      `.nova`).
+- [x] Document a Windows `.nova` file-association specification (no registry
+      writes in M20.0) — see `docs/WINDOWS_FILE_ASSOCIATION.md`.
+
+### M20.1 — Education core (not started)
+
+- [ ] New `nova-edu` crate and Edu-only `Mode::Classroom` registration.
+- [ ] Teacher/student roles, class roster and assignment sidecar data.
+- [ ] Classroom UI gated by the Edu edition; User and Enterprise editions keep
+      the existing two modes.
+- [ ] `.nova` v4 compatibility tests across all three editions stay green.
+
+### M20.2 — File association and packaging follow-up (not started)
+
+- [ ] Implement the reviewed `.nova` association spec (HKCU, UserChoice-aware,
+      per-edition ProgIds, portable opt-in).
+- [ ] Rebuild all six Windows edition artifacts and archive them with verified
+      checksums.
+
+### M20.3 — Release (not started)
+
+- [ ] Release `0.16.0-rc1` only after M20.1/M20.2 tests pass.
+- [ ] Do not advertise Edu/Enterprise classroom or administration features before
+      they exist.
 
 ---
 
@@ -287,7 +361,11 @@ The docs/execution half is met for Ruffle; Adobe remains unverified.
 **Non-goals for this milestone:** full AS3 language parity, E4X, the entire
 `playerglobal` surface, performance parity with Adobe's compiler, AVM1 bytecode.
 
-## M4 — Media and timeline depth (planned)
+## M4 — Media and timeline depth (historical plan; superseded by M9–M17)
+
+> Most items below shipped in M9–M17 (nested symbol timelines, bitmaps, sounds,
+> gradients, masks, shape tweens, drawing tools, multi-scene export). This
+> section is kept as the original plan, not as current status.
 
 - [ ] Nested symbol timelines and a symbol edit mode.
 - [ ] Bitmap import/embedding (`DefineBitsLossless2`/JPEG tags) and library
@@ -306,7 +384,11 @@ The docs/execution half is met for Ruffle; Adobe remains unverified.
 **Exit criteria:** common Flash-style rich-media animations export without manual
 model edits, with a documented asset support matrix.
 
-## M5 — Product hardening and secondary targets (planned)
+## M5 — Product hardening and secondary targets (historical plan; partially delivered)
+
+> CI, packaging and installer work shipped in later milestones; see the
+> M19/M20.0 sections and `docs/PACKAGING.md`. Localization, accessibility,
+> HTML5 export and the QuickJS plug-in API remain future work.
 
 - [ ] HTML5/Canvas exporter sharing `resolve_scene` (secondary, not a substitute
       for SWF).

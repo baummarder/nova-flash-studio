@@ -51,6 +51,50 @@ function New-FakeDist {
     return $win
 }
 
+function New-FakeEditionDist {
+    param(
+        [string]$Root,
+        [string]$Version = '9.9.9-test'
+    )
+    $win = Join-Path $Root 'windows'
+    New-Item -ItemType Directory -Path $win -Force | Out-Null
+    $table = @(
+        @{ Id = 'user';       Slug = 'User';       Suffix = '' },
+        @{ Id = 'edu';        Slug = 'Edu';        Suffix = ' Edu' },
+        @{ Id = 'enterprise'; Slug = 'Enterprise'; Suffix = ' Enterprise' }
+    )
+    foreach ($item in $table) {
+        $dir = Join-Path $win $item.Id
+        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+        $product = 'N' + [char]0x00D8 + 'VA Flash Studio' + $item.Suffix
+        $payload = Join-Path $dir $product
+        New-Item -ItemType Directory -Path $payload -Force | Out-Null
+        $appExe = Join-Path $payload ($product + '.exe')
+        [System.IO.File]::WriteAllBytes($appExe, [byte[]](1..40))
+        $zip = Join-Path $dir ("NOVA-$($item.Slug)-Portable.zip")
+        [System.IO.File]::WriteAllBytes($zip, [byte[]](101..180))
+        $setup = Join-Path $dir ("NOVA-$($item.Slug)-Setup.exe")
+        [System.IO.File]::WriteAllBytes($setup, [byte[]](41..100))
+        $lines = @()
+        $lines += (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash + "  NOVA-$($item.Slug)-Portable.zip"
+        $lines += (Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash + "  NOVA-$($item.Slug)-Setup.exe"
+        [System.IO.File]::WriteAllLines((Join-Path $dir 'SHA256SUMS.txt'), $lines)
+        $info = [ordered]@{
+            product   = $product
+            edition   = $item.Id
+            version   = $Version
+            zipSha256 = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash
+            exeSha256 = (Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash
+        }
+        [System.IO.File]::WriteAllText(
+            (Join-Path $dir 'BUILD-INFO.json'),
+            ($info | ConvertTo-Json),
+            [System.Text.UTF8Encoding]::new($false)
+        )
+    }
+    return $win
+}
+
 $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("nova-archive-test-" + [guid]::NewGuid().ToString('N'))
 try {
     # --- Test 1+2: basic archive + idempotency -------------------------------
@@ -114,7 +158,46 @@ try {
     New-Item -ItemType Directory -Path (Join-Path $dist5 'windows') -Force | Out-Null
     $err = $null; try { & $archiveScript -DistRoot $dist5 } catch { $err = $_ }; Assert-True ($null -eq $err) 'empty windows dir exits cleanly'
 
-    # --- Test 7: missing windows dir is a no-op --------------------------------
+    # --- Test 7: all three edition archives are complete ----------------------
+    Write-Host 'Test: all three edition archives are complete and verified'
+    $dist7 = Join-Path $tmp 'case7'
+    New-FakeEditionDist -Root $dist7 | Out-Null
+    $err = $null; try { & $archiveScript -DistRoot $dist7 } catch { $err = $_ }
+    Assert-True ($null -eq $err) 'edition archive run exits cleanly'
+    foreach ($edition in @('user', 'edu', 'enterprise')) {
+        $arch = Join-Path $dist7 "archive\9.9.9-test\$edition"
+        $src = Join-Path $dist7 "windows\$edition"
+        Assert-True (Test-Path (Join-Path $arch 'BUILD-INFO.json')) "$edition BUILD-INFO archived"
+        Assert-True (Test-Path (Join-Path $arch 'SHA256SUMS.txt')) "$edition SHA256SUMS archived"
+        $slug = @{ user = 'User'; edu = 'Edu'; enterprise = 'Enterprise' }[$edition]
+        $zipName = "NOVA-$slug-Portable.zip"
+        $setupName = "NOVA-$slug-Setup.exe"
+        Assert-True (Test-Path (Join-Path $arch $zipName)) "$edition portable ZIP archived"
+        Assert-True (Test-Path (Join-Path $arch $setupName)) "$edition Setup EXE archived"
+        $zipOk = (Get-FileHash -LiteralPath (Join-Path $arch $zipName) -Algorithm SHA256).Hash -eq
+            (Get-FileHash -LiteralPath (Join-Path $src $zipName) -Algorithm SHA256).Hash
+        Assert-True $zipOk "$edition archived ZIP hash matches source"
+        $setupOk = (Get-FileHash -LiteralPath (Join-Path $arch $setupName) -Algorithm SHA256).Hash -eq
+            (Get-FileHash -LiteralPath (Join-Path $src $setupName) -Algorithm SHA256).Hash
+        Assert-True $setupOk "$edition archived Setup hash matches source"
+        $info = Get-Content -Raw -LiteralPath (Join-Path $arch 'BUILD-INFO.json') | ConvertFrom-Json
+        Assert-True ($info.version -eq '9.9.9-test' -and $info.edition -eq $edition) "$edition BUILD-INFO identity"
+    }
+    $err = $null; try { & $archiveScript -DistRoot $dist7 } catch { $err = $_ }
+    Assert-True ($null -eq $err) 'second edition archive run is idempotent'
+
+    # --- Test 8: differing edition artifact is refused without -Force ---------
+    Write-Host 'Test: differing edition artifact is refused'
+    $dist8 = Join-Path $tmp 'case8'
+    New-FakeEditionDist -Root $dist8 | Out-Null
+    & $archiveScript -DistRoot $dist8
+    $zip8 = Join-Path $dist8 'windows\edu\NOVA-Edu-Portable.zip'
+    [System.IO.File]::WriteAllBytes($zip8, [byte[]](1..30))
+    $threw = $false
+    try { & $archiveScript -DistRoot $dist8 } catch { $threw = $true }
+    Assert-True $threw 'differing edition artifact throws without -Force'
+
+    # --- Test 9: missing windows dir is a no-op --------------------------------
     $dist6 = Join-Path $tmp 'case6'
     New-Item -ItemType Directory -Path $dist6 -Force | Out-Null
     $err = $null; try { & $archiveScript -DistRoot $dist6 } catch { $err = $_ }; Assert-True ($null -eq $err) 'missing windows dir exits cleanly'

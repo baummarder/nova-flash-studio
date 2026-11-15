@@ -242,7 +242,19 @@ foreach ($job in $editionJobs) {
         if (Test-Path -LiteralPath $target) {
             if ($_.PSIsContainer) {
                 Write-Host "archive-releases: $($job.EditionId)/$($_.Name) already present in archive; verifying."
-                # Verify the portable zip hash when SHA256SUMS lists it.
+                # The staged payload folder contains the branded app EXE.
+                $exeName = $_.Name + '.exe'
+                $exeSrc = Join-Path $_.FullName $exeName
+                $exeDst = Join-Path $target $exeName
+                if ((Test-Path -LiteralPath $exeSrc -PathType Leaf) -and
+                    (Test-Path -LiteralPath $exeDst -PathType Leaf)) {
+                    $h1 = (Get-FileHash -LiteralPath $exeSrc -Algorithm SHA256).Hash
+                    $h2 = (Get-FileHash -LiteralPath $exeDst -Algorithm SHA256).Hash
+                    if ($h1 -ne $h2 -and -not $Force) {
+                        throw "archive-releases: archived $($job.EditionId)/$exeName differs; use -Force to overwrite."
+                    }
+                }
+                # Verify any SHA256SUMS entries that live inside the payload.
                 $sums = Join-Path $job.Dir 'SHA256SUMS.txt'
                 if (Test-Path -LiteralPath $sums) {
                     foreach ($line in [System.IO.File]::ReadAllLines($sums)) {
@@ -260,13 +272,13 @@ foreach ($job in $editionJobs) {
                         }
                     }
                 }
-                continue
+                return
             }
             $same = Test-Sha256File -Path $_.FullName -ExpectedHash `
                 ((Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash)
             if ($same) {
                 Write-Host "archive-releases: already archived, identical: $($job.EditionId)/$($_.Name)"
-                continue
+                return
             }
             if (-not $Force) {
                 throw "archive-releases: $target already exists with DIFFERENT content. Refusing to overwrite; re-run with -Force if intentional."

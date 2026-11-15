@@ -34,16 +34,18 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-# Edition table — single source for packaging. Keep in sync with
-# crates/nova-core/src/edition.rs and packaging/windows/installer/EditionInfo.cs.
-$editionTable = @{
-    user        = @{ Id = 'user';        Product = 'N' + [char]0x00D8 + 'VA Flash Studio';             Slug = 'User';        ZipName = 'NOVA-User-Portable.zip' }
-    edu         = @{ Id = 'edu';         Product = 'N' + [char]0x00D8 + 'VA Flash Studio Edu';         Slug = 'Edu';         ZipName = 'NOVA-Edu-Portable.zip' }
-    enterprise  = @{ Id = 'enterprise';  Product = 'N' + [char]0x00D8 + 'VA Flash Studio Enterprise';  Slug = 'Enterprise';  ZipName = 'NOVA-Enterprise-Portable.zip' }
+# Edition table — single source of truth: packaging/editions.json.
+# Keep in sync with crates/nova-core/src/edition.rs and
+# packaging/windows/installer/EditionInfo.cs (checked by
+# scripts/test-edition-packaging.ps1 and nova-core/tests/editions.rs).
+$editionsPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'packaging\editions.json'
+$editionsDoc = [System.IO.File]::ReadAllText($editionsPath, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
+$editionInfo = $editionsDoc.editions | Where-Object { $_.id -eq $Edition } | Select-Object -First 1
+if ($null -eq $editionInfo) {
+    throw "Edition '$Edition' is missing from packaging/editions.json."
 }
-$editionInfo = $editionTable[$Edition]
-$productName = $editionInfo.Product
-$editionId = $editionInfo.Id
+$productName = $editionInfo.product
+$editionId = $editionInfo.id
 
 function Invoke-ReleaseCli {
     param(
@@ -167,7 +169,7 @@ try {
     $checksums += (Get-FileHash -LiteralPath $targetExe -Algorithm SHA256).Hash + "  $productName.exe"
     $zipPath = $null
     if (-not $NoZip) {
-        $zipPath = Join-Path $stageRoot $editionInfo.ZipName
+        $zipPath = Join-Path $stageRoot $editionInfo.portableZip
         if (Test-Path -LiteralPath $zipPath) {
             Remove-Item -LiteralPath $zipPath -Force
         }

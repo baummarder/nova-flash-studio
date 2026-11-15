@@ -5,10 +5,47 @@ the compiled executable or bundle plus the branding assets and documentation;
 target machines do **not** need a Rust toolchain.
 
 The source version is the single release version. It lives in
-`[workspace.package] version` in `Cargo.toml` (currently `0.5.0-rc1`). The Windows
+`[workspace.package] version` in `Cargo.toml` (currently `0.15.0-rc1`). The Windows
 resource, splash screen, macOS `Info.plist` and package scripts read that value.
 
-## Artifact layout
+## Editions (M19+)
+
+NØVA ships as **three editions from one codebase** — User, Edu and
+Enterprise — selected at build time via `NOVA_EDITION`
+(`packaging/editions.json` is the packaging single source of truth; see
+`docs/EDITIONS.md` and `docs/EDITION_ARCHITECTURE.md`).
+
+```text
+dist/
+  windows/
+    user/
+      NØVA Flash Studio/NØVA Flash Studio.exe
+      NOVA-User-Portable.zip
+      NOVA-User-Setup.exe
+      SHA256SUMS.txt
+      BUILD-INFO.json
+    edu/
+      NØVA Flash Studio Edu/…
+      NOVA-Edu-Portable.zip
+      NOVA-Edu-Setup.exe
+      SHA256SUMS.txt
+      BUILD-INFO.json
+    enterprise/
+      NØVA Flash Studio Enterprise/…
+      NOVA-Enterprise-Portable.zip
+      NOVA-Enterprise-Setup.exe
+      SHA256SUMS.txt
+      BUILD-INFO.json
+```
+
+Each edition has its own product folder, portable ZIP, installer,
+uninstall key, ProgId family, bundle id and configuration directory.
+`scripts/package-editions.ps1` builds all three; the per-edition scripts
+are `package-windows.ps1 -Edition <id>` and
+`package-installer.ps1 -Edition <id>`. `scripts/test-edition-packaging.ps1`
+verifies manifest ↔ artifacts ↔ archive consistency (checksums included).
+
+## Artifact layout (legacy single-edition view)
 
 ```text
 dist/
@@ -22,8 +59,8 @@ dist/
       LICENSE-APACHE-2.0.txt
       THIRD-PARTY-NOTICES.md
       licenses/*.txt
-    NOVA-Flash-Studio-<version>-windows-x64.zip      (portable)
-    NOVA-Flash-Studio-<version>-windows-x64-Setup.exe (installer)
+    NOVA-Flash-Studio-<version>-windows-x64.zip      (portable, pre-M19 naming)
+    NOVA-Flash-Studio-<version>-windows-x64-Setup.exe (installer, pre-M19 naming)
     SHA256SUMS.txt
   macos/
     NØVA Flash Studio.app/
@@ -50,7 +87,8 @@ dist/
 Release packages contain the executable/bundle, docs and legal files only. They
 do **not** contain per-user AI provider settings, DPAPI credential blobs or
 runtime settings. Those live outside the install directory under
-`%APPDATA%\NOVA Flash Studio` (`ai-providers.json`, `credentials/`,
+`%APPDATA%\NOVA Flash Studio{, Edu, Enterprise}` per edition
+(`ai-providers.json`, `credentials/`,
 `flash-player.json`). They are not part of the portable ZIP or the installer
 payload and are never removed by uninstall.
 

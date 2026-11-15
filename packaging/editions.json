@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "note": "Single source of truth for edition packaging identity (M20.0). Keep in sync with crates/nova-core/src/edition.rs; scripts/test-edition-packaging.ps1 and crates/nova-core/tests/editions.rs verify consistency.",
+  "editions": [
+    {
+      "id": "user",
+      "product": "NØVA Flash Studio",
+      "slug": "User",
+      "configDir": "NOVA Flash Studio",
+      "recoveryDir": "nova-flash-studio-user",
+      "bundleId": "studio.nova.flash.user",
+      "appExe": "NØVA Flash Studio.exe",
+      "uninstallExe": "NØVA Flash Studio Uninstall.exe",
+      "uninstallKey": "NOVAFlashStudio",
+      "progIdNova": "NOVAFlashStudio.Project",
+      "progIdSwf": "NOVAFlashStudio.SWF",
+      "setupExe": "NOVA-User-Setup.exe",
+      "portableZip": "NOVA-User-Portable.zip"
+    },
+    {
+      "id": "edu",
+      "product": "NØVA Flash Studio Edu",
+      "slug": "Edu",
+      "configDir": "NOVA Flash Studio Edu",
+      "recoveryDir": "nova-flash-studio-edu",
+      "bundleId": "studio.nova.flash.edu",
+      "appExe": "NØVA Flash Studio Edu.exe",
+      "uninstallExe": "NØVA Flash Studio Edu Uninstall.exe",
+      "uninstallKey": "NOVAFlashStudioEdu",
+      "progIdNova": "NOVAFlashStudioEdu.Project",
+      "progIdSwf": "NOVAFlashStudioEdu.SWF",
+      "setupExe": "NOVA-Edu-Setup.exe",
+      "portableZip": "NOVA-Edu-Portable.zip"
+    },
+    {
+      "id": "enterprise",
+      "product": "NØVA Flash Studio Enterprise",
+      "slug": "Enterprise",
+      "configDir": "NOVA Flash Studio Enterprise",
+      "recoveryDir": "nova-flash-studio-enterprise",
+      "bundleId": "studio.nova.flash.enterprise",
+      "appExe": "NØVA Flash Studio Enterprise.exe",
+      "uninstallExe": "NØVA Flash Studio Enterprise Uninstall.exe",
+      "uninstallKey": "NOVAFlashStudioEnterprise",
+      "progIdNova": "NOVAFlashStudioEnterprise.Project",
+      "progIdSwf": "NOVAFlashStudioEnterprise.SWF",
+      "setupExe": "NOVA-Enterprise-Setup.exe",
+      "portableZip": "NOVA-Enterprise-Portable.zip"
+    }
+  ]
+}

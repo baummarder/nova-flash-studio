@@ -8,8 +8,18 @@ the project format is versioned JSON, and the SWF writer is implemented directly
 against the published SWF file-format specification. Tools and extensions run in
 an embedded QuickJS context; ActionScript is **not** executed by QuickJS.
 
-> **Status: Mega Milestone 19 release candidate `0.15.0-rc1`, not stable.**
-> M19 turns NØVA into **three independently distributable editions**
+> **Status: M20.0 stabilization on top of `0.15.0-rc1`; M20 release target
+> is `0.16.0-rc1`, not stable.**
+> M20.0 repairs the Rust CI (Clippy with `-D warnings`), corrects stale
+> in-app help, brings README/roadmap and the three-edition release archive
+> in line with the code, and adds edition/packaging regression tests. The
+> **Education implementation starts in M20.1** (`nova-edu`, `Mode::Classroom`,
+> teacher/student roles) and is **not available yet**; Edu/Enterprise
+> classroom and administration modules remain reserved and are documented
+> as planned, not implemented. The `.nova` format stays at v4 and remains
+> edition-neutral.
+>
+> **M19 baseline `0.15.0-rc1`:** NØVA is **three independently distributable editions**
 > from one shared Rust codebase: **NØVA Flash Studio** (User),
 > **NØVA Flash Studio Edu** and **NØVA Flash Studio Enterprise** — each
 > with own branding, splash/tagline, window title, exe metadata,
@@ -218,7 +228,7 @@ Rust.
 
 | Platform | Package | Status in this repository |
 | --- | --- | --- |
-| Windows 10/11 x64 | `NOVA-Flash-Studio-<version>-windows-x64-Setup.exe` installer, or the portable `NØVA Flash Studio.exe` in the ZIP under `dist/windows/` | Rebuilt and smoke-tested for `0.7.1-rc1`; `0.7.0-rc1` preserved under `dist/archive/` |
+| Windows 10/11 x64 | Edition artifacts under `dist/windows/{user,edu,enterprise}/`: `NOVA-<Edition>-Portable.zip` and `NOVA-<Edition>-Setup.exe` | Rebuilt and smoke-tested for `0.15.0-rc1`; earlier versions preserved under `dist/archive/<version>/` |
 | macOS 10.15+ | `NØVA Flash Studio.app` ZIP | Bundle script and metadata prepared; not built here |
 | Linux x86_64 | `NØVA-Flash-Studio.AppImage` | AppImage recipe prepared; not built here |
 
@@ -258,15 +268,15 @@ bash scripts/package-macos.sh
 bash scripts/package-linux.sh
 ```
 
-The current Windows artifacts are produced from workspace version `0.7.1-rc1`:
-the portable ZIP, the staged `NØVA Flash Studio.exe`, and the self-contained
-`NOVA-Flash-Studio-0.7.1-rc1-windows-x64-Setup.exe`. Sizes and SHA-256 values are
-listed in `dist/windows/SHA256SUMS.txt`, which is authoritative even if a
-documentation-only rebuild changes a ZIP or Setup hash. Earlier release
-payloads are preserved under `dist/archive/<version>/` (e.g. `0.7.0-rc1`,
-`0.5.0-rc1`). The validated
-`0.4.0-rc1` artifacts are preserved under `dist/archive/0.4.0-rc1` and
-`0.3.0-rc2` under `dist/archive/0.3.0-rc2`. The artifacts are unsigned.
+The current Windows edition artifacts are produced from workspace version
+`0.15.0-rc1` and live in `dist/windows/user/`, `dist/windows/edu/` and
+`dist/windows/enterprise/`. Each directory contains the portable ZIP, the
+self-contained Setup EXE, `SHA256SUMS.txt` and `BUILD-INFO.json` recording the
+git commit, toolchain, target and the SHA-256 of both artifacts. The checksum
+files are authoritative. Earlier release payloads are preserved under
+`dist/archive/<version>/`; the legacy `0.14.0-rc1` files still in the root of
+`dist/windows/` predate the edition split and are kept unchanged. The
+artifacts are unsigned.
 
 See [docs/PACKAGING.md](docs/PACKAGING.md) for prerequisites, signing,
 notarization, AppImage dependencies, CI and the exact artifact layout.
@@ -626,16 +636,18 @@ fallbacks:
   and common German characters and is exported as SWF/XFL shapes, not
   `DefineText`. System/OpenType fonts, font embedding, selection, HTML text and
   editable runtime text are not implemented.
-- **No video, filters or gradients.** Bitmaps and sounds are embedded and
-  editable (M9); video, runtime filters and gradient fills are not
-  implemented.
-- **Symbols have real timelines but limited editing.** Nested MovieClips,
-  per-symbol timelines and timeline targets exist (M9); a dedicated symbol
-  editing canvas, masks and guide layers are not implemented (the data model
-  has layer kinds, but the editor/exporter do not act on masks/guides).
+- **No video or runtime filters.** Bitmaps and sounds are embedded and editable
+  (M9); linear and radial gradient fills with multiple stops are implemented and
+  exported as native SWF gradient fill styles (M17). Focal gradients, video,
+  runtime filters and bitmap editing are not implemented.
+- **Symbols have real timelines.** Nested MovieClips, per-symbol timelines,
+  entering/leaving a symbol for editing, and timeline targets exist (M9). Mask
+  layers are implemented: the editor marks them and the SWF/XFL exporters emit
+  the corresponding clip/mask structure. Motion-guide paths are not implemented;
+  `Guide` layers are non-rendering authoring layers only.
 - **Layer folders are functional but not a complete layer workflow.** Folders,
-  rename, recursive visibility/lock and reordering exist; guide/mask layers and
-  advanced nesting rules are not implemented.
+  rename, recursive visibility/lock and reordering exist; mask layers are
+  implemented, but motion guides and advanced nesting rules are not.
 - **No HTML5 export.** It is an optional later target, not implemented.
 - **Character-ID ceiling.** At most 65,535 SWF character IDs; export fails
   cleanly beyond that.
