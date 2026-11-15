@@ -24,6 +24,8 @@ internal static class Program
                 "--smoke-test" => SmokeTest(),
                 "--install" => HeadlessInstall(args.Skip(1).ToArray()),
                 "--uninstall" => HeadlessUninstall(args.Skip(1).ToArray()),
+                "--set-language" => SetLanguage(args.Skip(1).ToArray()),
+                "--get-language" => GetLanguage(),
                 _ => Unknown(command),
             };
         }
@@ -59,6 +61,8 @@ internal static class Program
                 {EditionInfo.SetupExeName} --smoke-test   Payload-Prüfsumme und Inhalt testen
                 {EditionInfo.SetupExeName} --install DIR  Headless-Installation
                 {EditionInfo.SetupExeName} --uninstall    Installation entfernen
+                {EditionInfo.SetupExeName} --set-language CODE   Assistentensprache speichern
+                {EditionInfo.SetupExeName} --get-language        Aktuelle Assistentensprache
 
             INSTALL-OPTIONEN:
                 --all-users          Systemweite Installation (HKLM, UAC/Admin)
@@ -80,6 +84,30 @@ internal static class Program
             Benutzerprojekte und -einstellungen unter %APPDATA% werden niemals
             entfernt.
             """);
+        return 0;
+    }
+
+    /// <summary>Persist the wizard language (M24.2) without opening the GUI.</summary>
+    private static int SetLanguage(string[] args)
+    {
+        InstallerText.Initialize();
+        var code = args.FirstOrDefault();
+        if (code is null || !InstallerText.Languages.Any(l => l.Code == code))
+        {
+            Cli.Error($"FEHLER: --set-language benötigt einen der Codes: " +
+                string.Join(", ", InstallerText.Languages.Select(l => l.Code)));
+            return 2;
+        }
+        InstallerText.SetLanguage(code);
+        Cli.WriteLine($"Sprache gespeichert: {code}");
+        return 0;
+    }
+
+    private static int GetLanguage()
+    {
+        InstallerText.Initialize();
+        var stored = InstallerText.HasStoredLanguage();
+        Cli.WriteLine($"{InstallerText.Current}{(stored ? "" : " (Standard, nicht gespeichert)")}");
         return 0;
     }
 

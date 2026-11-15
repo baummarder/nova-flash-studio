@@ -31,10 +31,12 @@ internal static class WizardTheme
     }
 }
 
-/// <summary>Base class for wizard pages.</summary>
+/// <summary>Base class for wizard pages. All visible text is resolved through
+/// <see cref="InstallerText"/> so a mid-wizard language switch only needs
+/// <see cref="RefreshText"/>.</summary>
 internal abstract class WizardPage : UserControl
 {
-    public abstract string Title { get; }
+    public virtual string Title => "";
     public virtual string Subtitle => "";
 
     /// <summary>Validate before leaving the page; returns error text or null.</summary>
@@ -42,6 +44,9 @@ internal abstract class WizardPage : UserControl
 
     /// <summary>Called when the page becomes current.</summary>
     public virtual void OnEnter() { }
+
+    /// <summary>Re-apply localized strings after a language change.</summary>
+    public virtual void RefreshText() { }
 
     protected Label MakeLabel(string text, float size = 9.5f, bool bold = false)
     {
@@ -63,11 +68,72 @@ internal abstract class WizardPage : UserControl
     }
 }
 
-/// <summary>Page 1: welcome / product info.</summary>
+/// <summary>First page (only when no language was persisted yet): pick the
+/// setup language. Native language names are always shown.</summary>
+internal sealed class LanguagePage : WizardPage
+{
+    private readonly ComboBox _combo = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 220 };
+    private readonly Label _prompt = new()
+    {
+        AutoSize = true,
+        MaximumSize = new Size(560, 0),
+        ForeColor = WizardTheme.TextDim,
+    };
+
+    public override string Title => InstallerText.T("wiz.lang.title");
+    public override string Subtitle => InstallerText.T("wiz.lang.subtitle");
+
+    public LanguagePage()
+    {
+        foreach (var (code, name) in InstallerText.Languages)
+        {
+            _combo.Items.Add(name);
+        }
+        _combo.SelectedIndex = Array.FindIndex(
+            InstallerText.Languages, l => l.Code == InstallerText.Current);
+        if (_combo.SelectedIndex < 0) _combo.SelectedIndex = 0;
+        _combo.Top = 40;
+        _combo.Left = 24;
+        Controls.Add(_combo);
+
+        var label = MakeLabel(InstallerText.T("wiz.lang.label"), 9.5f, bold: true);
+        label.Top = 18;
+        label.Left = 24;
+        Controls.Add(label);
+
+        _prompt.Top = 90;
+        _prompt.Left = 24;
+        _prompt.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+        Controls.Add(_prompt);
+        RefreshText();
+    }
+
+    /// <summary>Apply the combo selection; called by the wizard on Next.</summary>
+    public string SelectedCode =>
+        _combo.SelectedIndex >= 0
+            ? InstallerText.Languages[_combo.SelectedIndex].Code
+            : InstallerText.Current;
+
+    /// <summary>Apply selection immediately so the next page is localized.</summary>
+    public void ApplySelection()
+    {
+        InstallerText.SetLanguage(SelectedCode);
+    }
+
+    public override void RefreshText()
+    {
+        _prompt.Text = InstallerText.T("wiz.lang.prompt");
+    }
+}
+
+/// <summary>Page: welcome / product info.</summary>
 internal sealed class WelcomePage : WizardPage
 {
-    public override string Title => "Willkommen";
-    public override string Subtitle => $"{EditionInfo.ProductName} installieren";
+    private readonly Label _version = new() { AutoSize = true };
+    private readonly Label _body = new() { AutoSize = false };
+
+    public override string Title => InstallerText.T("wiz.welcome.title");
+    public override string Subtitle => InstallerText.T("wiz.welcome.subtitle", EditionInfo.ProductName);
 
     public WelcomePage()
     {
@@ -86,15 +152,20 @@ internal sealed class WelcomePage : WizardPage
             Controls.Add(picture);
         }
 
-        AddControl(MakeLabel(EditionInfo.ProductName, 16f, bold: true), 140);
-        AddControl(MakeLabel($"Version {AssemblyVersion()}", 10f), 172);
-        AddControl(MakeLabel(
-            $"Der Assistent installiert {EditionInfo.ProductName} auf diesem Computer.\n" +
-            "Standard ist die Installation nur für diesen Benutzer\n" +
-            "(%LOCALAPPDATA%, keine Admin-Rechte). Optional ist eine\n" +
-            "Installation für alle Benutzer (UAC-Abfrage) oder ein\n" +
-            "eigener Installationsordner möglich.\n\n" +
-            "Ihre Projekte und Einstellungen werden niemals gelöscht.", 9.5f), 210);
+        var name = MakeLabel(EditionInfo.ProductName, 16f, bold: true);
+        name.Top = 140; name.Left = 24;
+        Controls.Add(name);
+
+        _version.Top = 172; _version.Left = 24;
+        _version.Font = new Font("Segoe UI", 10f);
+        _version.ForeColor = WizardTheme.TextDim;
+        Controls.Add(_version);
+
+        _body.Top = 210; _body.Left = 24; _body.Width = 640; _body.Height = 160;
+        _body.Font = new Font("Segoe UI", 9.5f);
+        _body.ForeColor = WizardTheme.TextMain;
+        Controls.Add(_body);
+        RefreshText();
     }
 
     private static string AssemblyVersion()
@@ -108,24 +179,30 @@ internal sealed class WelcomePage : WizardPage
         }
         return "0.0.0";
     }
+
+    public override void RefreshText()
+    {
+        _version.Text = InstallerText.T("wiz.welcome.version", AssemblyVersion());
+        _body.Text = InstallerText.T("wiz.welcome.body", EditionInfo.ProductName);
+    }
 }
 
-/// <summary>Page 2: license agreement.</summary>
+/// <summary>Page: license agreement.</summary>
 internal sealed class LicensePage : WizardPage
 {
-    public override string Title => "Lizenzvertrag";
-    public override string Subtitle => "Bitte lesen Sie die Lizenzbedingungen";
-
-    private readonly RadioButton _accept = new() { Text = "Ich akzeptiere den Lizenzvertrag", AutoSize = true };
-    private readonly RadioButton _decline = new() { Text = "Ich akzeptiere nicht", AutoSize = true };
+    private readonly RadioButton _accept = new() { AutoSize = true };
+    private readonly RadioButton _decline = new() { AutoSize = true };
     private readonly Button _next;
+
+    public override string Title => InstallerText.T("wiz.license.title");
+    public override string Subtitle => InstallerText.T("wiz.license.subtitle");
 
     public bool Accepted => _accept.Checked;
 
     public LicensePage(Button nextButton)
     {
         _next = nextButton;
-        var text = Installer.ReadEulaText() ?? "(EULA-Text nicht gefunden)";
+        var text = Installer.ReadEulaText() ?? InstallerText.T("wiz.license.missing");
         var box = new TextBox
         {
             Multiline = true,
@@ -152,32 +229,39 @@ internal sealed class LicensePage : WizardPage
         _decline.CheckedChanged += (_, _) => _next.Enabled = false;
         _accept.Checked = true;
         _next.Enabled = true;
+        RefreshText();
     }
 
     public override void OnEnter()
     {
         _next.Enabled = _accept.Checked;
     }
+
+    public override void RefreshText()
+    {
+        _accept.Text = InstallerText.T("wiz.license.accept");
+        _decline.Text = InstallerText.T("wiz.license.decline");
+    }
 }
 
-/// <summary>Page 3: install scope and directory.</summary>
+/// <summary>Page: install scope and directory.</summary>
 internal sealed class ScopePage : WizardPage
 {
-    public override string Title => "Installationsort";
-    public override string Subtitle => "Für wen und wohin installieren?";
-
-    private readonly RadioButton _perUser = new() { AutoSize = true, Text = "Nur für mich (empfohlen)" };
-    private readonly RadioButton _allUsers = new() { AutoSize = true, Text = "Für alle Benutzer (Administratorrechte erforderlich)" };
+    private readonly RadioButton _perUser = new() { AutoSize = true };
+    private readonly RadioButton _allUsers = new() { AutoSize = true };
     private readonly TextBox _dir = new() { Width = 420 };
-    private readonly Button _browse = new() { Text = "Durchsuchen …", Width = 110 };
+    private readonly Button _browse = new() { Width = 110 };
+    private readonly Label _dirLabel = new() { AutoSize = true };
     private readonly Label _adminHint = new() { AutoSize = true, ForeColor = WizardTheme.Warn };
     private readonly Label _existing = new() { AutoSize = true, ForeColor = WizardTheme.Info, MaximumSize = new Size(620, 0) };
     private readonly CheckBox _migrate = new()
     {
         AutoSize = true,
         ForeColor = WizardTheme.TextMain,
-        Text = "Vorhandene Installation migrieren (wird zuerst entfernt; Projekte und Einstellungen bleiben erhalten)",
     };
+
+    public override string Title => InstallerText.T("wiz.scope.title");
+    public override string Subtitle => InstallerText.T("wiz.scope.subtitle");
 
     public InstallScope Scope => _allUsers.Checked ? InstallScope.AllUsers : InstallScope.PerUser;
     public string InstallDir => _dir.Text.Trim();
@@ -194,9 +278,10 @@ internal sealed class ScopePage : WizardPage
         _allUsers.Top = top + 28; _allUsers.Left = 24; _allUsers.ForeColor = WizardTheme.TextMain;
         Controls.Add(_perUser); Controls.Add(_allUsers);
 
-        var dirLabel = MakeLabel("Installationsordner:", 9.5f, bold: true);
-        dirLabel.Top = top + 70; dirLabel.Left = 24;
-        Controls.Add(dirLabel);
+        _dirLabel.Top = top + 70; _dirLabel.Left = 24;
+        _dirLabel.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+        _dirLabel.ForeColor = WizardTheme.TextMain;
+        Controls.Add(_dirLabel);
 
         _dir.Top = top + 94; _dir.Left = 24;
         _dir.ForeColor = Color.Black;
@@ -208,12 +293,6 @@ internal sealed class ScopePage : WizardPage
         Controls.Add(_browse);
 
         _adminHint.Top = top + 128; _adminHint.Left = 24;
-        _adminHint.Text = _allUsers.Checked
-            ? "Die Installation für alle Benutzer erfordert Administratorrechte: " +
-              "Beim Start der Installation erscheint der normale Windows-UAC-Dialog. " +
-              "Bei Ablehnung wird nichts installiert."
-            : "Die Installation nur für diesen Benutzer benötigt keine " +
-              "Administratorrechte und installiert nach %LOCALAPPDATA%\\Programs.";
         Controls.Add(_adminHint);
 
         _existing.Top = top + 156; _existing.Left = 24;
@@ -247,6 +326,7 @@ internal sealed class ScopePage : WizardPage
         _perUser.CheckedChanged += (_, _) => OnScopeChanged();
         _allUsers.CheckedChanged += (_, _) => OnScopeChanged();
         _browse.Click += (_, _) => Browse();
+        RefreshText();
         RefreshExistingInfo();
     }
 
@@ -282,18 +362,19 @@ internal sealed class ScopePage : WizardPage
         if (targets.Count > 0)
         {
             var t = targets[0];
-            _existing.Text = $"Vorhandene Installation {t.Version ?? "?"} gefunden in " +
-                $"{t.InstallDir} — diese wird aktualisiert. " +
-                "Projekte und Einstellungen bleiben erhalten.";
+            _existing.Text = InstallerText.T("wiz.scope.found", t.Version ?? "?", t.InstallDir);
             _migrate.Visible = false;
         }
         else if (conflicts.Count > 0)
         {
             var c = conflicts[0];
-            _existing.Text = $"Es existiert eine Installation {c.Version ?? "?"} in " +
-                $"{c.InstallDir} [{(c.Scope == "machine" ? "alle Benutzer" : "nur dieser Benutzer")}]. " +
-                "Der gewählte Bereich/Ordner weicht ab — ohne Bestätigung wird nichts " +
-                "installiert (keine parallele oder stillschweigende Migration).";
+            _existing.Text = InstallerText.T(
+                "wiz.scope.conflict",
+                c.Version ?? "?",
+                c.InstallDir,
+                c.Scope == "machine"
+                    ? InstallerText.T("wiz.scope.scopeall")
+                    : InstallerText.T("wiz.scope.scopeuser"));
             _migrate.Visible = true;
         }
         else
@@ -307,13 +388,14 @@ internal sealed class ScopePage : WizardPage
     {
         using var dialog = new FolderBrowserDialog
         {
-            Description = $"Installationsordner für {EditionInfo.ProductName} wählen",
+            Description = InstallerText.T("wiz.scope.browse", EditionInfo.ProductName),
             SelectedPath = _dir.Text,
             ShowNewFolderButton = true,
         };
         if (dialog.ShowDialog(this) == DialogResult.OK)
         {
             _dir.Text = dialog.SelectedPath;
+            RefreshExistingInfo();
         }
     }
 
@@ -328,48 +410,59 @@ internal sealed class ScopePage : WizardPage
         {
             _dir.Text = Installer.DefaultInstallDir(Scope);
         }
-        _adminHint.Visible = _allUsers.Checked;
         RefreshExistingInfo();
     }
 
     public override void OnEnter()
     {
-        _adminHint.Visible = true;
+        RefreshExistingInfo();
+        UpdateHint();
+    }
+
+    private void UpdateHint()
+    {
         _adminHint.Text = _allUsers.Checked
-            ? "Die Installation für alle Benutzer erfordert Administratorrechte: " +
-              "Beim Start der Installation erscheint der normale Windows-UAC-Dialog. " +
-              "Bei Ablehnung wird nichts installiert."
-            : "Die Installation nur für diesen Benutzer benötigt keine " +
-              "Administratorrechte und installiert nach %LOCALAPPDATA%\\Programs.";
+            ? InstallerText.T("wiz.scope.hintall")
+            : InstallerText.T("wiz.scope.hintuser");
+        _adminHint.Visible = true;
+    }
+
+    public override void RefreshText()
+    {
+        _perUser.Text = InstallerText.T("wiz.scope.peruser");
+        _allUsers.Text = InstallerText.T("wiz.scope.allusers");
+        _dirLabel.Text = InstallerText.T("wiz.scope.dirlabel");
+        _browse.Text = InstallerText.T("wiz.scope.browse");
+        _migrate.Text = InstallerText.T("wiz.scope.migrate");
+        UpdateHint();
         RefreshExistingInfo();
     }
 
     public override string? ValidateInput()
     {
         if (string.IsNullOrWhiteSpace(_dir.Text))
-            return "Bitte einen Installationsordner angeben.";
+            return InstallerText.T("wiz.scope.errdir");
         try { Path.GetFullPath(_dir.Text); }
-        catch (Exception) { return "Der Installationsordner ist ungültig."; }
+        catch (Exception) { return InstallerText.T("wiz.scope.errinvalid"); }
         if (Conflicts().Count > 0 && !_migrate.Checked)
         {
-            return "Eine Installation im abweichenden Bereich/Ordner existiert. " +
-                "Bestätigen Sie die Migration oder wählen Sie den passenden " +
-                "Bereich und Ordner für ein Upgrade.";
+            return InstallerText.T("wiz.scope.errconflict");
         }
         return null;
     }
 }
 
-/// <summary>Page 4: shortcuts and file associations.</summary>
+/// <summary>Page: shortcuts and file associations.</summary>
 internal sealed class OptionsPage : WizardPage
 {
-    public override string Title => "Optionen";
-    public override string Subtitle => "Verknüpfungen und Dateizuordnungen";
+    private readonly CheckBox _desktop = new() { AutoSize = true };
+    private readonly CheckBox _startMenu = new() { AutoSize = true };
+    private readonly CheckBox _nova = new() { AutoSize = true };
+    private readonly CheckBox _swf = new() { AutoSize = true };
+    private readonly Label _note = new() { AutoSize = false };
 
-    private readonly CheckBox _desktop = new() { AutoSize = true, Text = "Desktop-Verknüpfung erstellen" };
-    private readonly CheckBox _startMenu = new() { AutoSize = true, Text = "Startmenü-Verknüpfung erstellen" };
-    private readonly CheckBox _nova = new() { AutoSize = true, Text = $".nova-Projektdateien mit {EditionInfo.ProductName} öffnen" };
-    private readonly CheckBox _swf = new() { AutoSize = true, Text = $".swf-Dateien mit {EditionInfo.ProductName} öffnen" };
+    public override string Title => InstallerText.T("wiz.options.title");
+    public override string Subtitle => InstallerText.T("wiz.options.subtitle");
 
     public bool DesktopShortcut => _desktop.Checked;
     public bool StartMenuShortcut => _startMenu.Checked;
@@ -390,23 +483,87 @@ internal sealed class OptionsPage : WizardPage
         _nova.Checked = true;
         _swf.Checked = false;
 
-        var note = MakeLabel(
-            "Hinweis zu Dateizuordnungen: Windows 10/11 entscheidet die tatsächliche " +
-            "Standardanwendung in den Systemsettings. Dieser Assistent registriert " +
-            $"nur den Öffnen-Befehl für {EditionInfo.ProductName} und überschreibt keine " +
-            "bestehenden Zuordnungen stillschweigend — beim Deinstallieren werden " +
-            "nur Einträge entfernt, die noch auf diese Installation zeigen. " +
-            "Ihre Projekte und Einstellungen unter %APPDATA% bleiben immer erhalten.", 9f);
-        note.Top = top + 16; note.Left = 24;
-        Controls.Add(note);
+        _note.Top = top + 16; _note.Left = 24; _note.Width = 650; _note.Height = 120;
+        _note.Font = new Font("Segoe UI", 9f);
+        _note.ForeColor = WizardTheme.TextFaint;
+        Controls.Add(_note);
+        RefreshText();
+    }
+
+    public override void RefreshText()
+    {
+        _desktop.Text = InstallerText.T("wiz.options.desktop");
+        _startMenu.Text = InstallerText.T("wiz.options.startmenu");
+        _nova.Text = InstallerText.T("wiz.options.nova", EditionInfo.ProductName);
+        _swf.Text = InstallerText.T("wiz.options.swf", EditionInfo.ProductName);
+        _note.Text = InstallerText.T("wiz.options.note", EditionInfo.ProductName);
     }
 }
 
-/// <summary>Page 5: progress.</summary>
+/// <summary>Page: summary of all choices before install starts.</summary>
+internal sealed class SummaryPage : WizardPage
+{
+    private readonly ScopePage _scope;
+    private readonly OptionsPage _options;
+    private readonly Label _body = new() { AutoSize = false };
+
+    public override string Title => InstallerText.T("wiz.summary.title");
+    public override string Subtitle => InstallerText.T("wiz.summary.subtitle");
+
+    public SummaryPage(ScopePage scope, OptionsPage options)
+    {
+        _scope = scope;
+        _options = options;
+        _body.Top = 28; _body.Left = 24; _body.Width = 660; _body.Height = 380;
+        _body.Font = new Font("Segoe UI", 10f);
+        _body.ForeColor = WizardTheme.TextMain;
+        Controls.Add(_body);
+        RefreshText();
+    }
+
+    private string OnOff(bool value) =>
+        value ? "✓" : InstallerText.T("wiz.summary.none");
+
+    public override void OnEnter() => RefreshText();
+
+    public override void RefreshText()
+    {
+        var scopeText = _scope.Scope == InstallScope.AllUsers
+            ? InstallerText.T("wiz.summary.scopeall")
+            : InstallerText.T("wiz.summary.scopeuser");
+        var assoc = new List<string>();
+        if (_options.AssociateNova) assoc.Add(".nova");
+        if (_options.AssociateSwf) assoc.Add(".swf");
+        _body.Text =
+            $"{InstallerText.T("wiz.summary.product")}  {EditionInfo.ProductName}\n" +
+            $"{InstallerText.T("wiz.summary.version")}  {AssemblyVersion()}\n" +
+            $"{InstallerText.T("wiz.summary.scope")}  {scopeText}\n" +
+            $"{InstallerText.T("wiz.summary.dir")}  {_scope.InstallDir}\n\n" +
+            $"{InstallerText.T("wiz.summary.desktop")}      {OnOff(_options.DesktopShortcut)}\n" +
+            $"{InstallerText.T("wiz.summary.startmenu")}   {OnOff(_options.StartMenuShortcut)}\n" +
+            $"{InstallerText.T("wiz.summary.assocnova")}   {(assoc.Contains(".nova") ? "✓" : InstallerText.T("wiz.summary.none"))}\n" +
+            $"{InstallerText.T("wiz.summary.assocswf")}    {(assoc.Contains(".swf") ? "✓" : InstallerText.T("wiz.summary.none"))}\n\n" +
+            InstallerText.T("wiz.summary.note");
+    }
+
+    private static string AssemblyVersion()
+    {
+        var attr = typeof(Installer).Assembly
+            .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false);
+        if (attr.Length > 0)
+        {
+            var v = ((System.Reflection.AssemblyInformationalVersionAttribute)attr[0]).InformationalVersion;
+            if (!string.IsNullOrWhiteSpace(v)) return v;
+        }
+        return "0.0.0";
+    }
+}
+
+/// <summary>Page: progress.</summary>
 internal sealed class ProgressPage : WizardPage
 {
-    public override string Title => "Installation";
-    public override string Subtitle => "Bitte warten …";
+    public override string Title => InstallerText.T("wiz.progress.title");
+    public override string Subtitle => InstallerText.T("wiz.progress.subtitle");
 
     private readonly ProgressBar _bar = new() { Left = 24, Top = 20, Width = 620, Height = 24, Style = ProgressBarStyle.Continuous };
     private readonly Label _status = new() { Left = 24, Top = 58, Width = 620, Height = 60, ForeColor = WizardTheme.TextMain };
@@ -426,17 +583,12 @@ internal sealed class ProgressPage : WizardPage
     }
 }
 
-/// <summary>Page 6: finish.</summary>
+/// <summary>Page: finish.</summary>
 internal sealed class FinishPage : WizardPage
 {
-    public override string Title => "Fertig";
-    public override string Subtitle => "Installation abgeschlossen";
-
     private readonly CheckBox _launch = new()
     {
         AutoSize = true,
-        Text = $"{EditionInfo.ProductName} jetzt starten",
-        ForeColor = WizardTheme.TextMain,
         Top = 60,
         Left = 24,
         Checked = true,
@@ -445,25 +597,37 @@ internal sealed class FinishPage : WizardPage
     private readonly Button _docs = new()
     {
         AutoSize = true,
-        Text = "Dokumentation öffnen",
         Top = 92,
         Left = 24,
         FlatStyle = FlatStyle.System,
     };
+
+    private readonly Label _success = new() { AutoSize = false };
+    private readonly Label _info = new() { AutoSize = false };
+
+    public override string Title => InstallerText.T("wiz.finish.title");
+    public override string Subtitle => InstallerText.T("wiz.finish.subtitle");
 
     public bool Launch => _launch.Checked;
     public string? InstallDir { get; set; }
 
     public FinishPage()
     {
-        AddControl(MakeLabel($"{EditionInfo.ProductName} wurde erfolgreich installiert.", 11f, bold: true), 24);
-        AddControl(MakeLabel(
-            "Sie können das Programm über das Startmenü oder die Desktop-Verknüpfung starten.\n" +
-            "Die Deinstallation finden Sie in den Windows-Einstellungen unter „Apps“.",
-            9.5f), 56);
+        _success.Top = 24; _success.Left = 24; _success.Width = 640;
+        _success.Font = new Font("Segoe UI", 11f, FontStyle.Bold);
+        _success.ForeColor = WizardTheme.TextMain;
+        Controls.Add(_success);
+
+        _info.Top = 56; _info.Left = 24; _info.Width = 640; _info.Height = 60;
+        _info.Font = new Font("Segoe UI", 9.5f);
+        _info.ForeColor = WizardTheme.TextDim;
+        Controls.Add(_info);
+
+        _launch.ForeColor = WizardTheme.TextMain;
         Controls.Add(_launch);
         Controls.Add(_docs);
         _docs.Click += (_, _) => OpenDocs();
+        RefreshText();
     }
 
     private void OpenDocs()
@@ -482,14 +646,23 @@ internal sealed class FinishPage : WizardPage
         }
         catch { /* explorer unavailable — nothing else to do */ }
     }
+
+    public override void RefreshText()
+    {
+        _success.Text = InstallerText.T("wiz.finish.success", EditionInfo.ProductName);
+        _info.Text = InstallerText.T("wiz.finish.info");
+        _launch.Text = InstallerText.T("wiz.finish.launch", EditionInfo.ProductName);
+        _docs.Text = InstallerText.T("wiz.finish.docs");
+    }
 }
 
 /// <summary>The setup wizard form — classic 2009 desktop styling:
 /// charcoal surfaces, subtle header gradient, beveled buttons and
-/// etched group frames, matching the NØVA application theme.</summary>
+/// etched group frames, matching the NØVA application theme.
+/// M24: language page + header language selector + summary page +
+/// TableLayoutPanel footer so navigation can never be clipped.</summary>
 internal sealed class WizardForm : Form
 {
-    // Classic palette shared with the application's 2009 theme.
     private static readonly Color Bg = WizardTheme.Bg;
     private static readonly Color PanelBg = WizardTheme.PanelBg;
     private static readonly Color HeaderTop = WizardTheme.HeaderTop;
@@ -519,14 +692,20 @@ internal sealed class WizardForm : Form
 
     private readonly List<WizardPage> _pages = new();
     private int _index;
+    private LanguagePage? _languagePage;
+    private ScopePage? _scopePage;
+    private OptionsPage? _optionsPage;
+
     private readonly Label _step = new() { AutoSize = true, ForeColor = WizardTheme.TextFaint, Font = new Font("Segoe UI", 8.5f) };
     private readonly Label _title = new() { AutoSize = true, ForeColor = WizardTheme.TextMain, Font = new Font("Segoe UI", 13f, FontStyle.Bold) };
     private readonly Label _subtitle = new() { AutoSize = true, ForeColor = WizardTheme.TextDim, Font = new Font("Segoe UI", 9f) };
-    private readonly Panel _content = new() { Dock = DockStyle.Fill, BackColor = Bg, Padding = new Padding(0, 64, 0, 56) };
-    private readonly Panel _footer = new() { Dock = DockStyle.Bottom, Height = 56, BackColor = PanelBg };
-    private readonly Button _back = new() { Text = "Zurück", Width = 96, Height = 30 };
+    private readonly ComboBox _langCombo = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 120 };
+
+    private readonly Panel _content = new() { Dock = DockStyle.Fill, BackColor = Bg, Padding = new Padding(8) };
+    private readonly Panel _footer = new() { Dock = DockStyle.Bottom, Height = 52, BackColor = PanelBg };
+    private readonly Button _back = new() { Text = "Zurück", Width = 96, Height = 30, FlatStyle = FlatStyle.System };
     private readonly Button _next = new() { Text = "Weiter", Width = 110, Height = 30, BackColor = Accent, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
-    private readonly Button _cancel = new() { Text = "Abbrechen", Width = 96, Height = 30 };
+    private readonly Button _cancel = new() { Text = "Abbrechen", Width = 96, Height = 30, FlatStyle = FlatStyle.System };
 
     private readonly List<Installer.ExistingInstall> _existingInstalls;
     private InstallOptions? _installOptions;
@@ -535,7 +714,8 @@ internal sealed class WizardForm : Form
 
     public WizardForm()
     {
-        Text = $"{EditionInfo.ProductName} - Setup";
+        InstallerText.Initialize();
+        Text = InstallerText.T("wiz.setup.title", EditionInfo.ProductName);
         StartPosition = FormStartPosition.CenterScreen;
         ClientSize = new Size(720, 540);
         FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -554,38 +734,50 @@ internal sealed class WizardForm : Form
         header.Controls.Add(_title);
         header.Controls.Add(_subtitle);
 
+        // Language selector — always visible so the language can be changed
+        // during the whole install (M24.2).
+        _langCombo.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        _langCombo.Location = new Point(470, 24);
+        _langCombo.Font = new Font("Segoe UI", 8.5f);
+        foreach (var (code, name) in InstallerText.Languages)
+        {
+            _langCombo.Items.Add(name);
+        }
+        _langCombo.SelectedIndex = Math.Max(0,
+            Array.FindIndex(InstallerText.Languages, l => l.Code == InstallerText.Current));
+        _langCombo.SelectedIndexChanged += (_, _) => OnLanguageChanged();
+        header.Controls.Add(_langCombo);
+
         _step.AutoSize = true;
         _step.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-        _step.Location = new Point(600, 26);
+        _step.Location = new Point(330, 26);
         _step.ForeColor = TextFaint;
         header.Controls.Add(_step);
 
-        _back.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
-        _back.Location = new Point(340, 14);
-        _back.FlatStyle = FlatStyle.System;
-        _back.Click += (_, _) => Navigate(-1);
-
-        _next.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
-        _next.Location = new Point(450, 14);
-        _next.FlatStyle = FlatStyle.Flat;
-        _next.FlatAppearance.BorderColor = EdgeHi;
-        _next.FlatAppearance.BorderSize = 1;
-        _next.BackColor = Accent;
-        _next.ForeColor = Color.White;
-        _next.Click += async (_, _) => await NavigateNext();
-
-        _cancel.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
-        _cancel.Location = new Point(574, 14);
-        _cancel.FlatStyle = FlatStyle.System;
-        _cancel.Click += (_, _) =>
+        // Footer: right-aligned button strip inside a docking-safe table.
+        var footerBar = new TableLayoutPanel
         {
-            if (_index == _pages.Count - 1) MaybeLaunch();
-            Close();
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 1,
+            Padding = new Padding(0, 11, 12, 11),
         };
+        footerBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+        var buttons = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.RightToLeft,
+            WrapContents = false,
+        };
+        buttons.Controls.Add(_cancel);
+        buttons.Controls.Add(_next);
+        buttons.Controls.Add(_back);
+        footerBar.Controls.Add(buttons, 0, 0);
+        _footer.Controls.Add(footerBar);
 
-        _footer.Controls.Add(_back);
-        _footer.Controls.Add(_next);
-        _footer.Controls.Add(_cancel);
+        _back.Click += (_, _) => Navigate(-1);
+        _next.Click += async (_, _) => await NavigateNext();
+        _cancel.Click += (_, _) => OnCancel();
 
         Controls.Add(_content);
         Controls.Add(_footer);
@@ -617,12 +809,48 @@ internal sealed class WizardForm : Form
 
     private void BuildPages()
     {
+        // M24.2: first run without a persisted language starts on the
+        // language page; afterwards the choice is restored automatically.
+        if (!InstallerText.HasStoredLanguage())
+        {
+            _languagePage = new LanguagePage();
+            _pages.Add(_languagePage);
+        }
         _pages.Add(new WelcomePage());
         _pages.Add(new LicensePage(_next));
-        _pages.Add(new ScopePage(_existingInstalls));
-        _pages.Add(new OptionsPage());
+        _scopePage = new ScopePage(_existingInstalls);
+        _pages.Add(_scopePage);
+        _optionsPage = new OptionsPage();
+        _pages.Add(_optionsPage);
+        _pages.Add(new SummaryPage(_scopePage, _optionsPage));
         _pages.Add(new ProgressPage());
         _pages.Add(new FinishPage());
+    }
+
+    private int IndexOf<T>() where T : WizardPage =>
+        _pages.FindIndex(p => p is T);
+
+    private void OnLanguageChanged()
+    {
+        if (_langCombo.SelectedIndex < 0) return;
+        var code = InstallerText.Languages[_langCombo.SelectedIndex].Code;
+        InstallerText.SetLanguage(code);
+        RefreshAllText();
+    }
+
+    /// <summary>Re-localize header, footer and every page (language switch).</summary>
+    private void RefreshAllText()
+    {
+        Text = InstallerText.T("wiz.setup.title", EditionInfo.ProductName);
+        foreach (var page in _pages) page.RefreshText();
+        _back.Text = InstallerText.T("wiz.back");
+        _cancel.Text = _index == _pages.Count - 1
+            ? InstallerText.T("wiz.close")
+            : InstallerText.T("wiz.cancel");
+        _next.Text = _index == IndexOf<SummaryPage>()
+            ? InstallerText.T("wiz.install")
+            : InstallerText.T("wiz.next");
+        ShowPage(_index);
     }
 
     private void ShowPage(int index)
@@ -631,46 +859,60 @@ internal sealed class WizardForm : Form
         var page = _pages[index];
         _title.Text = page.Title;
         _subtitle.Text = page.Subtitle;
-        _step.Text = $"Schritt {index + 1} von {_pages.Count}";
+        _step.Text = InstallerText.T("wiz.step", index + 1, _pages.Count);
 
         _content.Controls.Clear();
         page.Dock = DockStyle.Fill;
         page.Visible = true;
         _content.Controls.Add(page);
 
-        _back.Visible = index > 0 && index < _pages.Count - 1;
+        var isLast = index == _pages.Count - 1;
+        var isProgressOrLater = index >= _pages.Count - 2;
+        _back.Visible = index > 0 && !isProgressOrLater;
         _back.Enabled = !_installing;
-        _next.Text = index == _pages.Count - 2 ? "Installieren" : "Weiter";
-        _next.Visible = index < _pages.Count - 1;
-        _next.Enabled = index != 1 || ((LicensePage)page).Accepted;
-        _cancel.Text = index == _pages.Count - 1 ? "Schließen" : "Abbrechen";
-        _cancel.Enabled = true;
+        _next.Text = page is SummaryPage
+            ? InstallerText.T("wiz.install")
+            : InstallerText.T("wiz.next");
+        _next.Visible = !isLast;
+        _next.Enabled = page is not LicensePage license || license.Accepted;
+        _cancel.Text = isLast ? InstallerText.T("wiz.close") : InstallerText.T("wiz.cancel");
+        _cancel.Enabled = !_installing;
         page.OnEnter();
     }
 
     private async Task NavigateNext()
     {
         var page = _pages[_index];
-        if (page is ScopePage scope)
+        if (page is LanguagePage language)
         {
-            var error = scope.ValidateInput();
-            if (error is not null) { MessageBoxCompat.ShowError(error); return; }
+            // Apply immediately so every following page is localized.
+            language.ApplySelection();
+            InstallerText.SetLanguage(language.SelectedCode);
+            RefreshAllText();
+            ShowPage(_index + 1);
+            return;
         }
-        if (_index == 3 && page is OptionsPage options)
+        var error = page.ValidateInput();
+        if (error is not null)
         {
-            var scopePage = (ScopePage)_pages[2];
+            MessageBoxCompat.ShowError(error);
+            return;
+        }
+
+        if (page is OptionsPage && _scopePage is not null)
+        {
             _installOptions = new InstallOptions
             {
-                InstallDir = scopePage.InstallDir,
-                Scope = scopePage.Scope,
-                DesktopShortcut = options.DesktopShortcut,
-                StartMenuShortcut = options.StartMenuShortcut,
-                AssociateNova = options.AssociateNova,
-                AssociateSwf = options.AssociateSwf,
+                InstallDir = _scopePage.InstallDir,
+                Scope = _scopePage.Scope,
+                DesktopShortcut = _optionsPage?.DesktopShortcut ?? true,
+                StartMenuShortcut = _optionsPage?.StartMenuShortcut ?? true,
+                AssociateNova = _optionsPage?.AssociateNova ?? true,
+                AssociateSwf = _optionsPage?.AssociateSwf ?? false,
             };
         }
 
-        if (_index == _pages.Count - 2)
+        if (page is SummaryPage)
         {
             await RunInstall();
             return;
@@ -684,13 +926,22 @@ internal sealed class WizardForm : Form
         ShowPage(Math.Clamp(_index + delta, 0, _pages.Count - 1));
     }
 
+    private void OnCancel()
+    {
+        if (_index == _pages.Count - 1)
+        {
+            MaybeLaunch();
+        }
+        Close();
+    }
+
     private async Task RunInstall()
     {
         if (_installOptions is null) return;
 
         // All-users installs require elevation: hand the chosen options to an
         // elevated instance via the standard UAC prompt, then close. If the
-        // user denies UAC we stay on the options page — never silently fall
+        // user denies UAC we stay on the summary page — never silently fall
         // back to a per-user install.
         if (_installOptions.Scope == InstallScope.AllUsers && !Installer.IsAdministrator())
         {
@@ -711,8 +962,11 @@ internal sealed class WizardForm : Form
         _next.Enabled = false;
         _cancel.Enabled = false;
         _cts = new CancellationTokenSource();
-        var progressPage = (ProgressPage)_pages[4];
-        ShowPage(4);
+        var progressIndex = _pages.FindIndex(p => p is ProgressPage);
+        var finishIndex = _pages.FindIndex(p => p is FinishPage);
+        if (progressIndex < 0 || finishIndex < 0) return;
+        var progressPage = (ProgressPage)_pages[progressIndex];
+        ShowPage(progressIndex);
 
         var options = _installOptions;
         try
@@ -724,27 +978,40 @@ internal sealed class WizardForm : Form
                     (percent, message) => progressPage.Report(percent, message),
                     _cts.Token);
             });
-            var finish = (FinishPage)_pages[5];
+            var finish = (FinishPage)_pages[finishIndex];
             finish.InstallDir = options.InstallDir;
-            ShowPage(5);
+            ShowPage(finishIndex);
         }
         catch (OperationCanceledException)
         {
-            MessageBoxCompat.ShowInfo("Installation wurde abgebrochen.");
-            ShowPage(2);
+            MessageBoxCompat.ShowInfo(InstallerText.T("wiz.cancel.done"));
+            var scopeIndex = IndexOf<ScopePage>();
+            ShowPage(scopeIndex >= 0 ? scopeIndex : 0);
         }
         catch (Exception ex)
         {
-            MessageBoxCompat.ShowError($"Installation fehlgeschlagen:\n\n{ex.Message}");
-            ShowPage(2);
+            MessageBoxCompat.ShowError($"{InstallerText.T("wiz.error.title")}\n\n{ex.Message}");
+            var scopeIndex = IndexOf<ScopePage>();
+            ShowPage(scopeIndex >= 0 ? scopeIndex : 0);
         }
         finally
         {
             _installing = false;
-            _next.Enabled = true;
-            _back.Enabled = _index > 0 && _index < _pages.Count - 1;
-            _cancel.Enabled = true;
+            RefreshNavState();
         }
+    }
+
+    /// <summary>Recompute button visibility/enabled after install finishes.</summary>
+    private void RefreshNavState()
+    {
+        var isLast = _index == _pages.Count - 1;
+        var isProgressOrLater = _index >= _pages.Count - 2;
+        _back.Visible = _index > 0 && !isProgressOrLater;
+        _back.Enabled = !_installing;
+        _next.Visible = !isLast;
+        _next.Enabled = _pages[_index] is not LicensePage license || license.Accepted;
+        _cancel.Enabled = !_installing;
+        _cancel.Text = isLast ? InstallerText.T("wiz.close") : InstallerText.T("wiz.cancel");
     }
 
     protected override void OnFormClosed(FormClosedEventArgs e)
@@ -758,8 +1025,8 @@ internal sealed class WizardForm : Form
         if (_installing)
         {
             var result = MessageBox.Show(
-                "Die Installation läuft noch. Trotzdem abbrechen?",
-                $"{EditionInfo.ProductName} - Setup",
+                InstallerText.T("wiz.cancel.confirm"),
+                Text,
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Warning);
             if (result == DialogResult.No)
@@ -791,7 +1058,8 @@ internal sealed class WizardForm : Form
     /// <summary>Launches the app after a successful finish page.</summary>
     public void MaybeLaunch()
     {
-        if (_pages[5] is FinishPage finish && finish.Launch && finish.InstallDir is not null)
+        if (_pages.Find(p => p is FinishPage) is FinishPage finish
+            && finish.Launch && finish.InstallDir is not null)
         {
             Installer.LaunchInstalledApp(finish.InstallDir);
         }

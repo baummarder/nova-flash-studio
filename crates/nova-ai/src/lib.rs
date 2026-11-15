@@ -5,6 +5,7 @@
 //! secure credential storage, project context construction, build diagnostics
 //! and root-confined file operations.
 
+pub mod access;
 pub mod agent;
 pub mod build;
 pub mod credentials;
@@ -14,7 +15,12 @@ pub mod files;
 pub mod http;
 pub mod operations;
 pub mod provider;
+pub mod review;
 
+pub use access::{
+    ACCESS_FILE, AccessLevel, AccessPolicy, AccessStore, Grant, GuardedWorkspace, SENSITIVE_RULES,
+    is_sensitive,
+};
 pub use agent::{
     AgentOutcome, AgentReply, AgentSession, ContextSelection, PreparedRequest, SYSTEM_PROMPT,
     build_context, execute_prepared, parse_agent_reply,
@@ -38,3 +44,4 @@ pub use provider::{
     ProviderSettings, SETTINGS_FILE, chat, default_config_dir, discover_models, load_settings,
     save_settings, test_connection,
 };
+pub use review::{ApplyReport, ReviewItem, ReviewSession, stage_changes};

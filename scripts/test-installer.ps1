@@ -57,6 +57,22 @@ foreach ($ed in $editionList) {
     Check ($LASTEXITCODE -eq 0 -and $smoke -match 'smoke-test: OK') `
         "$($ed.id): smoke-test" ($smoke.Trim())
 
+    # 1b. wizard language persistence (M24.2) ------------------------------
+    $langKey = "HKCU:\Software\$($ed.uninstallKey)\Installer"
+    try {
+        & $setup --set-language de-DE | Out-Null
+        Start-Sleep -Milliseconds 200
+        $got = & $setup --get-language 2>&1 | Out-String
+        Check ($got.Trim() -eq 'de-DE') "$($ed.id): language persists (de-DE)"
+        & $setup --set-language en-GB | Out-Null
+        Start-Sleep -Milliseconds 200
+        $reset = & $setup --get-language 2>&1 | Out-String
+        Check ($reset.Trim() -eq 'en-GB') "$($ed.id): language reset (en-GB)"
+    }
+    finally {
+        Remove-ItemProperty -LiteralPath $langKey -Name Language -ErrorAction SilentlyContinue
+    }
+
     # 2. headless per-user install ----------------------------------------
     $installDir = Join-Path $env:TEMP ("nova-m23-test-" + $ed.id + "-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
     $installOut = & $setup --install $installDir --per-user --no-desktop --no-start-menu --no-assoc --quiet 2>&1 | Out-String

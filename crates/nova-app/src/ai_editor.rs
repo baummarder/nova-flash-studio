@@ -4,7 +4,7 @@
 //! source editor, chat, activity/build output and diff preview all live here.
 //! Network work is prepared on the UI thread and executed on a worker thread.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver, TryRecvError};
@@ -12,9 +12,10 @@ use std::time::{Duration, Instant};
 
 use eframe::egui::{self, Context, RichText, TextEdit, Ui};
 use nova_ai::{
-    AgentOutcome, AgentSession, AppliedChange, BuildReport, ChangeKind, ChangePreview, DiffKind,
-    ProviderManager, ReqwestTransport, Workspace, apply_operations_with, build_project,
-    default_config_dir, default_store, execute_prepared, load_settings, preview_operations_with,
+    AccessLevel, AccessStore, AgentOutcome, AgentSession, AppliedChange, BuildReport, ChangeKind,
+    ChangePreview, DiffKind, GuardedWorkspace, ProviderManager, ReqwestTransport, ReviewSession,
+    SENSITIVE_RULES, Workspace, apply_operations_with, build_project, default_config_dir,
+    default_store, execute_prepared, load_settings, preview_operations_with,
 };
 use nova_as::{Diagnostic, Severity, analyze};
 use nova_core::{CodeProvenance, Project, Script, ScriptId};
@@ -43,6 +44,12 @@ pub struct AiEditor {
     pub provider_dialog: ProviderDialog,
     pub session: AgentSession,
     pub workspace: Option<Workspace>,
+    /// M25: workspace + per-project access grants (the only FS interface).
+    pub guarded: Option<GuardedWorkspace>,
+    /// M25: persisted grant store (edition config dir, per project root).
+    pub access_store: AccessStore,
+    /// M25: isolated staging area for pending agent changes.
+    pub review: Option<ReviewSession>,
     pub workspace_root: String,
     pub workspace_files: Vec<String>,
     pub follow_project: bool,
@@ -69,6 +76,12 @@ pub struct AiEditor {
     job_started: Instant,
     pub output_tab: OutputTab,
     pub startup_error: Option<String>,
+    /// M25: project root for which the permission prompt was already shown.
+    pub permission_prompted_for: Option<String>,
+    /// M25: grants dialog (Berechtigungen) visibility.
+    pub grants_dialog_open: bool,
+    /// Edition AI config dir (providers + access store + review staging).
+    ai_config_dir: PathBuf,
     last_diagnostics_refresh: Instant,
     pub auto_build: bool,
 }
@@ -89,7 +102,7 @@ impl AiEditor {
                     settings,
                     default_store(&config_dir),
                     transport,
-                    config_dir,
+                    config_dir.clone(),
                 );
                 (manager, Some(error.to_string()))
             }
@@ -98,12 +111,17 @@ impl AiEditor {
             .unwrap_or_else(|_| PathBuf::from("."))
             .to_string_lossy()
             .to_string();
+        let access_store =
+            AccessStore::load(&config_dir).unwrap_or_else(|_| AccessStore::fallback());
         let mut editor = Self {
             open: false,
             providers,
             provider_dialog: ProviderDialog::default(),
             session: AgentSession::default(),
             workspace: None,
+            guarded: None,
+            access_store,
+            review: None,
             workspace_root,
             workspace_files: Vec::new(),
             follow_project: true,
@@ -130,6 +148,9 @@ impl AiEditor {
             job_started: Instant::now(),
             output_tab: OutputTab::Activity,
             startup_error,
+            permission_prompted_for: None,
+            grants_dialog_open: false,
+            ai_config_dir: config_dir,
             last_diagnostics_refresh: Instant::now() - Duration::from_secs(10),
             auto_build: false,
         };
@@ -192,8 +213,267 @@ impl AiEditor {
         egui::CentralPanel::default().show(ui, |ui| {
             self.editor_panel(ui, project, state);
         });
+        self.access_dialogs(ui);
 
         actions
+    }
+
+    // ------------------------------------------------ M25 access UI
+
+    /// Root key used to detect "first AI-mode visit per project".
+    fn project_root_key(&self) -> Option<String> {
+        let root = self.workspace.as_ref()?.root().to_path_buf();
+        AccessStore::project_key(&root).ok()
+    }
+
+    fn has_any_grant(&self) -> bool {
+        self.guarded
+            .as_ref()
+            .map(|guarded| !guarded.policy().is_empty())
+            .unwrap_or(false)
+    }
+
+    /// Permission prompt (first visit) + grants manager dialog.
+    fn access_dialogs(&mut self, ui: &mut Ui) {
+        let root_key = self.project_root_key();
+        let prompt = self.open
+            && !self.has_any_grant()
+            && root_key.is_some()
+            && self.permission_prompted_for.as_deref() != root_key.as_deref()
+            && !self.grants_dialog_open;
+        if prompt {
+            egui::Window::new("Zugriff auf Projektordner")
+                .collapsible(false)
+                .resizable(false)
+                .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
+                .show(ui.ctx(), |ui| {
+                    ui.set_max_width(460.0);
+                    ui.label(
+                        RichText::new("Der KI-Agent benötigt eine explizite Freigabe, um Projektdateien zu lesen oder zu ändern. Ohne Freigabe bleibt der Chat nutzbar, aber es gibt keinen Dateizugriff.")
+                            .small()
+                            .color(theme::TEXT_DIM),
+                    );
+                    ui.add_space(8.0);
+                    if ui.button("A · Einzelne Dateien und Ordner freigeben").clicked() {
+                        self.pick_and_grant_files();
+                    }
+                    if ui.button("B · Gesamten Projektbaum freigeben (Lesen + Ändern)").clicked() {
+                        self.grant_project_root(AccessLevel::ReadWrite);
+                    }
+                    if ui.button("C · Nur Lesezugriff auf den Projektbaum").clicked() {
+                        self.grant_project_root(AccessLevel::Read);
+                    }
+                    ui.add_space(6.0);
+                    ui.label(
+                        RichText::new("Geschützt bleiben immer: .env, Schlüssel, Zugangsdaten, .git — auch innerhalb freigegebener Ordner.")
+                            .small()
+                            .color(theme::AMBER),
+                    );
+                    ui.horizontal(|ui| {
+                        if ui.button("Später entscheiden").clicked() {
+                            self.permission_prompted_for = root_key.clone();
+                        }
+                    });
+                });
+        }
+        if self.grants_dialog_open {
+            self.show_grants_dialog(ui);
+        }
+    }
+
+    fn grant_project_root(&mut self, level: AccessLevel) {
+        let Some(root) = self
+            .workspace
+            .as_ref()
+            .map(|workspace| workspace.root().to_path_buf())
+        else {
+            return;
+        };
+        match self.access_store.grant(&root, &root, level) {
+            Ok(_) => {
+                let _ = self.access_store.save();
+                self.activity.push(ActivityLine {
+                    text: format!(
+                        "Projektzugriff gesetzt: {} ({})",
+                        root.display(),
+                        level.label()
+                    ),
+                    error: false,
+                });
+            }
+            Err(error) => {
+                self.error = Some(error.to_string());
+            }
+        }
+        self.refresh_workspace();
+    }
+
+    /// Option A: native picker for individual files/folders.
+    fn pick_and_grant_files(&mut self) {
+        let Some(root) = self
+            .workspace
+            .as_ref()
+            .map(|workspace| workspace.root().to_path_buf())
+        else {
+            return;
+        };
+        let mut picked = Vec::new();
+        if let Some(files) = rfd::FileDialog::new()
+            .set_title("Dateien für den Agenten freigeben")
+            .pick_files()
+        {
+            picked.extend(files);
+        }
+        // Folder picker runs after the file picker; both are optional.
+        if let Some(folder) = rfd::FileDialog::new()
+            .set_title("Ordner für den Agenten freigeben")
+            .pick_folder()
+        {
+            picked.push(folder);
+        }
+        if picked.is_empty() {
+            return;
+        }
+        for path in picked {
+            match self
+                .access_store
+                .grant(&root, &path, AccessLevel::ReadWrite)
+            {
+                Ok(stored) => self.activity.push(ActivityLine {
+                    text: format!("Freigegeben: {}", stored),
+                    error: false,
+                }),
+                Err(error) => self.error = Some(error.to_string()),
+            }
+        }
+        let _ = self.access_store.save();
+        self.refresh_workspace();
+    }
+
+    fn revoke_grant(&mut self, stored_path: &str) {
+        let Some(root) = self
+            .workspace
+            .as_ref()
+            .map(|workspace| workspace.root().to_path_buf())
+        else {
+            return;
+        };
+        if self.access_store.revoke(&root, stored_path) {
+            let _ = self.access_store.save();
+            self.refresh_workspace();
+        }
+    }
+
+    fn revoke_all_access(&mut self) {
+        let Some(root) = self
+            .workspace
+            .as_ref()
+            .map(|workspace| workspace.root().to_path_buf())
+        else {
+            return;
+        };
+        self.access_store.revoke_all(&root);
+        let _ = self.access_store.save();
+        self.refresh_workspace();
+        self.activity.push(ActivityLine {
+            text: "Gesamter Projektzugriff widerrufen.".into(),
+            error: false,
+        });
+    }
+
+    fn show_grants_dialog(&mut self, ui: &mut Ui) {
+        let mut open = self.grants_dialog_open;
+        egui::Window::new("Berechtigungen — Projektzugriff")
+            .open(&mut open)
+            .collapsible(false)
+            .default_size([520.0, 380.0])
+            .show(ui.ctx(), |ui| {
+                let root = self
+                    .workspace
+                    .as_ref()
+                    .map(|workspace| workspace.root().to_path_buf());
+                let Some(root) = root else {
+                    ui.label("Kein Projektordner.");
+                    return;
+                };
+                ui.label(
+                    RichText::new(format!("Projektordner: {}", root.display()))
+                        .small()
+                        .color(theme::TEXT_DIM),
+                );
+                ui.separator();
+                // Read-only cap toggle.
+                let mut read_only = self.access_store.read_only(&root);
+                if ui
+                    .checkbox(
+                        &mut read_only,
+                        "Nur Lesezugriff (alle Freigaben auf Lesen beschränken)",
+                    )
+                    .changed()
+                {
+                    let _ = self.access_store.set_read_only(&root, read_only);
+                    let _ = self.access_store.save();
+                    self.refresh_workspace();
+                }
+                ui.add_space(6.0);
+                ui.label(
+                    RichText::new("Freigaben")
+                        .strong()
+                        .small()
+                        .color(theme::ACCENT),
+                );
+                let grants = self.access_store.grants_for(&root);
+                if grants.is_empty() {
+                    ui.label(
+                        RichText::new("Keine Freigaben — der Agent hat keinen Dateizugriff.")
+                            .small()
+                            .color(theme::TEXT_DIM),
+                    );
+                }
+                let mut revoke: Option<String> = None;
+                egui::ScrollArea::vertical()
+                    .max_height(180.0)
+                    .show(ui, |ui| {
+                        for (display, stored, level) in &grants {
+                            ui.horizontal(|ui| {
+                                ui.label(format!("{display}  —  {}", level.label()));
+                                if ui.small_button("Widerrufen").clicked() {
+                                    revoke = Some(stored.clone());
+                                }
+                            });
+                        }
+                    });
+                if let Some(stored) = revoke {
+                    self.revoke_grant(&stored);
+                }
+                ui.separator();
+                ui.label(
+                    RichText::new("Immer ausgeschlossen")
+                        .strong()
+                        .small()
+                        .color(theme::AMBER),
+                );
+                for rule in SENSITIVE_RULES {
+                    ui.label(
+                        RichText::new(format!("• {rule}"))
+                            .small()
+                            .color(theme::TEXT_FAINT),
+                    );
+                }
+                ui.add_space(6.0);
+                ui.horizontal(|ui| {
+                    if ui.button("Ordner/Dateien hinzufügen…").clicked() {
+                        self.pick_and_grant_files();
+                    }
+                    if ui
+                        .add_enabled(!grants.is_empty(), egui::Button::new("Alle widerrufen"))
+                        .clicked()
+                    {
+                        self.revoke_all_access();
+                    }
+                });
+            });
+        self.grants_dialog_open = open;
     }
 
     fn header(
@@ -370,12 +650,18 @@ impl AiEditor {
     fn refresh_workspace(&mut self) {
         match Workspace::new(&self.workspace_root) {
             Ok(workspace) => {
-                self.workspace_files = workspace.list_source_files();
+                // M25: all agent file access goes through the grant-checked
+                // wrapper; the explorer only lists readable files.
+                let policy = self.access_store.policy_for(workspace.root());
+                let guarded = GuardedWorkspace::new(workspace.clone(), policy);
+                self.workspace_files = guarded.list_readable_files();
+                self.guarded = Some(guarded);
                 self.workspace = Some(workspace);
                 self.error = None;
             }
             Err(error) => {
                 self.workspace = None;
+                self.guarded = None;
                 self.workspace_files.clear();
                 self.error = Some(error.to_string());
             }
@@ -394,8 +680,8 @@ impl AiEditor {
             return;
         }
         if !self.editor_path.is_empty()
-            && let Some(workspace) = &self.workspace
-            && let Ok(source) = workspace.read(&self.editor_path)
+            && let Some(guarded) = &self.guarded
+            && let Ok(source) = guarded.read(&self.editor_path)
         {
             self.editor_buffer = source.clone();
             self.last_synced_source = source;
@@ -551,7 +837,7 @@ impl AiEditor {
         self.operation_previews.clear();
         self.operation_errors.clear();
         let read_asset = |path: &str| -> Result<Vec<u8>, String> {
-            self.workspace
+            self.guarded
                 .as_ref()
                 .ok_or_else(|| "Kein Projektordner ausgewählt.".to_string())?
                 .read_bytes(path)
@@ -563,31 +849,52 @@ impl AiEditor {
         if self.session.pending_changes.is_empty() {
             return;
         }
-        let Some(workspace) = &self.workspace else {
+        let Some(guarded) = &self.guarded else {
             self.preview_errors
                 .push("Kein gültiger Projektordner ausgewählt.".into());
             return;
         };
-        for change in &self.session.pending_changes {
-            if let Some(script) = project
-                .scripts
-                .iter()
-                .find(|script| script.path == change.path)
-                && script.abc.is_some()
-            {
-                self.preview_errors.push(format!(
-                        "{}: Preserved ABC wird geschützt. Der erhaltene Bytecode darf weder durch Quelltext ersetzt noch gelöscht werden.",
-                        change.path
-                    ));
-                continue;
+        // M25.4: stage every change into the isolated review workspace.
+        // Originals are only read (grant-checked); writes land in staging.
+        let staging_root = self.access_store_file_dir().join("ai-review");
+        let _ = std::fs::create_dir_all(&staging_root);
+        match ReviewSession::new(guarded.root(), &staging_root) {
+            Ok(mut review) => {
+                for change in &self.session.pending_changes {
+                    if let Some(script) = project
+                        .scripts
+                        .iter()
+                        .find(|script| script.path == change.path)
+                        && script.abc.is_some()
+                    {
+                        self.preview_errors.push(format!(
+                                "{}: Preserved ABC wird geschützt. Der erhaltene Bytecode darf weder durch Quelltext ersetzt noch gelöscht werden.",
+                                change.path
+                            ));
+                        continue;
+                    }
+                    if let Err(error) = review.stage(guarded, change) {
+                        self.preview_errors
+                            .push(format!("{}: {error}", change.path));
+                    }
+                }
+                for index in 0..review.items().len() {
+                    if let Some(preview) = review.preview_of(index) {
+                        self.pending_previews.push(preview);
+                    }
+                }
+                self.review = Some(review);
             }
-            match workspace.preview(change) {
-                Ok(preview) => self.pending_previews.push(preview),
-                Err(error) => self
-                    .preview_errors
-                    .push(format!("{}: {error}", change.path)),
+            Err(error) => {
+                self.preview_errors
+                    .push(format!("Review-Workspace: {error}"));
             }
         }
+    }
+
+    /// Config directory that also hosts the AI review staging area.
+    fn access_store_file_dir(&self) -> PathBuf {
+        self.ai_config_dir.clone()
     }
 
     fn accept_pending(&mut self, project: &mut Project, state: &mut AppState) {
@@ -611,32 +918,106 @@ impl AiEditor {
         let project_before = project.clone();
         let active_script_before = state.active_script;
         let mut applied = Vec::new();
-        if let Some(workspace) = &self.workspace {
-            for preview in &previews {
-                let change = nova_ai::ProposedChange {
-                    path: preview.path.clone(),
-                    content: preview.new_content.clone().unwrap_or_default(),
-                    reason: preview.reason.clone(),
-                    delete: preview.kind == ChangeKind::Delete,
-                    kind: Some(preview.kind),
-                };
-                match workspace.apply(&change) {
-                    Ok(change) => applied.push(change),
-                    Err(error) => {
-                        for applied_change in applied.iter().rev() {
-                            let _ = workspace.undo(applied_change);
-                        }
-                        self.error = Some(format!(
-                            "Änderungen wurden nicht übernommen: {error}. Bereits geschriebene Dateien wurden zurückgesetzt."
+
+        // M25.6: apply through the review session — freshness-checked,
+        // grant-re-checked, rollback on failure. Only *accepted* items
+        // (the per-file decisions in the Diff tab) are written.
+        let mut accepted_previews: Vec<ChangePreview> = Vec::new();
+        let mut apply_notes: Vec<String> = Vec::new();
+        if !previews.is_empty() {
+            let Some(guarded) = &self.guarded else {
+                self.error = Some("Kein gültiger Projektordner ausgewählt.".into());
+                return;
+            };
+            let Some(mut review) = self.review.take() else {
+                self.error = Some("Kein Review-Workspace vorhanden.".into());
+                return;
+            };
+            // New content per staged path for the project-model update.
+            let staged: HashMap<String, (ChangeKind, String)> = review
+                .items()
+                .iter()
+                .map(|item| {
+                    (
+                        item.path.clone(),
+                        (item.kind, item.staged_content().unwrap_or_default()),
+                    )
+                })
+                .collect();
+            match review.apply(guarded) {
+                Ok(report) => {
+                    applied = report.applied;
+                    for path in &report.conflicts {
+                        apply_notes.push(format!(
+                            "Konflikt: '{path}' wurde nach dem Vorschlag geändert und nicht übernommen."
                         ));
-                        return;
                     }
+                    for note in &report.denied {
+                        apply_notes.push(format!(" blockiert: {note}"));
+                    }
+                    for applied_change in &applied {
+                        if let Some((kind, content)) = staged.get(&applied_change.path) {
+                            accepted_previews.push(ChangePreview {
+                                path: applied_change.path.clone(),
+                                kind: *kind,
+                                exists: true,
+                                old_content: None,
+                                new_content: Some(content.clone()),
+                                diff: nova_ai::DiffPreview {
+                                    added: 0,
+                                    removed: 0,
+                                    lines: Vec::new(),
+                                },
+                                reason: String::new(),
+                            });
+                        }
+                    }
+                    // Keep only accepted-but-unapplied items (conflicts or
+                    // revoked permissions); rejected/applied items are done.
+                    let applied_paths: HashSet<String> =
+                        applied.iter().map(|a| a.path.clone()).collect();
+                    let denied_paths: HashSet<String> = report
+                        .denied
+                        .iter()
+                        .filter_map(|note| note.split(':').next().map(str::to_string))
+                        .collect();
+                    review.items_mut().retain(|item| {
+                        !applied_paths.contains(&item.path)
+                            && item.accepted
+                            && (item.conflicted || denied_paths.contains(&item.path))
+                    });
+                    if !review.is_empty() {
+                        self.pending_previews = review
+                            .items()
+                            .iter()
+                            .enumerate()
+                            .filter_map(|(i, _)| review.preview_of(i))
+                            .collect();
+                        self.review = Some(review);
+                    } else {
+                        self.review = None;
+                    }
+                }
+                Err(error) => {
+                    self.review = Some(review);
+                    self.error = Some(error.to_string());
+                    return;
                 }
             }
         }
 
+        for note in &apply_notes {
+            self.activity.push(ActivityLine {
+                text: note.trim_start().to_string(),
+                error: true,
+            });
+        }
+        if !apply_notes.is_empty() {
+            self.error = Some(apply_notes.join(" "));
+        }
+
         let mut model_error = None;
-        for preview in &previews {
+        for preview in &accepted_previews {
             if let Err(error) = apply_preview_to_project(project, preview, state) {
                 model_error = Some(error);
                 break;
@@ -644,7 +1025,7 @@ impl AiEditor {
         }
         if model_error.is_none() && !operations.is_empty() {
             let read_asset = |path: &str| -> Result<Vec<u8>, String> {
-                self.workspace
+                self.guarded
                     .as_ref()
                     .ok_or_else(|| "Kein Projektordner ausgewählt.".to_string())?
                     .read_bytes(path)
@@ -657,9 +1038,9 @@ impl AiEditor {
         if let Some(error) = model_error {
             *project = project_before;
             state.active_script = active_script_before;
-            if let Some(workspace) = &self.workspace {
+            if let Some(guarded) = &self.guarded {
                 for applied_change in applied.iter().rev() {
-                    let _ = workspace.undo(applied_change);
+                    let _ = guarded.workspace().undo(applied_change);
                 }
             }
             self.error = Some(error);
@@ -698,6 +1079,9 @@ impl AiEditor {
 
     fn reject_pending(&mut self, state: &mut AppState) {
         let count = self.session.pending_changes.len() + self.session.pending_operations.len();
+        if let Some(review) = self.review.take() {
+            review.cleanup();
+        }
         self.session.pending_changes.clear();
         self.session.pending_operations.clear();
         self.pending_previews.clear();
@@ -717,11 +1101,11 @@ impl AiEditor {
             self.error = Some("Keine Dateiänderung zum Rückgängigmachen.".into());
             return;
         };
-        let Some(workspace) = &self.workspace else {
+        let Some(guarded) = &self.guarded else {
             self.error = Some("Kein gültiger Projektordner ausgewählt.".into());
             return;
         };
-        match workspace.undo(&applied) {
+        match guarded.workspace().undo(&applied) {
             Ok(()) => {
                 self.applied.pop();
                 self.status = format!("Datei '{}' wiederhergestellt.", applied.path);
@@ -967,6 +1351,56 @@ impl AiEditor {
                 }
             });
         ui.separator();
+        // M25: access overview — which files the agent may read/write.
+        ui.horizontal(|ui| {
+            ui.label(
+                RichText::new("ZUGRIFF")
+                    .strong()
+                    .small()
+                    .color(theme::ACCENT),
+            );
+            if ui.small_button("Berechtigungen…").clicked() {
+                self.grants_dialog_open = true;
+            }
+        });
+        let access_root = self
+            .workspace
+            .as_ref()
+            .map(|workspace| workspace.root().to_path_buf());
+        if let Some(root) = access_root {
+            let grants = self.access_store.grants_for(&root);
+            let read_only = self.access_store.read_only(&root);
+            if grants.is_empty() {
+                ui.label(
+                    RichText::new("Keine Freigabe — Agent hat keinen Dateizugriff.")
+                        .small()
+                        .color(theme::AMBER),
+                );
+            } else {
+                for (display, _, level) in grants.iter().take(6) {
+                    ui.label(
+                        RichText::new(format!("• {display} ({})", level.label()))
+                            .small()
+                            .color(theme::TEXT_DIM),
+                    );
+                }
+                if grants.len() > 6 {
+                    ui.label(
+                        RichText::new(format!("… und {} weitere", grants.len() - 6))
+                            .small()
+                            .color(theme::TEXT_FAINT),
+                    );
+                }
+            }
+            if read_only {
+                ui.label(
+                    RichText::new("Nur-Lese-Modus aktiv")
+                        .small()
+                        .color(theme::AMBER),
+                );
+            }
+        }
+        ui.separator();
         ui.label(
             RichText::new(format!(
                 "Objektauswahl: {} · Frame {}",
@@ -1107,13 +1541,17 @@ impl AiEditor {
                 );
             return;
         }
-        let Some(workspace) = &self.workspace else {
+        let Some(guarded) = &self.guarded else {
             self.error = Some("Kein gültiger Projektordner ausgewählt.".into());
             return;
         };
+        if let Err(error) = guarded.ensure_write(&self.editor_path) {
+            self.error = Some(format!("Keine Schreibfreigabe: {error}"));
+            return;
+        }
         let change =
             nova_ai::ProposedChange::inferred(self.editor_path.clone(), self.editor_buffer.clone());
-        match workspace.apply(&change) {
+        match guarded.workspace().apply(&change) {
             Ok(applied) => {
                 self.applied.push(applied);
                 self.status = format!("Datei '{}' gespeichert.", self.editor_path);
@@ -1450,20 +1888,40 @@ impl AiEditor {
                                 .color(theme::TEXT_DIM),
                         );
                     }
-                    for preview in &self.pending_previews {
-                        ui.label(
-                            RichText::new(format!(
-                                "{}  ·  {}",
-                                preview.summary(),
-                                if preview.reason.is_empty() {
-                                    "ohne Begründung"
+                    let diff_previews = self.pending_previews.clone();
+                    for (index, preview) in diff_previews.iter().enumerate() {
+                        // M25.5: per-file accept decision.
+                        let mut accepted = self
+                            .review
+                            .as_ref()
+                            .and_then(|review| review.items().get(index))
+                            .map(|item| item.accepted)
+                            .unwrap_or(true);
+                        ui.horizontal(|ui| {
+                            if ui.checkbox(&mut accepted, "").changed()
+                                && let Some(review) = self.review.as_mut()
+                                && let Some(item) = review.items_mut().get_mut(index)
+                            {
+                                item.accepted = accepted;
+                            }
+                            ui.label(
+                                RichText::new(format!(
+                                    "{}  ·  {}",
+                                    preview.summary(),
+                                    if preview.reason.is_empty() {
+                                        "ohne Begründung"
+                                    } else {
+                                        preview.reason.as_str()
+                                    }
+                                ))
+                                .strong()
+                                .color(if accepted {
+                                    theme::TEXT
                                 } else {
-                                    preview.reason.as_str()
-                                }
-                            ))
-                            .strong()
-                            .color(theme::TEXT),
-                        );
+                                    theme::TEXT_FAINT
+                                }),
+                            );
+                        });
                         if preview.kind == ChangeKind::Delete {
                             ui.label(
                                 RichText::new("Die Datei wird gelöscht; der vorherige Inhalt bleibt für Undo erhalten.")

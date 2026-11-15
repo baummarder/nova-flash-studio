@@ -33,6 +33,10 @@
     <EmbeddedResource Include="..\..\..\assets\branding\nova-logo-256.png">
       <LogicalName>logo.png</LogicalName>
     </EmbeddedResource>
+    <!-- M24.2: installer UI strings, same five languages as the app -->
+    <EmbeddedResource Include="i18n\*.json">
+      <LogicalName>i18n.%(Filename).json</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
   <ItemGroup Condition="'$(NovaPayloadZip)' != ''">
