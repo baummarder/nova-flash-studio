@@ -22,18 +22,18 @@ pub enum EntTab {
 }
 
 impl EntTab {
-    pub fn label(self) -> &'static str {
-        match self {
-            Self::Overview => "Übersicht",
-            Self::Projects => "Projekte",
-            Self::Team => "Team",
-            Self::Assets => "Assets",
-            Self::Versions => "Versionen",
-            Self::Reviews => "Reviews",
-            Self::Builds => "Builds",
-            Self::Admin => "Administration",
-            Self::Integrations => "Integrationen",
-        }
+    pub fn label(self) -> String {
+        crate::i18n::t(match self {
+            Self::Overview => "ent.tab.overview",
+            Self::Projects => "ent.tab.projects",
+            Self::Team => "ent.tab.team",
+            Self::Assets => "ent.tab.assets",
+            Self::Versions => "ent.tab.versions",
+            Self::Reviews => "ent.tab.reviews",
+            Self::Builds => "ent.tab.builds",
+            Self::Admin => "ent.tab.admin",
+            Self::Integrations => "ent.tab.integrations",
+        })
     }
 
     pub const ALL: &[EntTab] = &[

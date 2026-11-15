@@ -1,5 +1,11 @@
 //! NØVA Flash Studio native desktop entry point.
 
+// M22.2: GUI subsystem — no console window on normal startup (installer,
+// start menu, desktop shortcut, double-click). CLI options still work:
+// `attach_parent_console()` re-binds stdout/stderr to the caller's console
+// before any output is produced.
+#![windows_subsystem = "windows"]
+
 mod ai_editor;
 mod ai_providers;
 mod app;
@@ -16,6 +22,8 @@ mod enterprise_view;
 mod flash;
 mod highlight;
 mod history;
+mod i18n;
+mod language_wizard;
 mod properties;
 mod splash;
 mod stage_view;
@@ -31,7 +39,10 @@ use std::path::PathBuf;
 use eframe::egui;
 
 fn main() -> eframe::Result {
+    install_panic_log();
+    i18n::load_language();
     let args: Vec<String> = std::env::args().skip(1).collect();
+    attach_parent_console_for_cli(&args);
     if handle_cli(&args) {
         return Ok(());
     }
@@ -77,6 +88,67 @@ fn startup_project_arg(args: &[String]) -> Option<PathBuf> {
         }
     }
     None
+}
+
+/// On Windows, a `windows`-subsystem process has no console. When the user
+/// explicitly asks for CLI output (`--version`, `--help`, `--startup-check`)
+/// from a terminal, attach to the parent console so `println!` reaches it.
+/// Must run before the first write to stdout.
+#[cfg(windows)]
+fn attach_parent_console_for_cli(args: &[String]) {
+    let cli_requested = args.iter().any(|arg| {
+        matches!(
+            arg.as_str(),
+            "--version" | "-V" | "--help" | "-h" | "--startup-check"
+        )
+    });
+    if !cli_requested {
+        return;
+    }
+    // ATTACH_PARENT_PROCESS = 0xFFFF_FFFE
+    unsafe {
+        windows_sys::Win32::System::Console::AttachConsole(0xFFFF_FFFE);
+        // Re-open the standard handles so Rust's cached stdout picks up the
+        // newly attached console.
+        windows_sys::Win32::System::Console::SetStdHandle(
+            windows_sys::Win32::System::Console::STD_OUTPUT_HANDLE,
+            windows_sys::Win32::System::Console::GetStdHandle(
+                windows_sys::Win32::System::Console::STD_OUTPUT_HANDLE,
+            ),
+        );
+    }
+}
+
+#[cfg(not(windows))]
+fn attach_parent_console_for_cli(_args: &[String]) {}
+
+/// Panics in a GUI-subsystem process would otherwise vanish silently.
+/// Append them to `<edition-config-dir>/nova-crash.log` so failures stay
+/// diagnosable without a console.
+fn install_panic_log() {
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        default_hook(info);
+        if let Some(dir) = nova_core::Edition::current().config_dir() {
+            let path = dir.join("nova-crash.log");
+            if let Ok(mut file) = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&path)
+            {
+                use std::io::Write;
+                let _ = writeln!(
+                    file,
+                    "--- {} ---\n{}",
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_secs())
+                        .unwrap_or(0),
+                    info
+                );
+            }
+        }
+    }));
 }
 
 /// Return true when a command-line option was handled without opening a window.

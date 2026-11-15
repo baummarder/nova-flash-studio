@@ -20,7 +20,7 @@ use crate::state::{
     Tool, UiAction,
 };
 use crate::{
-    autosave, branding, classroom_view, code_view, console, edition, enterprise_view, flash,
+    autosave, branding, classroom_view, code_view, console, edition, enterprise_view, flash, i18n,
     properties, stage_view, theme, tilemap_view, timeline_view, tree, util,
 };
 
@@ -87,6 +87,8 @@ pub struct NovaApp {
     audio: crate::audio::AudioEngine,
     edu: crate::edu_state::EduUi,
     ent: crate::ent_state::EntUi,
+    /// First-run / settings language wizard. `Some(lang)` = active preview.
+    wizard: Option<i18n::Lang>,
 }
 
 impl NovaApp {
@@ -145,6 +147,11 @@ impl NovaApp {
                     .config_dir()
                     .unwrap_or_else(|| std::path::PathBuf::from(".")),
             ),
+            wizard: if i18n::language_is_chosen() {
+                None
+            } else {
+                Some(i18n::language())
+            },
         };
         if let Some(path) = startup_project {
             if is_swf_path(path) {
@@ -186,48 +193,55 @@ impl NovaApp {
 
     fn menu_bar(&mut self, ui: &mut Ui, actions: &mut Vec<UiAction>) {
         egui::MenuBar::new().ui(ui, |ui| {
-            ui.menu_button("Datei", |ui| {
-                if ui.button("Neu …    Strg+N").clicked() {
+            ui.menu_button(i18n::t("menu.file"), |ui| {
+                if ui.button(i18n::t("menu.file.new")).clicked() {
                     actions.push(UiAction::NewProjectPrompt);
                     ui.close();
                 }
-                if ui.button("Öffnen …    Strg+O").clicked() {
+                if ui.button(i18n::t("menu.file.open")).clicked() {
                     actions.push(UiAction::OpenPrompt);
                     ui.close();
                 }
                 ui.separator();
-                if ui.button("Speichern    Strg+S").clicked() {
+                if ui.button(i18n::t("menu.file.save")).clicked() {
                     actions.push(UiAction::Save);
                     ui.close();
                 }
-                if ui.button("Speichern unter …").clicked() {
+                if ui.button(i18n::t("menu.file.save_as")).clicked() {
                     actions.push(UiAction::SaveAs);
                     ui.close();
                 }
                 ui.separator();
-                if ui.button("Film exportieren …    Strg+E").clicked() {
+                if ui.button(i18n::t("menu.file.export")).clicked() {
                     actions.push(UiAction::Export);
                     ui.close();
                 }
                 if ui
-                    .button("Projekt-Kompatibilität …")
-                    .on_hover_text("Bericht: was beim SWF-/XFL-Export erhalten bleibt und was nicht")
+                    .button(i18n::t("menu.file.compat"))
+                    .on_hover_text(i18n::t("menu.file.compat_tip"))
                     .clicked()
                 {
                     actions.push(UiAction::ShowCompatibilityReport);
                     ui.close();
                 }
                 ui.separator();
-                ui.menu_button("Autosave", |ui| {
+                ui.menu_button(i18n::t("menu.file.autosave"), |ui| {
                     if ui
-                        .checkbox(&mut self.state.autosave_enabled, "Autosave aktiv")
+                        .checkbox(
+                            &mut self.state.autosave_enabled,
+                            i18n::t("menu.file.autosave_on"),
+                        )
                         .changed()
                     {
                         actions.push(UiAction::ToggleAutosave);
                     }
                     let mut interval = self.state.autosave_seconds;
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new("Intervall").small().color(theme::TEXT_DIM));
+                        ui.label(
+                            RichText::new(i18n::t("menu.file.autosave_interval"))
+                                .small()
+                                .color(theme::TEXT_DIM),
+                        );
                         if ui
                             .add(
                                 egui::DragValue::new(&mut interval)
@@ -242,33 +256,36 @@ impl NovaApp {
                     });
                     if let Some(path) = &self.state.last_autosave_path {
                         ui.label(
-                            RichText::new(format!("Letzte Sicherung: {}", path.display()))
-                                .small()
-                                .color(theme::TEXT_FAINT),
+                            RichText::new(i18n::tf(
+                                "menu.file.autosave_last",
+                                &[("path", &path.display().to_string())],
+                            ))
+                            .small()
+                            .color(theme::TEXT_FAINT),
                         );
                     }
                 });
                 ui.separator();
-                if ui.button("Beenden").clicked() {
+                if ui.button(i18n::t("menu.file.quit")).clicked() {
                     actions.push(UiAction::Quit);
                     ui.close();
                 }
             });
 
-            ui.menu_button("Bearbeiten", |ui| {
+            ui.menu_button(i18n::t("menu.edit"), |ui| {
                 let undo_label = self
                     .history
                     .undo_label()
-                    .map(|label| format!("Rückgängig: {label}"))
-                    .unwrap_or_else(|| "Rückgängig".to_string());
+                    .map(|label| i18n::tf("menu.edit.undo", &[("label", label)]))
+                    .unwrap_or_else(|| i18n::t("menu.edit.undo_plain"));
                 if ui
                     .add_enabled(
                         self.history.can_undo(),
                         egui::Button::new(format!("{undo_label}    Strg+Z")),
                     )
-                    .on_hover_text(format!(
-                        "{} Schritt(e) in der Historie",
-                        self.history.undo_len()
+                    .on_hover_text(i18n::tf(
+                        "menu.edit.undo_steps",
+                        &[("count", &self.history.undo_len().to_string())],
                     ))
                     .clicked()
                 {
@@ -278,16 +295,16 @@ impl NovaApp {
                 let redo_label = self
                     .history
                     .redo_label()
-                    .map(|label| format!("Wiederholen: {label}"))
-                    .unwrap_or_else(|| "Wiederholen".to_string());
+                    .map(|label| i18n::tf("menu.edit.redo", &[("label", label)]))
+                    .unwrap_or_else(|| i18n::t("menu.edit.redo_plain"));
                 if ui
                     .add_enabled(
                         self.history.can_redo(),
                         egui::Button::new(format!("{redo_label}    Strg+Y")),
                     )
-                    .on_hover_text(format!(
-                        "{} Schritt(e) wiederholbar",
-                        self.history.redo_len()
+                    .on_hover_text(i18n::tf(
+                        "menu.edit.redo_steps",
+                        &[("count", &self.history.redo_len().to_string())],
                     ))
                     .clicked()
                 {
@@ -295,49 +312,55 @@ impl NovaApp {
                     ui.close();
                 }
                 ui.separator();
-                if ui.button("Auswahl löschen    Entf").clicked() {
+                if ui.button(i18n::t("menu.edit.delete_selection")).clicked() {
                     actions.push(UiAction::DeleteSelection);
                     ui.close();
                 }
                 ui.separator();
-                if ui.button("Objekte kopieren    Strg+C").clicked() {
+                if ui.button(i18n::t("menu.edit.copy_objects")).clicked() {
                     actions.push(UiAction::CopyObjects);
                     ui.close();
                 }
-                if ui.button("Objekte einfügen    Strg+V").clicked() {
+                if ui.button(i18n::t("menu.edit.paste_objects")).clicked() {
                     actions.push(UiAction::PasteObjects);
                     ui.close();
                 }
-                if ui.button("Objekte duplizieren    Strg+D").clicked() {
+                if ui.button(i18n::t("menu.edit.duplicate_objects")).clicked() {
                     actions.push(UiAction::DuplicateObjects);
                     ui.close();
                 }
                 ui.separator();
-                if ui.button("Schlüsselbilder kopieren    Strg+C").clicked() {
+                if ui.button(i18n::t("menu.edit.copy_keyframes")).clicked() {
                     actions.push(UiAction::CopyKeyframes);
                     ui.close();
                 }
-                if ui.button("Schlüsselbilder einfügen    Strg+V").clicked() {
+                if ui.button(i18n::t("menu.edit.paste_keyframes")).clicked() {
                     actions.push(UiAction::PasteKeyframes);
                     ui.close();
                 }
-                if ui.button("Schlüsselbilder duplizieren    Strg+D").clicked() {
+                if ui
+                    .button(i18n::t("menu.edit.duplicate_keyframes"))
+                    .clicked()
+                {
                     actions.push(UiAction::DuplicateKeyframes);
                     ui.close();
                 }
                 ui.separator();
-                if ui.button("Frame einfügen    F5").clicked() {
+                if ui.button(i18n::t("menu.edit.insert_frame")).clicked() {
                     actions.push(UiAction::InsertFrame);
                     ui.close();
                 }
-                if ui.button("Frame entfernen    Shift+F5").clicked() {
+                if ui.button(i18n::t("menu.edit.remove_frame")).clicked() {
                     actions.push(UiAction::RemoveFrame);
                     ui.close();
                 }
                 ui.separator();
                 let has_script = self.state.active_script.is_some();
                 if ui
-                    .add_enabled(has_script, egui::Button::new("Aktives Skript prüfen"))
+                    .add_enabled(
+                        has_script,
+                        egui::Button::new(i18n::t("menu.edit.check_script")),
+                    )
                     .clicked()
                 {
                     if let Some(id) = self.state.active_script {
@@ -347,16 +370,16 @@ impl NovaApp {
                 }
             });
 
-            ui.menu_button("Einfügen", |ui| {
-                if ui.button("Rechteck").clicked() {
+            ui.menu_button(i18n::t("menu.insert"), |ui| {
+                if ui.button(i18n::t("menu.insert.rect")).clicked() {
                     actions.push(UiAction::AddRect);
                     ui.close();
                 }
-                if ui.button("Ellipse").clicked() {
+                if ui.button(i18n::t("menu.insert.ellipse")).clicked() {
                     actions.push(UiAction::AddEllipse);
                     ui.close();
                 }
-                if ui.button("Text").clicked() {
+                if ui.button(i18n::t("menu.insert.text")).clicked() {
                     actions.push(UiAction::AddText);
                     ui.close();
                 }
@@ -365,7 +388,10 @@ impl NovaApp {
                     .selected_symbol
                     .or_else(|| self.project.symbols.first().map(|symbol| symbol.id));
                 if ui
-                    .add_enabled(symbol.is_some(), egui::Button::new("Symbol-Instanz"))
+                    .add_enabled(
+                        symbol.is_some(),
+                        egui::Button::new(i18n::t("menu.insert.symbol_instance")),
+                    )
                     .clicked()
                 {
                     if let Some(id) = symbol {
@@ -374,116 +400,122 @@ impl NovaApp {
                     ui.close();
                 }
                 ui.separator();
-                if ui.button("Neue Ebene").clicked() {
+                if ui.button(i18n::t("menu.insert.layer")).clicked() {
                     actions.push(UiAction::AddLayer);
                     ui.close();
                 }
-                if ui.button("Neue Ordnerebene").clicked() {
+                if ui.button(i18n::t("menu.insert.folder")).clicked() {
                     actions.push(UiAction::AddFolder);
                     ui.close();
                 }
-                if ui.button("Neue Szene").clicked() {
+                if ui.button(i18n::t("menu.insert.scene")).clicked() {
                     actions.push(UiAction::AddScene);
                     ui.close();
                 }
-                if ui.button("Aktive Szene löschen").clicked() {
+                if ui.button(i18n::t("menu.insert.delete_scene")).clicked() {
                     actions.push(UiAction::DeleteScene);
                     ui.close();
                 }
-                if ui.button("Neues Skript").clicked() {
+                if ui.button(i18n::t("menu.insert.script")).clicked() {
                     actions.push(UiAction::AddScript);
                     ui.close();
                 }
-                if ui.button("Neues Symbol").clicked() {
+                if ui.button(i18n::t("menu.insert.symbol")).clicked() {
                     actions.push(UiAction::AddSymbol);
                     ui.close();
                 }
                 ui.separator();
-                if ui.button("Schlüsselbild    F6").clicked() {
+                if ui.button(i18n::t("menu.insert.keyframe")).clicked() {
                     actions.push(UiAction::InsertKeyframe);
                     ui.close();
                 }
-                if ui.button("Leeres Schlüsselbild    Shift+F6").clicked() {
+                if ui.button(i18n::t("menu.insert.blank_keyframe")).clicked() {
                     actions.push(UiAction::InsertBlankKeyframe);
                     ui.close();
                 }
-                if ui.button("Schlüsselbild entfernen").clicked() {
+                if ui.button(i18n::t("menu.insert.remove_keyframe")).clicked() {
                     actions.push(UiAction::RemoveKeyframe);
                     ui.close();
                 }
             });
 
-            ui.menu_button("Ansicht", |ui| {
+            ui.menu_button(i18n::t("menu.view"), |ui| {
                 if ui
-                    .selectable_label(self.state.mode == Mode::Code, "Code-Modus")
+                    .selectable_label(
+                        self.state.mode == Mode::Code,
+                        i18n::t("menu.view.code_mode"),
+                    )
                     .clicked()
                 {
                     actions.push(UiAction::SetMode(Mode::Code));
                     ui.close();
                 }
                 if ui
-                    .selectable_label(self.state.mode == Mode::Animation, "Animations-Modus")
+                    .selectable_label(
+                        self.state.mode == Mode::Animation,
+                        i18n::t("menu.view.anim_mode"),
+                    )
                     .clicked()
                 {
                     actions.push(UiAction::SetMode(Mode::Animation));
                     ui.close();
                 }
                 ui.separator();
-                if ui.button("Bühne einpassen").clicked() {
+                if ui.button(i18n::t("menu.view.fit_stage")).clicked() {
                     actions.push(UiAction::FitStage);
                     ui.close();
                 }
-                if ui.button("Vergrößern").clicked() {
+                if ui.button(i18n::t("menu.view.zoom_in")).clicked() {
                     actions.push(UiAction::ZoomBy(1.2));
                     ui.close();
                 }
-                if ui.button("Verkleinern").clicked() {
+                if ui.button(i18n::t("menu.view.zoom_out")).clicked() {
                     actions.push(UiAction::ZoomBy(1.0 / 1.2));
                     ui.close();
                 }
                 ui.separator();
                 if ui
-                    .selectable_label(self.state.onion_skin, "Onion Skin")
+                    .selectable_label(self.state.onion_skin, i18n::t("menu.view.onion"))
                     .clicked()
                 {
                     actions.push(UiAction::ToggleOnion);
                     ui.close();
                 }
                 if ui
-                    .selectable_label(self.state.show_grid, "Raster")
+                    .selectable_label(self.state.show_grid, i18n::t("menu.view.grid"))
                     .clicked()
                 {
                     actions.push(UiAction::ToggleGrid);
                     ui.close();
                 }
                 if ui
-                    .selectable_label(self.state.snap_to_grid, "Am Raster einrasten")
+                    .selectable_label(self.state.snap_to_grid, i18n::t("menu.view.snap"))
                     .clicked()
                 {
                     actions.push(UiAction::ToggleSnap);
                     ui.close();
                 }
                 ui.separator();
-                if ui.button("Timeline").clicked() {
+                if ui.button(i18n::t("menu.view.tab_timeline")).clicked() {
                     actions.push(UiAction::SetBottomTab(BottomTab::Timeline));
                     ui.close();
                 }
-                if ui.button("Konsole").clicked() {
+                if ui.button(i18n::t("menu.view.tab_console")).clicked() {
                     actions.push(UiAction::SetBottomTab(BottomTab::Console));
                     ui.close();
                 }
-                if ui.button("Probleme").clicked() {
+                if ui.button(i18n::t("menu.view.tab_problems")).clicked() {
                     actions.push(UiAction::SetBottomTab(BottomTab::Problems));
                     ui.close();
                 }
             });
 
-            ui.menu_button("Flash Player", |ui| {
-                if ui.button("Open in Flash Player").clicked() {
+            ui.menu_button(i18n::t("menu.flash"), |ui| {
+                if ui.button(i18n::t("menu.flash.open")).clicked() {
                     actions.push(UiAction::OpenInFlashPlayer);
                     ui.close();
                 }
-                if ui.button("Runtime-Einstellungen …").clicked() {
+                if ui.button(i18n::t("menu.flash.runtime_settings")).clicked() {
                     actions.push(UiAction::OpenFlashSettings);
                     ui.close();
                 }
@@ -500,42 +532,48 @@ impl NovaApp {
                 );
                 if let Some((path, _, _, _)) = &self.state.last_export {
                     ui.label(
-                        RichText::new(format!("Letzter Export: {}", path.display()))
-                            .small()
-                            .color(theme::TEXT_FAINT),
+                        RichText::new(i18n::tf(
+                            "menu.flash.last_export",
+                            &[("path", &path.display().to_string())],
+                        ))
+                        .small()
+                        .color(theme::TEXT_FAINT),
                     );
                 }
             });
 
-            ui.menu_button("KI", |ui| {
+            ui.menu_button(i18n::t("menu.ai"), |ui| {
                 if ui
-                    .selectable_label(self.ai.open, "AI Agent Editor")
+                    .selectable_label(self.ai.open, i18n::t("menu.ai.editor"))
                     .clicked()
                 {
                     actions.push(UiAction::OpenAiEditor);
                     ui.close();
                 }
-                if ui.button("KI-Anbieter …").clicked() {
+                if ui.button(i18n::t("menu.ai.providers")).clicked() {
                     actions.push(UiAction::OpenAiProviders);
                     ui.close();
                 }
                 ui.separator();
                 ui.label(
-                    RichText::new(
-                        "Cloud-Anfragen nur nach ausdrücklicher Zustimmung. Dateiänderungen immer mit Diff.",
-                    )
-                    .small()
-                    .color(theme::TEXT_FAINT),
+                    RichText::new(i18n::t("menu.ai.notice"))
+                        .small()
+                        .color(theme::TEXT_FAINT),
                 );
             });
 
-            ui.menu_button("Hilfe", |ui| {
-                if ui.button("Hilfe & Grenzen").clicked() {
+            ui.menu_button(i18n::t("menu.help"), |ui| {
+                if ui.button(i18n::t("menu.help.help_limits")).clicked() {
                     actions.push(UiAction::Help);
                     ui.close();
                 }
-                if ui.button("Über NØVA Flash Studio").clicked() {
+                if ui.button(i18n::t("menu.help.about")).clicked() {
                     actions.push(UiAction::About);
+                    ui.close();
+                }
+                ui.separator();
+                if ui.button(i18n::t("settings.language_wizard")).clicked() {
+                    self.wizard = Some(i18n::language());
                     ui.close();
                 }
             });
@@ -547,6 +585,55 @@ impl NovaApp {
                         .color(theme::TEXT_FAINT),
                 );
             });
+        });
+    }
+
+    /// M22.1: slim left rail with the workspace modes — the Animate-style
+    /// navigation column. Always visible so Classroom/Enterprise/AI views
+    /// can switch back.
+    fn mode_rail(&mut self, ui: &mut Ui, actions: &mut Vec<UiAction>) {
+        ui.vertical(|ui| {
+            ui.add_space(8.0);
+            let mut modes = vec![
+                (Mode::Code, i18n::t("mode.code")),
+                (Mode::Animation, i18n::t("mode.animation")),
+            ];
+            if edition::has_active_module("classroom") {
+                modes.push((Mode::Classroom, i18n::t("mode.classroom")));
+            }
+            if edition::has_active_module("administration") {
+                modes.push((Mode::Enterprise, i18n::t("mode.enterprise")));
+            }
+            for (mode, label) in modes {
+                let active = self.state.mode == mode;
+                let text = if active {
+                    RichText::new(&label).strong().color(theme::ACCENT)
+                } else {
+                    RichText::new(&label).color(theme::TEXT_DIM)
+                };
+                if ui
+                    .add(egui::Button::new(text).min_size(egui::vec2(44.0, 30.0)))
+                    .clicked()
+                {
+                    actions.push(UiAction::SetMode(mode));
+                }
+            }
+            ui.separator();
+            let ai_active = self.ai.open;
+            let ai_text = if ai_active {
+                RichText::new(i18n::t("toolbar.ai_agent"))
+                    .strong()
+                    .color(theme::ACCENT)
+            } else {
+                RichText::new(i18n::t("toolbar.ai_agent")).color(theme::TEXT_DIM)
+            };
+            if ui
+                .add(egui::Button::new(ai_text).min_size(egui::vec2(44.0, 30.0)))
+                .on_hover_text(i18n::t("toolbar.ai_agent_tip"))
+                .clicked()
+            {
+                actions.push(UiAction::OpenAiEditor);
+            }
         });
     }
 
@@ -564,39 +651,12 @@ impl NovaApp {
                     .color(theme::TEXT_FAINT),
             );
 
-            ui.add_space(10.0);
-            let mut modes = vec![(Mode::Code, "Code"), (Mode::Animation, "Animation")];
-            if edition::has_active_module("classroom") {
-                modes.push((Mode::Classroom, "Klassenzimmer"));
-            }
-            if edition::has_active_module("administration") {
-                modes.push((Mode::Enterprise, "Enterprise"));
-            }
-            for (mode, label) in modes {
-                if ui
-                    .selectable_label(self.state.mode == mode, RichText::new(label).strong())
-                    .clicked()
-                {
-                    actions.push(UiAction::SetMode(mode));
-                }
-            }
-            ui.separator();
-            if ui
-                .selectable_label(
-                    self.ai.open,
-                    RichText::new("AI Agent").strong().color(theme::ACCENT),
-                )
-                .on_hover_text("AI Agent Editor öffnen (Strg+Umschalt+A)")
-                .clicked()
-            {
-                actions.push(UiAction::OpenAiEditor);
-            }
             ui.separator();
 
             ui.label(RichText::new(&self.project.metadata.name).strong());
             if self.state.dirty {
                 ui.label(RichText::new("●").small().color(theme::AMBER))
-                    .on_hover_text("Ungespeicherte Änderungen");
+                    .on_hover_text(i18n::t("toolbar.dirty"));
             }
             if let Some(path) = &self.state.path {
                 ui.label(
@@ -608,20 +668,20 @@ impl NovaApp {
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui
-                    .button(RichText::new("Film exportieren").strong())
-                    .on_hover_text("Aktive Szene als SWF oder XFL-Paket schreiben (Strg+E)")
+                    .button(RichText::new(i18n::t("toolbar.export")).strong())
+                    .on_hover_text(i18n::t("toolbar.export_tip"))
                     .clicked()
                 {
                     actions.push(UiAction::Export);
                 }
                 if ui
-                    .button(RichText::new("Open in Flash Player").strong())
-                    .on_hover_text("Letzten SWF-Export in der konfigurierten Adobe- oder Ruffle-Runtime öffnen")
+                    .button(RichText::new(i18n::t("toolbar.open_fp")).strong())
+                    .on_hover_text(i18n::t("toolbar.open_fp_tip"))
                     .clicked()
                 {
                     actions.push(UiAction::OpenInFlashPlayer);
                 }
-                if ui.button("Speichern").clicked() {
+                if ui.button(i18n::t("toolbar.save")).clicked() {
                     actions.push(UiAction::Save);
                 }
             });
@@ -633,17 +693,23 @@ impl NovaApp {
             let errors = self.state.error_count();
             let warnings = self.state.warning_count();
             let tabs = [
-                (BottomTab::Timeline, "Timeline".to_string()),
-                (BottomTab::Tiles, "Kacheln".to_string()),
-                (BottomTab::Console, "Konsole".to_string()),
+                (BottomTab::Timeline, i18n::t("dock.tab.timeline")),
+                (BottomTab::Tiles, i18n::t("dock.tab.tiles")),
+                (BottomTab::Console, i18n::t("dock.tab.console")),
                 (
                     BottomTab::Problems,
                     if errors > 0 {
-                        format!("Probleme ({errors})")
+                        i18n::tf(
+                            "dock.tab.problems_errors",
+                            &[("count", &errors.to_string())],
+                        )
                     } else if warnings > 0 {
-                        format!("Probleme ({warnings} W)")
+                        i18n::tf(
+                            "dock.tab.problems_warnings",
+                            &[("count", &warnings.to_string())],
+                        )
                     } else {
-                        "Probleme".to_string()
+                        i18n::t("dock.tab.problems")
                     },
                 ),
             ];
@@ -667,10 +733,12 @@ impl NovaApp {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if let Some(scene) = self.project.edit_scene(self.state.edit_symbol) {
                     ui.label(
-                        RichText::new(format!(
-                            "{} Frames · {:.0} fps",
-                            scene.frame_count(),
-                            scene.fps
+                        RichText::new(i18n::tf(
+                            "dock.scene_stats",
+                            &[
+                                ("frames", &scene.frame_count().to_string()),
+                                ("fps", &format!("{:.0}", scene.fps)),
+                            ],
                         ))
                         .small()
                         .color(theme::TEXT_FAINT),
@@ -707,12 +775,14 @@ impl NovaApp {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if let Some(scene) = self.project.edit_scene(self.state.edit_symbol) {
                     ui.label(
-                        RichText::new(format!(
-                            "{} · Frame {}/{} · {:.0}%",
-                            scene.name,
-                            self.state.frame + 1,
-                            scene.frame_count(),
-                            self.state.zoom * 100.0
+                        RichText::new(i18n::tf(
+                            "status.frame_info",
+                            &[
+                                ("scene", &scene.name),
+                                ("frame", &(self.state.frame + 1).to_string()),
+                                ("total", &scene.frame_count().to_string()),
+                                ("zoom", &format!("{:.0}", self.state.zoom * 100.0)),
+                            ],
                         ))
                         .small()
                         .color(theme::TEXT_FAINT),
@@ -721,7 +791,7 @@ impl NovaApp {
                 let errors = self.state.error_count();
                 if errors > 0 {
                     ui.label(
-                        RichText::new(format!("{errors} Fehler"))
+                        RichText::new(i18n::tf("status.errors", &[("count", &errors.to_string())]))
                             .small()
                             .color(theme::RED),
                     );
@@ -3391,9 +3461,9 @@ impl NovaApp {
                 let mut cancel = false;
                 egui::Modal::new(egui::Id::unique("new_project_dialog")).show(ctx, |ui| {
                     ui.set_min_width(430.0);
-                    ui.heading("Neues Projekt");
+                    ui.heading(i18n::t("dialog.new_project"));
                     ui.label(
-                        RichText::new("Vorlage wählen und Projektnamen festlegen.")
+                        RichText::new(i18n::t("dialog.new_project_hint"))
                             .small()
                             .color(theme::TEXT_DIM),
                     );
@@ -3416,7 +3486,7 @@ impl NovaApp {
                     ui.add_space(6.0);
                     let response = ui.add(
                         egui::TextEdit::singleline(&mut name)
-                            .hint_text("Projektname")
+                            .hint_text(i18n::t("dialog.project_name_hint"))
                             .desired_width(f32::INFINITY),
                     );
                     if !response.has_focus() {
@@ -3440,12 +3510,15 @@ impl NovaApp {
                     ui.add_space(8.0);
                     ui.horizontal(|ui| {
                         if ui
-                            .add_enabled(!name.trim().is_empty(), egui::Button::new("Anlegen"))
+                            .add_enabled(
+                                !name.trim().is_empty(),
+                                egui::Button::new(i18n::t("dialog.create")),
+                            )
                             .clicked()
                         {
                             create = true;
                         }
-                        if ui.button("Abbrechen").clicked() {
+                        if ui.button(i18n::t("dialog.cancel")).clicked() {
                             cancel = true;
                         }
                     });
@@ -3465,23 +3538,21 @@ impl NovaApp {
                 let mut cancel = false;
                 egui::Modal::new(egui::Id::unique("unsaved_dialog")).show(ctx, |ui| {
                     ui.set_min_width(380.0);
-                    ui.heading("Ungespeicherte Änderungen");
+                    ui.heading(i18n::t("dialog.unsaved"));
                     ui.label(
-                        RichText::new(
-                            "Das aktuelle Projekt wurde geändert. Vor dem Fortfahren speichern?",
-                        )
-                        .small()
-                        .color(theme::TEXT_DIM),
+                        RichText::new(i18n::t("dialog.unsaved_text"))
+                            .small()
+                            .color(theme::TEXT_DIM),
                     );
                     ui.add_space(8.0);
                     ui.horizontal(|ui| {
-                        if ui.button("Speichern").clicked() {
+                        if ui.button(i18n::t("dialog.save")).clicked() {
                             save = true;
                         }
-                        if ui.button("Nicht speichern").clicked() {
+                        if ui.button(i18n::t("dialog.dont_save")).clicked() {
                             discard = true;
                         }
-                        if ui.button("Abbrechen").clicked() {
+                        if ui.button(i18n::t("dialog.cancel")).clicked() {
                             cancel = true;
                         }
                     });
@@ -3520,7 +3591,7 @@ impl NovaApp {
                     );
                     ui.add_space(4.0);
                     ui.label(
-                        RichText::new(format!("Edition: {}", edition::edition_name()))
+                        RichText::new(i18n::tf("about.edition", &[("edition", edition::edition_name())]))
                             .small()
                             .color(theme::ACCENT),
                     );
@@ -3529,7 +3600,7 @@ impl NovaApp {
                         "Rust · egui/eframe · wgpu · QuickJS\nEigene Timeline, eigenes Projektdatenmodell, eigener SWF-Writer.",
                     );
                     ui.add_space(6.0);
-                    ui.label(RichText::new("Was bereits funktioniert").strong());
+                    ui.label(RichText::new(i18n::t("dialog.about_works")).strong());
                     ui.label(
                         RichText::new(
                             "• Bühne, Ebenen, Ebenenordner, Frames, Schlüsselbilder, Motion-/Shape-Tweens, Masken und Onion Skin\n• Text, Bitmaps und Sounds als Projekt-Assets; verschachtelte Symbol-Timelines und Skelett-Animation (SKINNING)\n• Mehrfachauswahl, Ausrichten/Verteilen, Raster-Snapping, Undo/Redo\n• Szenen, Projektvorlagen, Symbolbibliothek, Suchen/Ersetzen und projektweite Textsuche\n• Autosave mit Crash-Recovery\n• Tilemaps, Partikel und Game-Vorschau mit Physik\n• SWF-Export (DefineShape3, DefineSprite, Frame-für-Frame-Backen) sowie FLA/XFL-Import und -Export im dokumentierten Umfang\n• AS3-Teilmenge als echter AVM2-ABC-Bytecode (DoABC2 + SymbolClass)\n• JavaScript-Konsole über QuickJS und optionale KI-Unterstützung (lokal oder Cloud mit Zustimmung)\n• „Open in Flash Player“ mit Adobe-Projector als Standard und optionalem Ruffle",
@@ -3537,7 +3608,7 @@ impl NovaApp {
                         .small(),
                     );
                     ui.add_space(4.0);
-                    ui.label(RichText::new("Module dieser Edition").strong());
+                    ui.label(RichText::new(i18n::t("dialog.about_modules")).strong());
                     ui.label(
                         RichText::new(
                             edition::active_modules()
@@ -3556,16 +3627,16 @@ impl NovaApp {
                         .collect();
                     if !planned.is_empty() {
                         ui.label(
-                            RichText::new(format!(
-                                "Geplant, noch nicht implementiert: {}",
-                                planned.join(" · ")
+                            RichText::new(i18n::tf(
+                                "dialog.about_planned",
+                                &[("list", &planned.join(" · "))],
                             ))
                             .small()
                             .color(theme::AMBER),
                         );
                     }
                     ui.add_space(4.0);
-                    ui.label(RichText::new("Bewusste Grenzen").strong());
+                    ui.label(RichText::new(i18n::t("dialog.about_limits")).strong());
                     ui.label(
                         RichText::new(
                             "• Nur eine dokumentierte AS3-Teilmenge; nicht unterstützte Konstrukte sind Compilerfehler\n• Script-Objekte werden einmal platziert und danach von ActionScript gesteuert; ihre Timeline-Tweens werden nicht zusätzlich gebacken\n• Text nutzt die eingebaute Vektor-Schrift und wird als Shapes exportiert; System-/OpenType-Fonts und editierbarer Laufzeittext fehlen\n• Die Audio-Vorschau spielt jede Cue einmal pro Frame-Eintrag; Offset- und Dauer-Trimming werden in der Vorschau nicht angewendet\n• ABC/SWF strukturell validiert; keine automatische Runtime-/Playback-Prüfung\n• Classroom-, Lehrkräfte-/Schülerrollen und Enterprise-Administration sind noch nicht implementiert\n• Die optionale .nova-Dateizuordnung des Installers ist nicht auf einem frischen System verifiziert; die vollständige Spezifikation sieht „Öffnen mit“-Registrierung und Portable-Opt-in vor",
@@ -3575,11 +3646,11 @@ impl NovaApp {
                     );
                     ui.add_space(8.0);
                     ui.horizontal(|ui| {
-                        if ui.button("Hilfe öffnen").clicked() {
+                        if ui.button(i18n::t("dialog.open_help")).clicked() {
                             open_help = true;
                             close = true;
                         }
-                        if ui.button("Schließen").clicked() {
+                        if ui.button(i18n::t("dialog.close")).clicked() {
                             close = true;
                         }
                     });
@@ -3594,48 +3665,43 @@ impl NovaApp {
                 let mut close = false;
                 egui::Modal::new(egui::Id::unique("help_dialog")).show(ctx, |ui| {
                     ui.set_min_width(500.0);
-                    ui.heading("Hilfe & Grenzen");
+                    ui.heading(i18n::t("help.title"));
                     ui.label(
-                        RichText::new(
-                            "Zwei Modi teilen ein Projekt: Code (AS3) und Animation (Bühne/Timeline).",
-                        )
-                        .small()
-                        .color(theme::TEXT_DIM),
+                        RichText::new(i18n::t("help.two_modes"))
+                            .small()
+                            .color(theme::TEXT_DIM),
                     );
                     ui.add_space(6.0);
                     egui::ScrollArea::vertical()
                         .max_height(360.0)
                         .show(ui, |ui| {
-                            ui.label(RichText::new("Tastenkürzel").strong());
+                            ui.label(RichText::new(i18n::t("help.shortcuts")).strong());
                             egui::Grid::new("shortcut_grid")
                                 .num_columns(2)
                                 .spacing(egui::vec2(16.0, 4.0))
                                 .show(ui, |ui| {
-                                    for (keys, description) in [
-                                        ("Strg+N / Strg+O", "Neu / Öffnen"),
-                                        ("Strg+S / Strg+Shift+S", "Speichern / Speichern unter"),
-                                        ("Strg+E", "SWF exportieren"),
-                                        ("Strg+F", "Suchen/Ersetzen bzw. Projekt-Suche"),
-                                        ("Strg+Z / Strg+Y", "Rückgängig / Wiederholen"),
-                                        (
-                                            "Strg+C / Strg+V / Strg+D",
-                                            "Objekt oder Schlüsselbild kopieren/einfügen/duplizieren",
-                                        ),
-                                        ("Entf / Esc", "Auswahl löschen / Auswahl aufheben"),
-                                        ("Leertaste", "Wiedergabe an/aus"),
-                                        ("F5 / Shift+F5", "Frame einfügen / entfernen"),
-                                        ("F6 / Shift+F6", "Schlüsselbild / leeres Schlüsselbild"),
-                                        ("Pfeil links/rechts", "Frame zurück/vor"),
-                                        ("Home / End", "Erster/letzter Frame"),
+                                    for (keys, key_id) in [
+                                        ("Strg+N / Strg+O", "shortcut.new_open"),
+                                        ("Strg+S / Strg+Shift+S", "shortcut.save"),
+                                        ("Strg+E", "shortcut.export"),
+                                        ("Strg+F", "shortcut.search"),
+                                        ("Strg+Z / Strg+Y", "shortcut.undo"),
+                                        ("Strg+C / Strg+V / Strg+D", "shortcut.clipboard"),
+                                        ("Entf / Esc", "shortcut.delete"),
+                                        ("Leertaste", "shortcut.play"),
+                                        ("F5 / Shift+F5", "shortcut.frame"),
+                                        ("F6 / Shift+F6", "shortcut.keyframe"),
+                                        ("Pfeil links/rechts", "shortcut.frames"),
+                                        ("Home / End", "shortcut.firstlast"),
                                     ] {
                                         ui.label(RichText::new(keys).monospace().small());
-                                        ui.label(RichText::new(description).small());
+                                        ui.label(RichText::new(i18n::t(key_id)).small());
                                         ui.end_row();
                                     }
                                 });
 
                             ui.add_space(8.0);
-                            ui.label(RichText::new("Workflow").strong());
+                            ui.label(RichText::new(i18n::t("help.workflow")).strong());
                             ui.label(
                                 RichText::new(
                                     "1. Objekte auf der Bühne anlegen und im Eigenschaften-Panel positionieren.\n2. Mit F6 Schlüsselbilder setzen, Objekte bewegen und im Timeline-Kontext oder Eigenschaften-Panel einen Motion-Tween mit Easing und Dauer anlegen.\n3. Mehrfachauswahl per Shift-Klick oder Auswahlrechteck; gemeinsame Transformationen wirken um den Gruppenmittelpunkt.\n4. Skripte im Code-Modus bearbeiten und einem Objekt im Eigenschaften-Panel zuweisen. Ein MovieClip/Sprite-Skript ohne Zuweisung kann als Dokumentklasse dienen.\n5. Mit Strg+E eine SWF schreiben; Skripte werden als DoABC2 eingebettet und per SymbolClass verknüpft.",
@@ -3644,7 +3710,7 @@ impl NovaApp {
                             );
 
                             ui.add_space(8.0);
-                            ui.label(RichText::new("Ehrliche Grenzen").strong());
+                            ui.label(RichText::new(i18n::t("help.limits")).strong());
                             ui.label(
                                 RichText::new(
                                     "• ActionScript wird für eine dokumentierte Teilmenge zu echtem AVM2-ABC kompiliert. Nicht unterstützte Syntax ist ein Compilerfehler mit Datei/Zeile.\n• Die ABC- und SWF-Struktur wird mit einem unabhängigen Parser validiert. „Open in Flash Player“ startet die konfigurierte Runtime (Adobe-Projector als Standard, Ruffle nur nach ausdrücklicher Auswahl); eine automatische Playback-Prüfung oder eingebettete Runtime gibt es nicht.\n• Skript-Objekte werden einmal platziert und danach von ActionScript gesteuert; ihre Timeline-Tweens werden nicht zusätzlich gebacken.\n• Nicht-Skript-Objekte werden weiterhin Frame für Frame gebacken.\n• Text ist statisch: die eingebaute 5×7-Vektorschrift wird als Shapes exportiert. System-/OpenType-Fonts und editierbarer Laufzeittext fehlen; Bitmaps und Sounds werden als Assets unterstützt.\n• Bitmaps, Sounds, verschachtelte Symbol-Timelines, Masken, Shape-Tweens und Skelett-Animation sind implementiert; die Audio-Vorschau wendet Offset-/Dauer-Trimming nicht an.\n• Array-, Objekt- und Index-Zugriffe in AS3 sind strukturell geprüft, aber nicht gegen eine echte Runtime getestet.\n• Klassenzimmer- (Edu) und Enterprise-Funktionen (Administration, Teams, Assets, Versionen, Reviews, Builds) sind editionsscharf getrennt und ab M20/M21 implementiert; Rollen sind Workflow-Labels, keine Authentifizierung.",
@@ -3654,7 +3720,7 @@ impl NovaApp {
                             );
                         });
                     ui.add_space(8.0);
-                    if ui.button("Schließen").clicked() {
+                    if ui.button(i18n::t("dialog.close")).clicked() {
                         close = true;
                     }
                 });
@@ -3982,6 +4048,38 @@ impl NovaApp {
                 let mut reset = false;
                 egui::Modal::new(egui::Id::unique("flash_settings_dialog")).show(ctx, |ui| {
                     ui.set_min_width(640.0);
+                    ui.heading(i18n::t("settings.section_general"));
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(i18n::t("settings.language")).strong());
+                        let mut current = i18n::language();
+                        egui::ComboBox::from_id_salt("language_picker")
+                            .selected_text(current.native_name())
+                            .show_ui(ui, |ui| {
+                                for lang in i18n::Lang::ALL {
+                                    ui.selectable_value(
+                                        &mut current,
+                                        *lang,
+                                        lang.native_name(),
+                                    );
+                                }
+                            });
+                        if current != i18n::language() {
+                            i18n::set_language(current);
+                        }
+                    });
+                    ui.label(
+                        RichText::new(i18n::t("settings.language_tip"))
+                            .small()
+                            .color(theme::TEXT_DIM),
+                    );
+                    if ui.button(i18n::t("settings.language_wizard")).clicked() {
+                        // Close settings and reopen the wizard.
+                        self.wizard = Some(i18n::language());
+                        self.state.dialog = Dialog::None;
+                    }
+                    ui.add_space(10.0);
+                    theme::hairline(ui);
+                    ui.add_space(10.0);
                     ui.heading("Runtime");
                     ui.label(
                         RichText::new(
@@ -4386,6 +4484,14 @@ impl NovaApp {
 impl eframe::App for NovaApp {
     fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        if let Some(selected) = &mut self.wizard {
+            if crate::language_wizard::show(ui, selected) {
+                i18n::set_language(*selected);
+                self.wizard = None;
+            }
+            ctx.request_repaint();
+            return;
+        }
         if self.splash.as_ref().is_some_and(Splash::is_active) {
             if let Some(splash) = &mut self.splash {
                 splash.show(&ctx);
@@ -4406,6 +4512,15 @@ impl eframe::App for NovaApp {
         egui::Panel::top("toolbar").exact_size(40.0).show(ui, |ui| {
             self.toolbar(ui, &mut actions);
         });
+
+        // M22.1: mode rail — declared before other left panels so it sits
+        // leftmost, Animate-style.
+        egui::Panel::left("mode_rail")
+            .exact_size(56.0)
+            .frame(egui::Frame::new().fill(theme::BG_DEEPEST))
+            .show(ui, |ui| {
+                self.mode_rail(ui, &mut actions);
+            });
 
         egui::Panel::bottom("status_bar")
             .exact_size(22.0)

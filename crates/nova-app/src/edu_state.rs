@@ -21,16 +21,16 @@ pub enum EduTab {
 }
 
 impl EduTab {
-    pub fn label(self) -> &'static str {
-        match self {
-            Self::Overview => "Übersicht",
-            Self::Classes => "Klassen",
-            Self::Assignments => "Aufgaben",
-            Self::Submissions => "Abgaben",
-            Self::Feedback => "Feedback",
-            Self::Progress => "Fortschritt",
-            Self::Templates => "Vorlagen",
-        }
+    pub fn label(self) -> String {
+        crate::i18n::t(match self {
+            Self::Overview => "edu.tab.overview",
+            Self::Classes => "edu.tab.classes",
+            Self::Assignments => "edu.tab.assignments",
+            Self::Submissions => "edu.tab.submissions",
+            Self::Feedback => "edu.tab.feedback",
+            Self::Progress => "edu.tab.progress",
+            Self::Templates => "edu.tab.templates",
+        })
     }
 
     pub const ALL: &[EduTab] = &[
