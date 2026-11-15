@@ -91,7 +91,14 @@ rejection, audit log + overview.
 Edition-gating tests assert: `administration` active only for
 Enterprise, `classroom` only for Edu, neither leaks into User.
 
-## 5. Artifacts (`0.17.0-rc1`, SHA-256)
+## 5. Artifacts (`0.17.0-rc1`, SHA-256 — **remediated rebuild**)
+
+> **Remediation note (commit `140aa94`):** the first `0.17.0-rc1`
+> artifact set contained UTF-8→CP1252 mojibake in Enterprise UI strings
+> (found by `docs/MEGA_MILESTONE_21_ACCEPTANCE_AUDIT.md`, finding F1).
+> All three editions were rebuilt after the encoding repair; the hashes
+> below are the **current, verified** values. The earlier hashes are
+> superseded and must not be used.
 
 `dist/windows/<edition>/` + `dist/archive/0.17.0-rc1/<edition>/`
 (user/, edu/, enterprise/ — verified identical by
@@ -99,12 +106,12 @@ Enterprise, `classroom` only for Edu, neither leaks into User.
 
 | Artifact | SHA-256 |
 |---|---|
-| user `NOVA-User-Portable.zip` | `8E99C84527DDACF99B1E2E2E627F9E64812A985B1B12C98D11863477FCAE4562` |
-| user `NOVA-User-Setup.exe` | `2B940CDD857E67EF5BC8B67A25489B51ABFEE707C134A7D69C0E098CDA7D3FE5` |
-| edu `NOVA-Edu-Portable.zip` | `45CA62924D27E9041DD71EFCF60E6DDDB70392113EFCB02558D1D1CE2293EE27` |
-| edu `NOVA-Edu-Setup.exe` | `C87E1A017A96E7D9E4AF1AD6F8DBF2CC9074BA73FAC813F2A8CDB4B6271DACD7` |
-| enterprise `NOVA-Enterprise-Portable.zip` | `67B9C237B6054EF4FB23CDFDB59A79A33BF9D47AFF1CF3F7B1E6AAEBCBC77D46` |
-| enterprise `NOVA-Enterprise-Setup.exe` | `421E53C1ECF669CEAB2270A9D33B0367A8B5623C64AA064FC7EACF3FE69C20A8` |
+| user `NOVA-User-Portable.zip` | `1C1A1A2D7CBA244B190A00627B74E5FB3C0BCC28555161FBC8920FB741004FBC` |
+| user `NOVA-User-Setup.exe` | `01C7DA45A848FBD65477B4C74A687A5A9AF5F805E8DF0AB2E4DA827262DD6E67` |
+| edu `NOVA-Edu-Portable.zip` | `9D21C858799E2CE44FC077FA5ED5FFB955AD837766123F9D0F5D177C92507A11` |
+| edu `NOVA-Edu-Setup.exe` | `D462AB2F44E5F5D75E1688EA2AE2BBB07925D43A657E3990357F59CB7CC0493F` |
+| enterprise `NOVA-Enterprise-Portable.zip` | `2D54C6037F9FBC626A6E97F5BB4BD57614ACEB508ED39A9B4D1404FCA1EB409A` |
+| enterprise `NOVA-Enterprise-Setup.exe` | `F503A48655CEFBB69B1B5B76140744A1C856C9340283FE939FAB0DC92A06DF3E` |
 
 App EXE hashes in each edition's `SHA256SUMS.txt`.
 
@@ -113,7 +120,10 @@ App EXE hashes in each edition's `SHA256SUMS.txt`.
 - `7230b75` M21.0 audit + preparation doc
 - `855b937` M21.1–M21.8 `nova-ent` domain crate
 - `9d94791` M21.9 Enterprise UI + edition gating
-- `HEAD`  M21.10 version `0.17.0-rc1`, docs, packaging, this report
+- `a3fda58` M21.10 version `0.17.0-rc1`, docs, packaging, this report
+- `140aa94` M21 remediation: mojibake repair (F1), transactional
+  `.novaent` import (F4), packaging archive order (F3), encoding
+  regression tests, rebuilt+re-archived artifacts
 
 Every commit carries the required Devin co-author trailer (verified via
 `git log -1 --format=%B`).

@@ -248,15 +248,33 @@ zurückgerollt). Akzeptabel für Metadaten-Import, dokumentieren.
    Rename) — F4.
 6. Manuelle GUI-Abnahme der drei Editionen vor finaler Freigabe.
 
-## 12. Abschließende Bewertung
+## 12. Remediation status (post-audit, commit `140aa94`)
 
-**BLOCK RELEASE** — nicht wegen fehlender Funktionalität (Umfang,
-Tests, Gating, Packaging und Artefakte sind convincing), sondern
-wegen **F1**: Der Release-Kandidat enthält nachweislich
-korrumpierte deutsche Texte in der Enterprise-UI und in
-`nova-ent`-Fehlermeldungen — ein sichtbarer Defekt im
-Hauptfeature der Edition, zusätzlich in allen drei Binaries
-kompiliert. Die Behebung ist klein (5 Dateien re-encoden + Rebuild +
-Re-Archiv), danach ist auf Basis dieses Audits ein **ACCEPT WITH
-LIMITATIONS** (Rollen=Policy, `.novaent`=Metadaten, Integrationen
-config-only, Stage-Anker-Klick offen) gerechtfertigt.
+| Finding | Status | Evidence |
+|---|---|---|
+| F1 Mojibake in 5 files | **RESOLVED** | UTF-8→CP1252 corruption reversed; BOMs removed; `crates/nova-core/tests/encoding.rs` (2 tests) now guards repo-wide; binary scan of new Enterprise EXE shows clean `Integritätsprobleme`/`In Prüfung`/`Workspace öffnen`, zero mojibake markers |
+| F3 archive order | **RESOLVED** | `package-editions.ps1` runs `archive-releases.ps1 -Force` once after all edition swaps; `package-windows.ps1` pre-swap archive also uses `-Force` so same-version rebuilds don't abort. Caveat found during remediation: edition app-*folders* in the archive are verify-only (never overwritten even with `-Force`); stale app dirs were removed once and re-archived — documented limitation of the script |
+| F4 non-transactional import | **RESOLVED** | `import_package` is now plan→stage(sha256 re-verify)→commit(rename)→rollback; `org.json` hard-excluded from the plan; new tests prove mid-commit failure leaves zero partial writes and no staging leftovers |
+
+Post-remediation verification: `cargo test --workspace` =
+**488 passed / 0 failed / 8 ignored**; `cargo fmt --check` and
+`cargo clippy --workspace --all-targets -- -D warnings` clean; all
+three editions rebuilt; six artifacts re-created and re-archived with
+new SHA-256 (see FINAL_REPORT §5); `test-edition-packaging.ps1` and
+`test-archive-releases.ps1` all PASS.
+
+Residual manual checks unchanged: interactive GUI pass on all three
+editions, XFL build via UI, `.novaent` UI roundtrip, fresh-system
+installer run.
+
+## 13. Abschließende Bewertung
+
+**ACCEPT WITH LIMITATIONS** — nach der Remediation (`140aa94`) sind
+F1 (Mojibake), F3 (Archiv-Reihenfolge) und F4 (transaktionaler Import)
+behoben und verifiziert; alle Gates grün, Artefakte neu gebaut und
+gehasht. Es bleiben die dokumentierten Produkt-Einschränkungen
+(Rollen = Workflow-Policy, keine Authentifizierung; `.novaent` =
+Metadaten-Backup ohne Projektdateien; Integrationen config-only;
+Stage-Anker-Klick nicht implementiert) sowie die manuell offenen
+GUI-Tests aus §9. Vor finaler Freigabe wird ein kurzer manueller
+GUI-Durchlauf der drei Editionen empfohlen.

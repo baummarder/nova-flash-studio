@@ -43,7 +43,7 @@ foreach ($edition in $Editions) {
 # Archive AFTER all editions are swapped into dist/windows. The per-edition
 # archive inside package-windows.ps1 runs before that edition's swap, so the
 # last edition's new payload would otherwise never reach dist/archive.
-& (Join-Path $PSScriptRoot 'archive-releases.ps1') -DistRoot (Join-Path $root 'dist')
+& (Join-Path $PSScriptRoot 'archive-releases.ps1') -DistRoot (Join-Path $root 'dist') -Force
 if ($LASTEXITCODE -ne 0) { throw "archive-releases.ps1 failed with exit code $LASTEXITCODE" }
 
 Write-Host ''

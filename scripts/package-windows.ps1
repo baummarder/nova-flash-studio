@@ -201,8 +201,10 @@ try {
 
     # Archive the PREVIOUS release artifacts of this edition before swapping.
     # archive-releases.ps1 never deletes; it verifies checksums and copies
-    # into dist/archive/<version>/<edition>/.
-    & (Join-Path $PSScriptRoot 'archive-releases.ps1') -DistRoot $distDir
+    # into dist/archive/<version>/<edition>/. -Force allows rebuilding the
+    # SAME version (e.g. a remediation rebuild of 0.17.0-rc1): the archive
+    # always reflects the newest verified build of that version.
+    & (Join-Path $PSScriptRoot 'archive-releases.ps1') -DistRoot $distDir -Force
     if ($LASTEXITCODE -ne 0) {
         throw "archive-releases.ps1 failed with exit code $LASTEXITCODE; previous release left untouched in $releaseRoot"
     }
