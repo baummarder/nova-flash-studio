@@ -123,6 +123,56 @@ impl ReviewSession {
         self.items.iter().filter(|item| item.accepted).count()
     }
 
+    /// Stage a change, or update the staged content when the same path was
+    /// already staged in this session (agent iterations). The original
+    /// snapshot is kept from first staging so conflict detection still
+    /// compares against the true original.
+    pub fn stage_or_update(
+        &mut self,
+        guarded: &GuardedWorkspace,
+        change: &ProposedChange,
+    ) -> AiResult<()> {
+        guarded.ensure_write(&change.path.trim().replace('\\', "/"))?;
+        if let Some(index) = self.items.iter().position(|item| item.path == change.path) {
+            let item = &mut self.items[index];
+            item.kind = change.kind(item.original_snapshot.is_some());
+            item.reason = change.reason.clone();
+            if item.kind == ChangeKind::Delete {
+                item.staged = None;
+                item.accepted = false;
+            } else {
+                let safe_name: String = item
+                    .path
+                    .chars()
+                    .map(|c| {
+                        if c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_') {
+                            c
+                        } else {
+                            '_'
+                        }
+                    })
+                    .collect();
+                let staged_path = self.staging_dir.join(&safe_name);
+                if let Some(parent) = staged_path.parent() {
+                    fs::create_dir_all(parent).map_err(AiError::io)?;
+                }
+                fs::write(&staged_path, change.content.as_bytes()).map_err(AiError::io)?;
+                item.staged = Some(staged_path);
+                item.accepted = item.kind != ChangeKind::Delete;
+            }
+            item.diff = diff_text(
+                item.old_text.as_deref().unwrap_or(""),
+                if item.kind == ChangeKind::Delete {
+                    ""
+                } else {
+                    change.content.as_str()
+                },
+            );
+            return Ok(());
+        }
+        self.stage(guarded, change)
+    }
+
     /// Stage one proposed change: validate write access, snapshot the
     /// original, write the proposed content into the isolated staging dir
     /// and compute the review diff. Nothing touches the project files.

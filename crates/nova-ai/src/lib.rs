@@ -7,6 +7,7 @@
 
 pub mod access;
 pub mod agent;
+pub mod agent_loop;
 pub mod build;
 pub mod credentials;
 pub mod diff;
@@ -16,6 +17,8 @@ pub mod http;
 pub mod operations;
 pub mod provider;
 pub mod review;
+pub mod runner;
+pub mod tasks;
 
 pub use access::{
     ACCESS_FILE, AccessLevel, AccessPolicy, AccessStore, Grant, GuardedWorkspace, SENSITIVE_RULES,
@@ -25,6 +28,7 @@ pub use agent::{
     AgentOutcome, AgentReply, AgentSession, ContextSelection, PreparedRequest, SYSTEM_PROMPT,
     build_context, execute_prepared, parse_agent_reply,
 };
+pub use agent_loop::{AgentLoop, LoopOutcome, PauseReason, parse_implementation, parse_plan};
 pub use build::{BuildDiagnostic, BuildReport, analyze_project_scripts, build_project};
 pub use credentials::{
     CredentialStore, DpapiCredentialStore, MemoryCredentialStore, RestrictedFileCredentialStore,
@@ -45,3 +49,8 @@ pub use provider::{
     save_settings, test_connection,
 };
 pub use review::{ApplyReport, ReviewItem, ReviewSession, stage_changes};
+pub use runner::{CommandRunner, CommandSpec, allowlist as command_allowlist, find_spec};
+pub use tasks::{
+    AgentLimits, CommandRecord, PlanStep, TASKS_FILE, Task, TaskEvent, TaskPlan, TaskStatus,
+    TaskStore,
+};

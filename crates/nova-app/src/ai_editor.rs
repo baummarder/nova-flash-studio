@@ -5,17 +5,19 @@
 //! Network work is prepared on the UI thread and executed on a worker thread.
 
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::time::{Duration, Instant};
 
 use eframe::egui::{self, Context, RichText, TextEdit, Ui};
 use nova_ai::{
-    AccessLevel, AccessStore, AgentOutcome, AgentSession, AppliedChange, BuildReport, ChangeKind,
-    ChangePreview, DiffKind, GuardedWorkspace, ProviderManager, ReqwestTransport, ReviewSession,
-    SENSITIVE_RULES, Workspace, apply_operations_with, build_project, default_config_dir,
-    default_store, execute_prepared, load_settings, preview_operations_with,
+    AccessLevel, AccessStore, AgentLimits, AgentLoop, AgentOutcome, AgentSession, AppliedChange,
+    BuildReport, ChangeKind, ChangePreview, DiffKind, GuardedWorkspace, LoopOutcome,
+    ProviderManager, ReqwestTransport, ReviewSession, SENSITIVE_RULES, Task, TaskStatus, TaskStore,
+    Workspace, apply_operations_with, build_project, default_config_dir, default_store,
+    execute_prepared, load_settings, preview_operations_with,
 };
 use nova_as::{Diagnostic, Severity, analyze};
 use nova_core::{CodeProvenance, Project, Script, ScriptId};
@@ -84,6 +86,21 @@ pub struct AiEditor {
     ai_config_dir: PathBuf,
     last_diagnostics_refresh: Instant,
     pub auto_build: bool,
+    // ------------------------------------------------ M26 task manager
+    /// Persisted per-project task history.
+    pub task_store: TaskStore,
+    /// Tasks of the current project (newest first for display).
+    pub tasks: Vec<Task>,
+    pub selected_task: Option<uuid::Uuid>,
+    /// Task description input (natural language).
+    pub task_input: String,
+    /// True while a task worker thread runs plan/implement.
+    pub task_busy: bool,
+    task_job: Option<Receiver<Result<(Task, LoopOutcome), String>>>,
+    task_loop_cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    /// Configurable iteration/build limits (persisted per edition).
+    pub agent_limits: AgentLimits,
+    agent_limits_dirty: bool,
 }
 
 impl AiEditor {
@@ -150,9 +167,18 @@ impl AiEditor {
             startup_error,
             permission_prompted_for: None,
             grants_dialog_open: false,
-            ai_config_dir: config_dir,
+            ai_config_dir: config_dir.clone(),
             last_diagnostics_refresh: Instant::now() - Duration::from_secs(10),
             auto_build: false,
+            task_store: TaskStore::load(&config_dir).unwrap_or_else(|_| TaskStore::fallback()),
+            tasks: Vec::new(),
+            selected_task: None,
+            task_input: String::new(),
+            task_busy: false,
+            task_job: None,
+            task_loop_cancel: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            agent_limits: load_agent_limits(&config_dir),
+            agent_limits_dirty: false,
         };
         editor.refresh_workspace();
         if let Some(error) = &editor.startup_error {
@@ -176,6 +202,11 @@ impl AiEditor {
     ) -> Vec<UiAction> {
         self.sync_project(project, state);
         self.poll_job(project, state);
+        self.poll_task_job(project, state);
+        if self.agent_limits_dirty {
+            save_agent_limits(&self.ai_config_dir, &self.agent_limits);
+            self.agent_limits_dirty = false;
+        }
         if self.busy {
             ui.ctx().request_repaint_after(Duration::from_millis(100));
         }
@@ -193,6 +224,14 @@ impl AiEditor {
             .max_size(520.0)
             .show(ui, |ui| {
                 self.output_panel(ui, project, state);
+            });
+        egui::Panel::left("ai_editor_tasks")
+            .resizable(true)
+            .default_size(215.0)
+            .min_size(170.0)
+            .max_size(340.0)
+            .show(ui, |ui| {
+                self.tasks_panel(ui);
             });
         egui::Panel::left("ai_editor_explorer")
             .resizable(true)
@@ -601,6 +640,200 @@ impl AiEditor {
         });
     }
 
+    // ------------------------------------------------ M26 task manager
+
+    /// Reload task list for the current project root.
+    fn refresh_tasks(&mut self) {
+        if let Some(root) = self
+            .workspace
+            .as_ref()
+            .map(|workspace| workspace.root().to_path_buf())
+        {
+            self.tasks = self.task_store.list(&root);
+            self.tasks
+                .sort_by_key(|task| std::cmp::Reverse(task.updated_at));
+        } else {
+            self.tasks.clear();
+        }
+    }
+
+    fn selected_task(&self) -> Option<Task> {
+        let id = self.selected_task?;
+        self.tasks.iter().find(|task| task.id == id).cloned()
+    }
+
+    /// Create a task from the natural-language input and run the planning
+    /// phase (`plan_only`). Nothing is implemented before approval.
+    fn create_and_plan_task(&mut self) {
+        let description = self.task_input.trim().to_string();
+        if description.is_empty() {
+            self.error = Some("Bitte eine Aufgabenbeschreibung eingeben.".into());
+            return;
+        }
+        let Some(root) = self
+            .workspace
+            .as_ref()
+            .map(|workspace| workspace.root().to_path_buf())
+        else {
+            self.error = Some("Kein Projektordner ausgewählt.".into());
+            return;
+        };
+        let title: String = description
+            .lines()
+            .next()
+            .unwrap_or("Aufgabe")
+            .chars()
+            .take(60)
+            .collect();
+        let mut task = match Task::new(&root, &title, &description) {
+            Ok(task) => task,
+            Err(error) => {
+                self.error = Some(error.to_string());
+                return;
+            }
+        };
+        // Per-task provider override (None = session default).
+        task.provider_id = self.session.provider_override.clone();
+        if let Err(error) = self.task_store.upsert(task.clone()) {
+            self.error = Some(error.to_string());
+            return;
+        }
+        let _ = self.task_store.save();
+        self.selected_task = Some(task.id);
+        self.start_task_worker(task, true);
+        self.task_input.clear();
+        self.refresh_tasks();
+    }
+
+    /// Approve the plan of an AwaitingApproval task and start implementing.
+    fn approve_and_implement(&mut self) {
+        let Some(mut task) = self.selected_task() else {
+            return;
+        };
+        if task.status != TaskStatus::AwaitingApproval {
+            return;
+        }
+        task.plan_approved = true;
+        task.event(TaskStatus::Created, "Plan vom Benutzer freigegeben.");
+        let _ = self.task_store.upsert(task.clone());
+        let _ = self.task_store.save();
+        self.start_task_worker(task, false);
+        self.refresh_tasks();
+    }
+
+    /// Re-run a finished/failed task (fresh plan + implement).
+    fn rerun_task(&mut self) {
+        let Some(task) = self.selected_task() else {
+            return;
+        };
+        if self.task_busy || !task.status.is_runnable() {
+            return;
+        }
+        self.start_task_worker(task, true);
+        self.refresh_tasks();
+    }
+
+    /// Cooperative cancel of the running task worker.
+    fn cancel_task(&mut self) {
+        self.task_loop_cancel
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+        self.status = "Agent-Aufgabe wird abgebrochen …".into();
+    }
+
+    /// Spawn the worker thread for plan/implement phases.
+    /// `plan_only` = analyse+plan; `implement` = full run (requires
+    /// `plan_approved` when the plan touches files).
+    fn start_task_worker(&mut self, task: Task, plan_only: bool) {
+        if self.task_busy {
+            return;
+        }
+        let Some(guarded) = self.guarded.clone() else {
+            self.error = Some("Kein Projektordner/keine Freigabe vorhanden.".into());
+            return;
+        };
+        // Resolve provider + credential on the UI thread (manager is not
+        // shareable); cloud consent is enforced here before any context
+        // leaves the machine.
+        let (provider, key) = match self.providers.selected(
+            task.provider_id
+                .as_deref()
+                .or(self.session.provider_override.as_deref()),
+        ) {
+            Some(provider) if provider.enabled => {
+                if provider.is_cloud() && !self.session.cloud_consent {
+                    self.error = Some(
+                        "Cloud-Zustimmung erforderlich, bevor Projektkontext gesendet wird.".into(),
+                    );
+                    return;
+                }
+                match self.providers.credential(&provider.id) {
+                    Ok(key) => {
+                        if provider.needs_credential() && key.as_deref().is_none_or(str::is_empty) {
+                            self.error = Some(format!(
+                                "Kein Zugangsdach für Anbieter '{}' konfiguriert.",
+                                provider.name
+                            ));
+                            return;
+                        }
+                        (provider.clone(), key)
+                    }
+                    Err(error) => {
+                        self.error = Some(error.to_string());
+                        return;
+                    }
+                }
+            }
+            _ => {
+                self.error = Some("Kein aktivierter KI-Anbieter konfiguriert.".into());
+                return;
+            }
+        };
+        let limits = self.agent_limits.clone();
+        let staging_root = self
+            .ai_config_dir
+            .join("ai-task-staging")
+            .join(task.id.to_string());
+        let _ = std::fs::create_dir_all(&staging_root);
+        let env: Vec<(String, String)> = vec![(
+            "NOVA_EDITION".to_string(),
+            std::env::var("NOVA_EDITION").unwrap_or_else(|_| "user".to_string()),
+        )];
+        self.task_loop_cancel
+            .store(false, std::sync::atomic::Ordering::SeqCst);
+        self.task_busy = true;
+        self.status = if plan_only {
+            "Agent analysiert Aufgabe …".into()
+        } else {
+            "Agent implementiert …".into()
+        };
+        self.job_started = Instant::now();
+        let (sender, receiver) = mpsc::channel();
+        self.task_job = Some(receiver);
+        let cancel_flag = std::sync::Arc::clone(&self.task_loop_cancel);
+        std::thread::spawn(move || {
+            let result = (|| -> Result<(Task, LoopOutcome), String> {
+                let transport = ReqwestTransport::new().map_err(|e| e.to_string())?;
+                let mut engine = AgentLoop::new(limits);
+                engine.cancel = cancel_flag;
+                let mut task = task;
+                let outcome = engine
+                    .run_with_provider(
+                        &mut task,
+                        &provider,
+                        key.as_deref(),
+                        &guarded,
+                        &transport,
+                        &staging_root,
+                        &env,
+                        plan_only,
+                    )
+                    .map_err(|error| error.to_string())?;
+                Ok((task, outcome))
+            })();
+            let _ = sender.send(result);
+        });
+    }
+
     fn sync_project(&mut self, project: &Project, state: &mut AppState) {
         let source_path = state.path.clone().or_else(|| {
             project
@@ -620,6 +853,7 @@ impl AiEditor {
                 .or_else(|| project.scripts.first().map(|script| script.id));
             self.load_editor(project);
             self.refresh_diagnostics(project);
+            self.refresh_tasks();
         }
         if self.selected_script.is_none() {
             self.selected_script = state
@@ -829,6 +1063,372 @@ impl AiEditor {
                 state.log(LogLevel::Error, format!("KI-Anfrage: {error}"));
             }
         }
+    }
+
+    /// Receive a finished task worker result and merge it into the UI:
+    /// task history, activity log, staged review session, pending previews.
+    fn poll_task_job(&mut self, project: &mut Project, state: &mut AppState) {
+        let Some(receiver) = &self.task_job else {
+            return;
+        };
+        let result = match receiver.try_recv() {
+            Ok(result) => Some(result),
+            Err(TryRecvError::Disconnected) => {
+                Some(Err("Der Task-Worker wurde unerwartet beendet.".into()))
+            }
+            Err(TryRecvError::Empty) => None,
+        };
+        let Some(result) = result else {
+            return;
+        };
+        self.task_job = None;
+        self.task_busy = false;
+        self.task_loop_cancel
+            .store(false, std::sync::atomic::Ordering::SeqCst);
+        match result {
+            Ok((mut task, outcome)) => {
+                task.sanitize_for_history();
+                // Persist the mutated task (status, plan, events, commands).
+                let _ = self.task_store.upsert(task.clone());
+                let _ = self.task_store.save();
+                for message in &outcome.messages {
+                    self.activity.push(ActivityLine {
+                        text: format!("[Task] {message}"),
+                        error: false,
+                    });
+                }
+                for error in &outcome.operation_errors {
+                    self.activity.push(ActivityLine {
+                        text: format!("[Task] {error}"),
+                        error: true,
+                    });
+                }
+                for record in &outcome.commands {
+                    self.activity.push(ActivityLine {
+                        text: format!(
+                            "[Task] {} → exit {} ({} ms)",
+                            record.command, record.exit_code, record.duration_ms
+                        ),
+                        error: !record.ok,
+                    });
+                }
+                // Hand the staged review session to the existing M25 review
+                // surface — same per-file accept/reject, same apply path.
+                if let Some(review) = outcome.review {
+                    let count = review.items().len();
+                    self.session.pending_operations = outcome.operations.clone();
+                    self.review = Some(review);
+                    for index in 0..count {
+                        // previews are rebuilt below from the review items
+                        let _ = index;
+                    }
+                    if let Some(review) = &self.review {
+                        self.pending_previews = (0..review.items().len())
+                            .filter_map(|index| review.preview_of(index))
+                            .collect();
+                    }
+                    self.output_tab = OutputTab::Diff;
+                    task.review_summary = format!("{count} Änderung(en) zur Prüfung bereit");
+                    let _ = self.task_store.upsert(task.clone());
+                    let _ = self.task_store.save();
+                }
+                self.status = match task.status {
+                    TaskStatus::AwaitingApproval => "Plan erstellt — bitte freigeben.".into(),
+                    TaskStatus::Reviewing => "Task abgeschlossen — Änderungen im Diff-Tab.".into(),
+                    TaskStatus::Failed => {
+                        format!("Task pausiert: {}", task.error.clone().unwrap_or_default())
+                    }
+                    other => format!("Task: {}", other.label()),
+                };
+                if let Some(error) = &outcome.error {
+                    self.error = Some(error.clone());
+                }
+                state.log(
+                    LogLevel::Info,
+                    format!("KI-Task '{}' → {}", task.title, task.status.label()),
+                );
+                self.refresh_tasks();
+            }
+            Err(error) => {
+                self.error = Some(error.clone());
+                self.status = "Task fehlgeschlagen.".into();
+                self.activity.push(ActivityLine {
+                    text: format!("Task-Fehler: {error}"),
+                    error: true,
+                });
+                if let Some(mut task) = self.selected_task() {
+                    task.event(TaskStatus::Failed, error.clone());
+                    task.error = Some(error);
+                    task.sanitize_for_history();
+                    let _ = self.task_store.upsert(task);
+                    let _ = self.task_store.save();
+                }
+                self.refresh_tasks();
+            }
+        }
+        let _ = project;
+    }
+
+    /// Left task panel: list, creation input, per-task actions, plan detail.
+    fn tasks_panel(&mut self, ui: &mut Ui) {
+        ui.horizontal(|ui| {
+            ui.label(
+                RichText::new("AUFGABEN")
+                    .strong()
+                    .small()
+                    .color(theme::ACCENT),
+            );
+            if self.task_busy {
+                ui.spinner();
+            }
+        });
+        if self.workspace.is_none() {
+            ui.label(
+                RichText::new("Kein Projektordner — Tasks nicht verfügbar.")
+                    .small()
+                    .color(theme::TEXT_FAINT),
+            );
+            return;
+        }
+        // New task input.
+        let input_height = 56.0;
+        ui.add_sized(
+            [ui.available_width(), input_height],
+            TextEdit::multiline(&mut self.task_input)
+                .desired_rows(2)
+                .hint_text("Neue Entwicklungsaufgabe …"),
+        );
+        ui.horizontal(|ui| {
+            let can_plan = !self.task_busy && !self.task_input.trim().is_empty();
+            if ui
+                .add_enabled(can_plan, egui::Button::new("Plan erstellen"))
+                .clicked()
+            {
+                self.create_and_plan_task();
+            }
+            if self.task_busy && ui.button("Agent abbrechen").clicked() {
+                self.cancel_task();
+            }
+        });
+        ui.separator();
+        // Task list.
+        let count = self.tasks.len();
+        egui::ScrollArea::vertical()
+            .id_salt("ai_tasks_scroll")
+            .show(ui, |ui| {
+                if count == 0 {
+                    ui.label(
+                        RichText::new("Noch keine Aufgaben.")
+                            .small()
+                            .color(theme::TEXT_FAINT),
+                    );
+                }
+                for task in self.tasks.clone() {
+                    let selected = self.selected_task == Some(task.id);
+                    let status_color = match task.status {
+                        TaskStatus::Failed | TaskStatus::Cancelled => theme::RED,
+                        TaskStatus::Completed => theme::GREEN,
+                        TaskStatus::AwaitingApproval => theme::AMBER,
+                        TaskStatus::Reviewing => theme::BLUE,
+                        _ => theme::TEXT_DIM,
+                    };
+                    let response = ui.selectable_label(
+                        selected,
+                        RichText::new(format!("{}  ·  {}", task.title, task.status.label()))
+                            .small()
+                            .color(if selected {
+                                theme::TEXT
+                            } else {
+                                theme::TEXT_DIM
+                            }),
+                    );
+                    if response.clicked() {
+                        self.selected_task = Some(task.id);
+                    }
+                    ui.label(
+                        RichText::new(format!("   {}", task.status.label()))
+                            .small()
+                            .color(status_color),
+                    );
+                }
+            });
+        // Selected task detail.
+        if let Some(task) = self.selected_task() {
+            ui.separator();
+            self.task_detail(ui, &task);
+        }
+        // Limits (collapsible, persisted per edition).
+        ui.separator();
+        egui::CollapsingHeader::new(RichText::new("Agent-Limits").small().color(theme::TEXT_DIM))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Iterationen:");
+                    ui.add(
+                        egui::DragValue::new(&mut self.agent_limits.max_iterations).range(1..=50),
+                    );
+                    self.agent_limits_dirty = true;
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Laufzeit (s):");
+                    ui.add(
+                        egui::DragValue::new(&mut self.agent_limits.max_seconds).range(30..=7200),
+                    );
+                    self.agent_limits_dirty = true;
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Max. Dateien:");
+                    ui.add(
+                        egui::DragValue::new(&mut self.agent_limits.max_changed_files)
+                            .range(1..=200),
+                    );
+                    self.agent_limits_dirty = true;
+                });
+                ui.checkbox(
+                    &mut self.agent_limits.history_enabled,
+                    "Task-Historie speichern",
+                );
+                self.agent_limits_dirty = true;
+                ui.horizontal(|ui| {
+                    ui.label("Max. Befehle:");
+                    ui.add(egui::DragValue::new(&mut self.agent_limits.max_commands).range(0..=50));
+                    self.agent_limits_dirty = true;
+                });
+            });
+    }
+
+    /// Plan + status + events + command records for the selected task.
+    fn task_detail(&mut self, ui: &mut Ui, task: &Task) {
+        egui::ScrollArea::vertical()
+            .id_salt("ai_task_detail")
+            .max_height(300.0)
+            .show(ui, |ui| {
+                ui.label(
+                    RichText::new(&task.title)
+                        .small()
+                        .strong()
+                        .color(theme::TEXT),
+                );
+                ui.label(
+                    RichText::new(format!("Status: {}", task.status.label()))
+                        .small()
+                        .color(theme::TEXT_DIM),
+                );
+                if task.progress > 0.0 {
+                    ui.add(
+                        egui::ProgressBar::new(task.progress.clamp(0.0, 1.0))
+                            .desired_width(160.0)
+                            .show_percentage(),
+                    );
+                }
+                if !task.plan.goal.is_empty() {
+                    ui.add_space(4.0);
+                    ui.label(RichText::new("PLAN").small().strong().color(theme::ACCENT));
+                    ui.label(RichText::new(&task.plan.goal).small().color(theme::TEXT));
+                    if !task.plan.analysis.is_empty() {
+                        ui.label(
+                            RichText::new(&task.plan.analysis)
+                                .small()
+                                .color(theme::TEXT_DIM),
+                        );
+                    }
+                    for step in &task.plan.steps {
+                        ui.label(
+                            RichText::new(format!("• {}", step.description))
+                                .small()
+                                .color(theme::TEXT_DIM),
+                        );
+                    }
+                    if !task.plan.risks.is_empty() {
+                        ui.label(
+                            RichText::new(format!("Risiken: {}", task.plan.risks))
+                                .small()
+                                .color(theme::AMBER),
+                        );
+                    }
+                }
+                if !task.commands.is_empty() {
+                    ui.add_space(4.0);
+                    ui.label(
+                        RichText::new("BUILD/TESTS")
+                            .small()
+                            .strong()
+                            .color(theme::ACCENT),
+                    );
+                    for record in task.commands.iter().rev().take(6) {
+                        ui.label(
+                            RichText::new(format!(
+                                "{} → {} ({} ms)",
+                                record.command, record.exit_code, record.duration_ms
+                            ))
+                            .small()
+                            .color(if record.ok {
+                                theme::GREEN
+                            } else {
+                                theme::RED
+                            }),
+                        );
+                    }
+                }
+                if !task.events.is_empty() {
+                    ui.add_space(4.0);
+                    ui.label(
+                        RichText::new("AKTIVITÄT")
+                            .small()
+                            .strong()
+                            .color(theme::ACCENT),
+                    );
+                    for event in task.events.iter().rev().take(8) {
+                        ui.label(
+                            RichText::new(&event.message)
+                                .small()
+                                .color(theme::TEXT_FAINT),
+                        );
+                    }
+                }
+                if let Some(error) = &task.error {
+                    ui.label(RichText::new(error).small().color(theme::RED));
+                }
+            });
+        ui.horizontal(|ui| {
+            if task.status == TaskStatus::AwaitingApproval
+                && ui
+                    .add_enabled(
+                        !self.task_busy,
+                        egui::Button::new("Plan freigeben & implementieren"),
+                    )
+                    .clicked()
+            {
+                self.approve_and_implement();
+            }
+            if matches!(
+                task.status,
+                TaskStatus::Created | TaskStatus::Failed | TaskStatus::Cancelled
+            ) && ui
+                .add_enabled(!self.task_busy, egui::Button::new("Erneut ausführen"))
+                .clicked()
+            {
+                self.rerun_task();
+            }
+            if !task.status.is_terminal()
+                && self.task_busy
+                && self.selected_task == Some(task.id)
+                && ui.button("Stopp").clicked()
+            {
+                self.cancel_task();
+            }
+            if task.status.is_terminal()
+                && ui.small_button("Aus Verlauf entfernen").clicked()
+                && let Some(root) = self
+                    .workspace
+                    .as_ref()
+                    .map(|workspace| workspace.root().to_path_buf())
+            {
+                self.task_store.remove(&root, task.id);
+                let _ = self.task_store.save();
+                self.selected_task = None;
+                self.refresh_tasks();
+            }
+        });
     }
 
     fn prepare_previews(&mut self, project: &Project) {
@@ -1075,6 +1675,22 @@ impl AiEditor {
         );
         self.refresh_diagnostics(project);
         self.refresh_workspace();
+        // M26: a task whose staged review was just fully applied is done.
+        if let Some(id) = self.selected_task
+            && let Some(root) = self
+                .workspace
+                .as_ref()
+                .map(|workspace| workspace.root().to_path_buf())
+            && let Some(mut task) = self.task_store.get(&root, id)
+            && task.status == TaskStatus::Reviewing
+        {
+            task.event(TaskStatus::Completed, "Änderungen vom Benutzer übernommen.");
+            task.progress = 1.0;
+            task.sanitize_for_history();
+            let _ = self.task_store.upsert(task);
+            let _ = self.task_store.save();
+            self.refresh_tasks();
+        }
     }
 
     fn reject_pending(&mut self, state: &mut AppState) {
@@ -2024,6 +2640,39 @@ fn apply_preview_to_project(
         }
     }
     Ok(())
+}
+
+// ------------------------------------------------ M26 agent settings
+
+const AGENT_SETTINGS_FILE: &str = "ai-agent.json";
+
+#[derive(serde::Serialize, serde::Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct AgentSettingsFile {
+    #[serde(default)]
+    limits: Option<AgentLimits>,
+}
+
+fn load_agent_limits(config_dir: &Path) -> AgentLimits {
+    let file = config_dir.join(AGENT_SETTINGS_FILE);
+    fs::read_to_string(&file)
+        .ok()
+        .and_then(|text| serde_json::from_str::<AgentSettingsFile>(&text).ok())
+        .and_then(|settings| settings.limits)
+        .unwrap_or_default()
+}
+
+fn save_agent_limits(config_dir: &Path, limits: &AgentLimits) {
+    let file = config_dir.join(AGENT_SETTINGS_FILE);
+    let settings = AgentSettingsFile {
+        limits: Some(limits.clone()),
+    };
+    if let Ok(bytes) = serde_json::to_vec_pretty(&settings) {
+        let tmp = file.with_extension("json.tmp");
+        if fs::write(&tmp, bytes).is_ok() {
+            let _ = fs::rename(&tmp, &file);
+        }
+    }
 }
 
 #[cfg(test)]
