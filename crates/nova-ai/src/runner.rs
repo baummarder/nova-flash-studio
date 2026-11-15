@@ -319,6 +319,8 @@ impl CommandRunner {
             exit_code: status.code().unwrap_or(-1),
             ok: status.success(),
             output_tail: tail.clone(),
+            sandbox_id: None,
+            touched_files: Vec::new(),
         };
         Ok(CommandOutcome {
             record,

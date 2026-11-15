@@ -18,6 +18,7 @@ pub mod operations;
 pub mod provider;
 pub mod review;
 pub mod runner;
+pub mod sandbox;
 pub mod tasks;
 
 pub use access::{
@@ -50,6 +51,7 @@ pub use provider::{
 };
 pub use review::{ApplyReport, ReviewItem, ReviewSession, stage_changes};
 pub use runner::{CommandRunner, CommandSpec, allowlist as command_allowlist, find_spec};
+pub use sandbox::{DEFAULT_MAX_SANDBOX_BYTES, Sandbox};
 pub use tasks::{
     AgentLimits, CommandRecord, PlanStep, TASKS_FILE, Task, TaskEvent, TaskPlan, TaskStatus,
     TaskStore,

@@ -15,8 +15,8 @@ use eframe::egui::{self, Context, RichText, TextEdit, Ui};
 use nova_ai::{
     AccessLevel, AccessStore, AgentLimits, AgentLoop, AgentOutcome, AgentSession, AppliedChange,
     BuildReport, ChangeKind, ChangePreview, DiffKind, GuardedWorkspace, LoopOutcome,
-    ProviderManager, ReqwestTransport, ReviewSession, SENSITIVE_RULES, Task, TaskStatus, TaskStore,
-    Workspace, apply_operations_with, build_project, default_config_dir, default_store,
+    ProviderManager, ReqwestTransport, ReviewSession, SENSITIVE_RULES, Sandbox, Task, TaskStatus,
+    TaskStore, Workspace, apply_operations_with, build_project, default_config_dir, default_store,
     execute_prepared, load_settings, preview_operations_with,
 };
 use nova_as::{Diagnostic, Severity, analyze};
@@ -101,6 +101,14 @@ pub struct AiEditor {
     /// Configurable iteration/build limits (persisted per edition).
     pub agent_limits: AgentLimits,
     agent_limits_dirty: bool,
+    // ------------------------------------------------ M27 sandbox
+    /// Live sandbox of the last finished task run (kept for details/retest;
+    /// dropping it deletes the directory).
+    task_sandbox: Option<Sandbox>,
+    /// Which task the current `review` session belongs to (None = chat flow).
+    review_task_id: Option<uuid::Uuid>,
+    /// Sandbox details window visibility.
+    pub sandbox_details_open: bool,
 }
 
 impl AiEditor {
@@ -179,6 +187,9 @@ impl AiEditor {
             task_loop_cancel: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
             agent_limits: load_agent_limits(&config_dir),
             agent_limits_dirty: false,
+            task_sandbox: None,
+            review_task_id: None,
+            sandbox_details_open: false,
         };
         editor.refresh_workspace();
         if let Some(error) = &editor.startup_error {
@@ -253,6 +264,7 @@ impl AiEditor {
             self.editor_panel(ui, project, state);
         });
         self.access_dialogs(ui);
+        self.sandbox_details(ui);
 
         actions
     }
@@ -798,6 +810,9 @@ impl AiEditor {
             "NOVA_EDITION".to_string(),
             std::env::var("NOVA_EDITION").unwrap_or_else(|_| "user".to_string()),
         )];
+        // M27: per-task sandbox root under the edition config dir.
+        let sandbox_base = self.ai_config_dir.join("ai-sandboxes");
+        let _ = std::fs::create_dir_all(&sandbox_base);
         self.task_loop_cancel
             .store(false, std::sync::atomic::Ordering::SeqCst);
         self.task_busy = true;
@@ -826,6 +841,7 @@ impl AiEditor {
                         &staging_root,
                         &env,
                         plan_only,
+                        &sandbox_base,
                     )
                     .map_err(|error| error.to_string())?;
                 Ok((task, outcome))
@@ -891,6 +907,10 @@ impl AiEditor {
                 self.workspace_files = guarded.list_readable_files();
                 self.guarded = Some(guarded);
                 self.workspace = Some(workspace);
+                // M27: a different project root invalidates sandbox + review
+                // ownership (sandbox dir is removed on drop).
+                self.task_sandbox = None;
+                self.review_task_id = None;
                 self.error = None;
             }
             Err(error) => {
@@ -1086,7 +1106,16 @@ impl AiEditor {
         self.task_loop_cancel
             .store(false, std::sync::atomic::Ordering::SeqCst);
         match result {
-            Ok((mut task, outcome)) => {
+            Ok((mut task, mut outcome)) => {
+                // M27: keep the live sandbox for details/retest; store the
+                // staged-state fingerprint for staleness detection.
+                if let Some(sandbox) = outcome.sandbox.take() {
+                    task.sandbox_id = Some(sandbox.task_id.clone());
+                    self.task_sandbox = Some(sandbox);
+                }
+                if outcome.sandbox_fingerprint.is_some() {
+                    task.sandbox_fingerprint = outcome.sandbox_fingerprint.clone();
+                }
                 task.sanitize_for_history();
                 // Persist the mutated task (status, plan, events, commands).
                 let _ = self.task_store.upsert(task.clone());
@@ -1117,6 +1146,7 @@ impl AiEditor {
                 if let Some(review) = outcome.review {
                     let count = review.items().len();
                     self.session.pending_operations = outcome.operations.clone();
+                    self.review_task_id = Some(task.id);
                     self.review = Some(review);
                     for index in 0..count {
                         // previews are rebuilt below from the review items
@@ -1167,6 +1197,115 @@ impl AiEditor {
             }
         }
         let _ = project;
+    }
+
+    /// M27.5: re-run sandbox build checks for the selected task against the
+    /// current staged review — no provider call needed.
+    fn rerun_sandbox_tests(&mut self) {
+        let Some(task) = self.selected_task() else {
+            return;
+        };
+        if self.task_busy {
+            return;
+        }
+        if self.review_task_id != Some(task.id) || self.review.is_none() {
+            self.error = Some(
+                "Keine Task-Review-Session vorhanden — zuerst einen Task laufen lassen.".into(),
+            );
+            return;
+        }
+        let Some(guarded) = self.guarded.clone() else {
+            return;
+        };
+        let Some(review) = self.review.clone() else {
+            return;
+        };
+        let mut engine = AgentLoop::new(self.agent_limits.clone());
+        engine.cancel = std::sync::Arc::clone(&self.task_loop_cancel);
+        let sandbox_base = self.ai_config_dir.join("ai-sandboxes");
+        let _ = std::fs::create_dir_all(&sandbox_base);
+        let env: Vec<(String, String)> = vec![(
+            "NOVA_EDITION".to_string(),
+            std::env::var("NOVA_EDITION").unwrap_or_else(|_| "user".to_string()),
+        )];
+        self.task_loop_cancel
+            .store(false, std::sync::atomic::Ordering::SeqCst);
+        self.task_busy = true;
+        self.status = "Sandbox-Tests werden erneut ausgeführt …".into();
+        self.job_started = Instant::now();
+        let (sender, receiver) = mpsc::channel();
+        self.task_job = Some(receiver);
+        std::thread::spawn(move || {
+            let result = (|| -> Result<(Task, LoopOutcome), String> {
+                let outcome = engine
+                    .sandbox_check(&task.id.to_string(), &guarded, &review, &sandbox_base, &env)
+                    .map_err(|error| error.to_string())?;
+                Ok((task, outcome))
+            })();
+            let _ = sender.send(result);
+        });
+    }
+
+    /// M27.5: sandbox details window (path, size, skipped files, limits).
+    fn sandbox_details(&mut self, ui: &mut Ui) {
+        if !self.sandbox_details_open {
+            return;
+        }
+        let mut open = true;
+        egui::Window::new("Sandbox-Details")
+            .open(&mut open)
+            .collapsible(false)
+            .default_size([560.0, 380.0])
+            .show(ui, |ui| {
+                let Some(sandbox) = &self.task_sandbox else {
+                    ui.label("Keine aktive Sandbox.");
+                    return;
+                };
+                ui.label(
+                    RichText::new(format!("Task: {}", sandbox.task_id))
+                        .small()
+                        .strong(),
+                );
+                ui.label(
+                    RichText::new(format!("Projektkopie: {}", sandbox.root.display()))
+                        .small()
+                        .color(theme::TEXT_DIM),
+                );
+                ui.horizontal(|ui| {
+                    ui.label(format!(
+                        "Größe: {:.1} MB · Kopiert: {:.1} MB · Laufzeit: {:.0}s",
+                        sandbox.size_bytes() as f64 / 1_048_576.0,
+                        sandbox.copied_bytes as f64 / 1_048_576.0,
+                        sandbox.elapsed().as_secs_f32()
+                    ));
+                });
+                if !sandbox.skipped.is_empty() {
+                    ui.add_space(4.0);
+                    ui.label(
+                        RichText::new(format!("Übersprungen ({})", sandbox.skipped.len()))
+                            .small()
+                            .strong()
+                            .color(theme::AMBER),
+                    );
+                    egui::ScrollArea::vertical()
+                        .max_height(140.0)
+                        .show(ui, |ui| {
+                            for entry in &sandbox.skipped {
+                                ui.label(RichText::new(entry).small().color(theme::TEXT_FAINT));
+                            }
+                        });
+                }
+                ui.add_space(4.0);
+                ui.label(
+                    RichText::new(
+                        "Hinweis: Projektkopie + Allowlist-Kommandos — keine OS-Level-Netzwerk- \
+                         oder Prozessisolierung (siehe Dokumentation).",
+                    )
+                    .small()
+                    .color(theme::TEXT_FAINT),
+                );
+            });
+        self.sandbox_details_open = open;
     }
 
     /// Left task panel: list, creation input, per-task actions, plan detail.
@@ -1348,11 +1487,15 @@ impl AiEditor {
                 }
                 if !task.commands.is_empty() {
                     ui.add_space(4.0);
+                    let ok = task.commands.iter().filter(|c| c.ok).count();
+                    let failed = task.commands.len() - ok;
                     ui.label(
-                        RichText::new("BUILD/TESTS")
-                            .small()
-                            .strong()
-                            .color(theme::ACCENT),
+                        RichText::new(format!(
+                            "BUILD/TESTS (Sandbox): {ok} ok · {failed} fehlgeschlagen"
+                        ))
+                        .small()
+                        .strong()
+                        .color(theme::ACCENT),
                     );
                     for record in task.commands.iter().rev().take(6) {
                         ui.label(
@@ -1366,6 +1509,49 @@ impl AiEditor {
                             } else {
                                 theme::RED
                             }),
+                        );
+                    }
+                }
+                // M27.5/27.6: sandbox status + staleness of the last test.
+                ui.add_space(4.0);
+                match &task.sandbox_fingerprint {
+                    Some(fingerprint) => {
+                        let current = self
+                            .review
+                            .as_ref()
+                            .filter(|_| self.review_task_id == Some(task.id))
+                            .map(|review| review.fingerprint());
+                        match current {
+                            Some(current) if current == *fingerprint => {
+                                ui.label(
+                                    RichText::new("Sandbox-Test: aktuell")
+                                        .small()
+                                        .color(theme::GREEN),
+                                );
+                            }
+                            Some(_) => {
+                                ui.label(
+                                    RichText::new(
+                                        "TESTSTAND VERALTET — Staging geändert seit dem letzten Test",
+                                    )
+                                    .small()
+                                    .color(theme::AMBER),
+                                );
+                            }
+                            None => {
+                                ui.label(
+                                    RichText::new("Sandbox-Test: kein aktiver Review")
+                                        .small()
+                                        .color(theme::TEXT_DIM),
+                                );
+                            }
+                        }
+                    }
+                    None => {
+                        ui.label(
+                            RichText::new("Sandbox-Test: noch nicht ausgeführt")
+                                .small()
+                                .color(theme::TEXT_FAINT),
                         );
                     }
                 }
@@ -1408,6 +1594,17 @@ impl AiEditor {
                 .clicked()
             {
                 self.rerun_task();
+            }
+            if self.task_sandbox.is_some() && ui.small_button("Sandbox-Details").clicked() {
+                self.sandbox_details_open = true;
+            }
+            if self.review_task_id == Some(task.id)
+                && self.review.is_some()
+                && ui
+                    .add_enabled(!self.task_busy, egui::Button::new("Build/Tests erneut"))
+                    .clicked()
+            {
+                self.rerun_sandbox_tests();
             }
             if !task.status.is_terminal()
                 && self.task_busy
@@ -1483,6 +1680,7 @@ impl AiEditor {
                         self.pending_previews.push(preview);
                     }
                 }
+                self.review_task_id = None; // chat flow — not task-owned
                 self.review = Some(review);
             }
             Err(error) => {
@@ -1596,6 +1794,7 @@ impl AiEditor {
                         self.review = Some(review);
                     } else {
                         self.review = None;
+                        self.review_task_id = None;
                     }
                 }
                 Err(error) => {

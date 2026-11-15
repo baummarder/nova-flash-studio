@@ -51,7 +51,7 @@ impl ReviewItem {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ReviewSession {
     project_root: PathBuf,
     staging_dir: PathBuf,
@@ -117,6 +117,26 @@ impl ReviewSession {
 
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
+    }
+
+    /// Stable fingerprint of the staged state — used to detect whether test
+    /// results still match the current staged content (M27.6 staleness).
+    pub fn fingerprint(&self) -> String {
+        use sha2::Digest;
+        let mut hasher = sha2::Sha256::new();
+        for item in &self.items {
+            hasher.update(item.path.as_bytes());
+            hasher.update([0u8]);
+            hasher.update(format!("{:?}", item.kind).as_bytes());
+            hasher.update([0u8]);
+            if let Some(staged) = &item.staged
+                && let Ok(bytes) = fs::read(staged)
+            {
+                hasher.update(sha2::Sha256::digest(&bytes));
+            }
+            hasher.update([0u8]);
+        }
+        format!("{:x}", hasher.finalize())
     }
 
     pub fn accepted_count(&self) -> usize {
@@ -376,6 +396,31 @@ mod tests {
             },
         );
         (canonical, staging, guarded)
+    }
+
+    #[test]
+    fn fingerprint_changes_when_staged_content_changes() {
+        let (root, staging, guarded) = fixture("fp");
+        let mut session = ReviewSession::new(&root, &staging).unwrap();
+        let fp_empty = session.fingerprint();
+        session
+            .stage(
+                &guarded,
+                &ProposedChange::modify("src/main.as", "class Main { int y; }\n"),
+            )
+            .unwrap();
+        let fp_one = session.fingerprint();
+        assert_ne!(fp_empty, fp_one);
+        // Same content again → same fingerprint (stable for staleness checks).
+        assert_eq!(fp_one, session.fingerprint());
+        // Revised staging → different fingerprint (old test result stale).
+        session
+            .stage_or_update(
+                &guarded,
+                &ProposedChange::modify("src/main.as", "class Main { int z; }\n"),
+            )
+            .unwrap();
+        assert_ne!(fp_one, session.fingerprint());
     }
 
     #[test]

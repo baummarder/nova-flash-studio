@@ -133,6 +133,12 @@ pub struct CommandRecord {
     pub ok: bool,
     /// Tail of combined stdout+stderr (bounded).
     pub output_tail: String,
+    /// M27.3: sandbox this run executed in (None = project workdir, legacy).
+    #[serde(default)]
+    pub sandbox_id: Option<String>,
+    /// M27.3: project-relative files whose staged state was tested.
+    #[serde(default)]
+    pub touched_files: Vec<String>,
 }
 
 /// Iteration limits (M26.3/M26.10) — configurable, persisted with settings.
@@ -154,6 +160,9 @@ pub struct AgentLimits {
     /// Max allowlisted build/test command executions per task.
     #[serde(default = "default_max_commands")]
     pub max_commands: u32,
+    /// Max sandbox payload size in bytes (M27.2).
+    #[serde(default = "default_max_sandbox_bytes")]
+    pub max_sandbox_bytes: u64,
     /// Ask before running a command outside the built-in allowlist.
     #[serde(default = "default_confirm_unknown")]
     pub confirm_unknown_commands: bool,
@@ -177,6 +186,9 @@ fn default_max_workspace_bytes() -> u64 {
 fn default_max_commands() -> u32 {
     10
 }
+fn default_max_sandbox_bytes() -> u64 {
+    2 * 1024 * 1024 * 1024
+}
 fn default_confirm_unknown() -> bool {
     true
 }
@@ -192,6 +204,7 @@ impl Default for AgentLimits {
             max_changed_files: default_max_files(),
             max_workspace_bytes: default_max_workspace_bytes(),
             max_commands: default_max_commands(),
+            max_sandbox_bytes: default_max_sandbox_bytes(),
             confirm_unknown_commands: default_confirm_unknown(),
             history_enabled: default_history_enabled(),
         }
@@ -231,6 +244,13 @@ pub struct Task {
     /// Review status summary for the UI.
     #[serde(default)]
     pub review_summary: String,
+    /// M27.6: fingerprint of the staged state the last sandbox test ran
+    /// against — compared with the live review fingerprint for staleness.
+    #[serde(default)]
+    pub sandbox_fingerprint: Option<String>,
+    /// M27.5: id of the sandbox belonging to this task.
+    #[serde(default)]
+    pub sandbox_id: Option<String>,
     #[serde(default)]
     pub error: Option<String>,
 }
@@ -255,6 +275,8 @@ impl Task {
             commands: Vec::new(),
             events: Vec::new(),
             review_summary: String::new(),
+            sandbox_fingerprint: None,
+            sandbox_id: None,
             error: None,
         })
     }

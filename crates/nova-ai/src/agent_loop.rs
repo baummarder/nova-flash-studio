@@ -29,6 +29,7 @@ use crate::http::HttpTransport;
 use crate::provider::{ChatMessage, ProviderManager, chat};
 use crate::review::ReviewSession;
 use crate::runner::{CommandRunner, summarize_output};
+use crate::sandbox::Sandbox;
 use crate::tasks::{AgentLimits, Task, TaskPlan, TaskStatus};
 
 /// System prompt for the planning phase.
@@ -61,7 +62,7 @@ Antworte AUSSCHLIESSLICH mit einem JSON-Objekt:
 Befehle nur aus dieser Allowlist: cargo-check, cargo-test, cargo-fmt-check, cargo-clippy, test-installer, test-edition-packaging, test-archive, nova-build. "done":true nur wenn keine weiteren Änderungen/Tests nötig sind. Bei Build-Fehlern analysiere die Ausgabe und korrigiere die betroffenen Dateien im nächsten Schritt. Entferne niemals Tests, um einen Build zu erzwingen."##;
 
 /// Outcome of one agent-loop run handed back to the UI.
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct LoopOutcome {
     pub plan: TaskPlan,
     /// `Some` when implementation produced staged changes awaiting review.
@@ -74,6 +75,21 @@ pub struct LoopOutcome {
     pub operation_errors: Vec<String>,
     pub status: TaskStatus,
     pub error: Option<String>,
+    /// M27: live sandbox with the staged state (commands ran inside it).
+    /// Dropping it deletes the sandbox directory.
+    pub sandbox: Option<Sandbox>,
+    /// M27.6: staged-state fingerprint the sandbox was synced to.
+    pub sandbox_fingerprint: Option<String>,
+}
+
+impl std::fmt::Debug for LoopOutcome {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LoopOutcome")
+            .field("status", &self.status)
+            .field("commands", &self.commands.len())
+            .field("sandbox", &self.sandbox.as_ref().map(|s| &s.task_id))
+            .finish()
+    }
 }
 
 /// Why the loop paused (limits).
@@ -190,6 +206,7 @@ impl AgentLoop {
         workdir_env: &[(String, String)],
         cloud_consent: bool,
         plan_only: bool,
+        sandbox_base: &Path,
     ) -> AiResult<LoopOutcome> {
         let (provider, key) = self.provider(manager, task, cloud_consent)?;
         self.run_inner(
@@ -201,6 +218,7 @@ impl AgentLoop {
             staging_root,
             workdir_env,
             plan_only,
+            sandbox_base,
         )
     }
 
@@ -217,6 +235,7 @@ impl AgentLoop {
         staging_root: &Path,
         workdir_env: &[(String, String)],
         plan_only: bool,
+        sandbox_base: &Path,
     ) -> AiResult<LoopOutcome> {
         self.run_inner(
             task,
@@ -227,6 +246,7 @@ impl AgentLoop {
             staging_root,
             workdir_env,
             plan_only,
+            sandbox_base,
         )
     }
 
@@ -241,6 +261,7 @@ impl AgentLoop {
         staging_root: &Path,
         workdir_env: &[(String, String)],
         plan_only: bool,
+        sandbox_base: &Path,
     ) -> AiResult<LoopOutcome> {
         self.check_cancel()?;
         let started = Instant::now();
@@ -314,6 +335,24 @@ impl AgentLoop {
         // ------------------------------------------------ implement loop
         let mut review = ReviewSession::new(guarded.root(), staging_root)?;
         task.staging_dir = Some(review.staging_dir().to_string_lossy().to_string());
+        // M27.1: isolated sandbox = project copy + staged state. All
+        // build/test commands run inside it; originals stay untouched.
+        let mut sandbox = Sandbox::create(
+            &task.id.to_string(),
+            guarded.root(),
+            &review,
+            sandbox_base,
+            self.limits.max_sandbox_bytes,
+        )?;
+        task.sandbox_id = Some(task.id.to_string());
+        task.event(
+            TaskStatus::Executing,
+            format!(
+                "Sandbox erstellt ({} Dateien kopiert, {} Bytes).",
+                review.items().len(),
+                sandbox.copied_bytes
+            ),
+        );
         let mut commands_run = 0u32;
         let mut iterations = 0u32;
         let mut last_command_summary = String::new();
@@ -322,13 +361,34 @@ impl AgentLoop {
         loop {
             self.check_cancel()?;
             if iterations >= self.limits.max_iterations {
-                return self.pause(task, &mut outcome, review, PauseReason::Iterations, started);
+                return self.pause(
+                    task,
+                    &mut outcome,
+                    review,
+                    PauseReason::Iterations,
+                    started,
+                    Some(sandbox),
+                );
             }
             if started.elapsed() > Duration::from_secs(self.limits.max_seconds) {
-                return self.pause(task, &mut outcome, review, PauseReason::Time, started);
+                return self.pause(
+                    task,
+                    &mut outcome,
+                    review,
+                    PauseReason::Time,
+                    started,
+                    Some(sandbox),
+                );
             }
             if review.items().len() > self.limits.max_changed_files {
-                return self.pause(task, &mut outcome, review, PauseReason::Files, started);
+                return self.pause(
+                    task,
+                    &mut outcome,
+                    review,
+                    PauseReason::Files,
+                    started,
+                    Some(sandbox),
+                );
             }
             let staged_bytes: u64 = review
                 .items()
@@ -344,15 +404,23 @@ impl AgentLoop {
                     review,
                     PauseReason::WorkspaceSize,
                     started,
+                    Some(sandbox),
                 );
             }
             if commands_run >= self.limits.max_commands {
-                return self.pause(task, &mut outcome, review, PauseReason::Commands, started);
+                return self.pause(
+                    task,
+                    &mut outcome,
+                    review,
+                    PauseReason::Commands,
+                    started,
+                    Some(sandbox),
+                );
             }
             iterations += 1;
             task.event(
                 TaskStatus::Executing,
-                format!("Iteration {iterations}: Agent arbeitet im isolierten Bereich."),
+                format!("Iteration {iterations}: Agent arbeitet in der Sandbox."),
             );
 
             // Build iteration prompt with current staged state.
@@ -407,9 +475,27 @@ impl AgentLoop {
                 .operation_errors
                 .extend(reply.operation_errors.clone());
 
-            // Run allowlisted commands.
+            // M27.4: push the revised staged state into the sandbox so the
+            // next build/test sees exactly what will be reviewed.
+            if staged_any {
+                sandbox.sync(&review)?;
+            }
+
+            // Run allowlisted commands inside the sandbox. If the agent
+            // staged changes but requested no checks on a Rust project,
+            // `cargo check` runs anyway — integrity checks are not silently
+            // skipped.
+            let mut command_ids = reply.commands.clone();
+            if staged_any
+                && reply.commands.is_empty()
+                && sandbox.has_cargo_project()
+                && crate::runner::find_spec("cargo-check").is_some()
+            {
+                command_ids.push("cargo-check".to_string());
+            }
+            let touched: Vec<String> = reply.changes.iter().map(|c| c.path.clone()).collect();
             let mut ran_command = false;
-            for command_id in &reply.commands {
+            for command_id in &command_ids {
                 if commands_run >= self.limits.max_commands {
                     break;
                 }
@@ -419,18 +505,23 @@ impl AgentLoop {
                         .push(format!("Befehl '{command_id}': nicht in der Allowlist"));
                     continue;
                 }
-                task.event(TaskStatus::Testing, format!("Führe '{command_id}' aus."));
+                task.event(
+                    TaskStatus::Testing,
+                    format!("Führe '{command_id}' in der Sandbox aus."),
+                );
                 match runner.run_allowlisted(
                     command_id,
-                    guarded.root(),
+                    &sandbox.root,
                     workdir_env,
                     Duration::from_secs(600),
                 ) {
-                    Ok(result) => {
+                    Ok(mut result) => {
                         commands_run += 1;
+                        result.record.sandbox_id = Some(sandbox.task_id.clone());
+                        result.record.touched_files = touched.clone();
                         outcome.commands.push(result.record.clone());
                         last_command_summary = format!(
-                            "$ {}\n(exit {})\n{}",
+                            "$ {} (sandbox)\n(exit {})\n{}",
                             result.record.command,
                             result.record.exit_code,
                             summarize_output(&result.output)
@@ -450,9 +541,13 @@ impl AgentLoop {
             }
         }
 
+        let fingerprint = sandbox.staged_fingerprint.clone();
+        outcome.sandbox_fingerprint = fingerprint.clone();
+        outcome.sandbox = Some(sandbox);
         outcome.review = Some(review);
         outcome.status = TaskStatus::Reviewing;
         task.status = TaskStatus::Reviewing;
+        task.sandbox_fingerprint = fingerprint;
         task.progress = 0.9;
         task.review_summary = format!(
             "{} Dateiänderung(en) im Review-Workspace",
@@ -478,6 +573,7 @@ impl AgentLoop {
         review: ReviewSession,
         reason: PauseReason,
         started: Instant,
+        sandbox: Option<Sandbox>,
     ) -> AiResult<LoopOutcome> {
         let _ = started;
         task.event(
@@ -485,10 +581,68 @@ impl AgentLoop {
             format!("Pausiert: {}", reason.message()),
         );
         task.error = Some(reason.message().to_string());
+        if let Some(sandbox) = &sandbox {
+            task.sandbox_fingerprint = sandbox.staged_fingerprint.clone();
+            outcome.sandbox_fingerprint = sandbox.staged_fingerprint.clone();
+        }
         outcome.review = Some(review);
+        outcome.sandbox = sandbox;
         outcome.status = TaskStatus::Failed;
         outcome.error = Some(reason.message().to_string());
         Ok(std::mem::take(outcome))
+    }
+
+    /// M27.5: re-run sandbox build checks against the *current* staged
+    /// review without calling the provider — used by the "Test erneut
+    /// ausführen" action. Returns command records + live sandbox.
+    #[allow(clippy::too_many_arguments)]
+    pub fn sandbox_check(
+        &self,
+        task_id: &str,
+        guarded: &GuardedWorkspace,
+        review: &ReviewSession,
+        sandbox_base: &Path,
+        workdir_env: &[(String, String)],
+    ) -> AiResult<LoopOutcome> {
+        let mut sandbox = Sandbox::create(
+            task_id,
+            guarded.root(),
+            review,
+            sandbox_base,
+            self.limits.max_sandbox_bytes,
+        )?;
+        sandbox.sync(review)?;
+        let mut outcome = LoopOutcome {
+            sandbox_fingerprint: sandbox.staged_fingerprint.clone(),
+            ..Default::default()
+        };
+        let runner = CommandRunner::with_cancel(Arc::clone(&self.cancel));
+        if sandbox.has_cargo_project() {
+            match runner.run_allowlisted(
+                "cargo-check",
+                &sandbox.root,
+                workdir_env,
+                Duration::from_secs(600),
+            ) {
+                Ok(mut result) => {
+                    result.record.sandbox_id = Some(sandbox.task_id.clone());
+                    result.record.touched_files = review
+                        .items()
+                        .iter()
+                        .map(|item| item.path.clone())
+                        .collect();
+                    outcome.commands.push(result.record);
+                }
+                Err(error) => outcome.operation_errors.push(error.to_string()),
+            }
+        }
+        outcome.messages.push(format!(
+            "Sandbox-Check: {} Datei(en) geprüft.",
+            review.items().len()
+        ));
+        outcome.status = TaskStatus::Reviewing;
+        outcome.sandbox = Some(sandbox);
+        Ok(outcome)
     }
 }
 
@@ -694,6 +848,7 @@ mod tests {
                 &staging,
                 &[],
                 true,
+                &staging,
             )
             .unwrap();
         assert_eq!(task.status, TaskStatus::AwaitingApproval);
@@ -712,6 +867,7 @@ mod tests {
                 &staging,
                 &[],
                 false,
+                &staging,
             )
             .unwrap();
         assert_eq!(task.status, TaskStatus::Reviewing);
@@ -762,6 +918,7 @@ mod tests {
                 &staging,
                 &[],
                 false,
+                &staging,
             )
             .unwrap();
         assert_eq!(task.status, TaskStatus::Failed);
@@ -791,6 +948,7 @@ mod tests {
                     &staging,
                     &[],
                     true,
+                    &staging,
                 )
                 .is_err()
         );
