@@ -181,6 +181,51 @@ Safety rules:
    outside granted paths. Grants cannot be extended by agent output or by
    project files.
 
+## Development tasks (M26)
+
+The **AUFGABEN** panel (left of the AI workspace) turns the agent into a
+development agent. A task is created from a natural-language description;
+nothing runs without an explicit user action.
+
+Phases per task:
+
+1. **Analyse/Plan** — the provider receives only grant-readable files and
+   returns a structured plan (goal, analysis, affected/new files, steps,
+   effects, planned tests, risks). Plans that touch files stop at
+   *Planfreigabe nötig* until the user clicks **Plan freigeben &
+   implementieren**. Read-only analysis tasks complete without approval.
+2. **Implementierung** — bounded iterations inside the per-task isolated
+   staging dir (`ai-task-staging/<task-id>`). Changes are staged via
+   `ReviewSession::stage_or_update`, never written to originals.
+   Allowlisted build/test commands run with their output fed back for
+   self-correction. Iteration/time/file/workspace/command limits pause
+   the task with a visible reason — no endless loops.
+3. **Review** — the staged `ReviewSession` is handed to the existing
+   Diff tab: per-file accept/reject, conflicts, grant re-checks, rollback.
+   Apply marks the task *Abgeschlossen*.
+
+Tasks persist per project in `ai-tasks.json` (edition config dir):
+status history, plan, command records, events — secrets are scrubbed.
+Tasks can be re-run, cancelled cooperatively, and removed from history.
+A completed task's staging can be cleaned by removing the task.
+
+### Command allowlist (M26.4)
+
+Only fixed argv vectors run — no shell, no interpolation:
+`cargo-check`, `cargo-test`, `cargo-fmt-check`, `cargo-clippy`,
+`test-installer`, `test-edition-packaging`, `test-archive`, `nova-build`.
+Unknown commands are rejected, never executed because a project file
+mentions them. `powershell` is allowlist-only; `cargo fmt` without
+`--check` is blocked. Every run records command, workdir, duration,
+exit code and output tail; processes are killable and time-limited.
+
+### Agent limits (M26.10)
+
+Collapsible **Agent-Limits** in the tasks panel, persisted per edition in
+`ai-agent.json`: max iterations, max runtime, max changed files, max
+commands, task-history toggle. Safety floors cannot be disabled (grants,
+approval gate, allowlist).
+
 ## Build, diagnostics and activity
 
 - **Build** runs the existing `nova-build` pipeline and shows byte/frame/object
