@@ -1,0 +1,16 @@
+[package]
+name = "nova-edu"
+description = "Education Edition domain logic for NØVA Flash Studio (classrooms, assignments, submissions, feedback, packages)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+nova-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+zip.workspace = true
+sha2.workspace = true

@@ -8,6 +8,7 @@ members = [
     "crates/nova-script",
     "crates/nova-formats",
     "crates/nova-ai",
+    "crates/nova-edu",
     "crates/nova-app",
     "crates/nova-cli",
 ]
@@ -28,6 +29,7 @@ nova-as = { path = "crates/nova-as" }
 nova-script = { path = "crates/nova-script" }
 nova-formats = { path = "crates/nova-formats" }
 nova-ai = { path = "crates/nova-ai" }
+nova-edu = { path = "crates/nova-edu" }
 
 swf = "0.4"
 zip = { version = "9.5.1", default-features = false, features = ["deflate"] }
@@ -38,6 +40,7 @@ serde_json = "1"
 thiserror = "2"
 uuid = { version = "1", features = ["v4", "serde"] }
 flate2 = "1"
+sha2 = "0.10"
 rfd = "0.15"
 rquickjs = "0.14"
 eframe = "0.37"
