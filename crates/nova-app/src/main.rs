@@ -31,6 +31,7 @@ mod state;
 mod theme;
 mod tilemap_view;
 mod timeline_view;
+mod toolbox;
 mod tree;
 mod util;
 

@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use eframe::egui::{self, Context, Key, RichText, Ui};
+use eframe::egui::{self, Context, Key, RichText, Sense, Ui};
 use nova_build::build_swf;
 use nova_core::{
     Asset, AssetKind, Frame, Layer, LayerKind, ObjectInstance, ObjectKind, Project,
@@ -21,7 +21,7 @@ use crate::state::{
 };
 use crate::{
     autosave, branding, classroom_view, code_view, console, edition, enterprise_view, flash, i18n,
-    properties, stage_view, theme, tilemap_view, timeline_view, tree, util,
+    properties, stage_view, theme, tilemap_view, timeline_view, toolbox, tree, util,
 };
 
 fn egui_key_for_letter(index: usize) -> Key {
@@ -89,6 +89,8 @@ pub struct NovaApp {
     ent: crate::ent_state::EntUi,
     /// First-run / settings language wizard. `Some(lang)` = active preview.
     wizard: Option<i18n::Lang>,
+    /// Right dock split: fraction of height given to Properties (rest = library).
+    right_split: f32,
 }
 
 impl NovaApp {
@@ -152,6 +154,7 @@ impl NovaApp {
             } else {
                 Some(i18n::language())
             },
+            right_split: 0.55,
         };
         if let Some(path) = startup_project {
             if is_swf_path(path) {
@@ -588,12 +591,89 @@ impl NovaApp {
         });
     }
 
-    /// M22.1: slim left rail with the workspace modes — the Animate-style
-    /// navigation column. Always visible so Classroom/Enterprise/AI views
-    /// can switch back.
-    fn mode_rail(&mut self, ui: &mut Ui, actions: &mut Vec<UiAction>) {
-        ui.vertical(|ui| {
-            ui.add_space(8.0);
+    /// Right dock: Properties on top, project library (tree) below,
+    /// separated by a draggable classic divider.
+    fn right_dock(&mut self, ui: &mut Ui, actions: &mut Vec<UiAction>) {
+        let total = ui.available_height();
+        if total < 80.0 {
+            return;
+        }
+        let top_h = (total * self.right_split).clamp(120.0, total - 120.0);
+        let width = ui.available_width();
+        let origin = ui.cursor().min;
+        let top_rect = egui::Rect::from_min_size(origin, egui::vec2(width, top_h));
+        {
+            let mut top_ui = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(top_rect)
+                    .layout(egui::Layout::top_down(egui::Align::Min)),
+            );
+            actions.extend(properties::show(
+                &mut top_ui,
+                &mut self.project,
+                &mut self.state,
+            ));
+        }
+
+        // Divider strip between Properties and the library.
+        let div_rect = egui::Rect::from_min_size(
+            egui::pos2(origin.x, top_rect.bottom()),
+            egui::vec2(width, 5.0),
+        );
+        let div_response = ui.interact(
+            div_rect,
+            ui.scope_id().with("right_dock_divider"),
+            Sense::drag(),
+        );
+        if div_response.dragged()
+            && let Some(pos) = div_response.interact_pointer_pos()
+        {
+            let rel = (pos.y - origin.y) / total.max(1.0);
+            self.right_split = rel.clamp(0.2, 0.8);
+        }
+        {
+            let painter = ui.painter();
+            let mid_y = div_rect.center().y;
+            painter.rect_filled(
+                div_rect,
+                egui::CornerRadius::ZERO,
+                if div_response.hovered() {
+                    theme::BG_HOVER
+                } else {
+                    theme::BG_INPUT
+                },
+            );
+            painter.line_segment(
+                [
+                    egui::pos2(div_rect.left(), mid_y),
+                    egui::pos2(div_rect.right(), mid_y),
+                ],
+                egui::Stroke::new(1.0, theme::BORDER_SOFT),
+            );
+        }
+        ui.allocate_rect(div_rect, Sense::hover());
+
+        // Bottom: project tree as the "library" dock.
+        let remaining = ui.available_height();
+        if remaining > 40.0 {
+            let bottom_rect =
+                egui::Rect::from_min_size(ui.cursor().min, egui::vec2(width, remaining));
+            let mut bottom_ui = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(bottom_rect)
+                    .layout(egui::Layout::top_down(egui::Align::Min)),
+            );
+            actions.extend(tree::show(
+                &mut bottom_ui,
+                &mut self.project,
+                &mut self.state,
+            ));
+        }
+    }
+
+    fn toolbar(&mut self, ui: &mut Ui, actions: &mut Vec<UiAction>) {
+        ui.horizontal(|ui| {
+            // Compact classic workspace selector.
             let mut modes = vec![
                 (Mode::Code, i18n::t("mode.code")),
                 (Mode::Animation, i18n::t("mode.animation")),
@@ -605,40 +685,36 @@ impl NovaApp {
                 modes.push((Mode::Enterprise, i18n::t("mode.enterprise")));
             }
             for (mode, label) in modes {
-                let active = self.state.mode == mode;
+                let active = self.state.mode == mode && !self.ai.open;
                 let text = if active {
                     RichText::new(&label).strong().color(theme::ACCENT)
                 } else {
                     RichText::new(&label).color(theme::TEXT_DIM)
                 };
                 if ui
-                    .add(egui::Button::new(text).min_size(egui::vec2(44.0, 30.0)))
+                    .add(egui::Button::new(text).min_size(egui::vec2(0.0, 22.0)))
                     .clicked()
                 {
                     actions.push(UiAction::SetMode(mode));
                 }
             }
-            ui.separator();
-            let ai_active = self.ai.open;
-            let ai_text = if ai_active {
-                RichText::new(i18n::t("toolbar.ai_agent"))
-                    .strong()
-                    .color(theme::ACCENT)
-            } else {
-                RichText::new(i18n::t("toolbar.ai_agent")).color(theme::TEXT_DIM)
-            };
             if ui
-                .add(egui::Button::new(ai_text).min_size(egui::vec2(44.0, 30.0)))
+                .add(
+                    egui::Button::new(RichText::new(i18n::t("toolbar.ai_agent")).color(
+                        if self.ai.open {
+                            theme::ACCENT
+                        } else {
+                            theme::TEXT_DIM
+                        },
+                    ))
+                    .min_size(egui::vec2(0.0, 22.0)),
+                )
                 .on_hover_text(i18n::t("toolbar.ai_agent_tip"))
                 .clicked()
             {
                 actions.push(UiAction::OpenAiEditor);
             }
-        });
-    }
-
-    fn toolbar(&mut self, ui: &mut Ui, actions: &mut Vec<UiAction>) {
-        ui.horizontal(|ui| {
+            ui.separator();
             ui.label(
                 RichText::new("NØVA")
                     .strong()
@@ -4509,18 +4585,19 @@ impl eframe::App for NovaApp {
         egui::Panel::top("menu_bar").show(ui, |ui| {
             self.menu_bar(ui, &mut actions);
         });
-        egui::Panel::top("toolbar").exact_size(40.0).show(ui, |ui| {
-            self.toolbar(ui, &mut actions);
-        });
-
-        // M22.1: mode rail — declared before other left panels so it sits
-        // leftmost, Animate-style.
-        egui::Panel::left("mode_rail")
-            .exact_size(56.0)
-            .frame(egui::Frame::new().fill(theme::BG_DEEPEST))
+        egui::Panel::top("toolbar")
+            .exact_size(36.0)
+            .frame(
+                egui::Frame::new()
+                    .fill(theme::BG_PANEL_ALT)
+                    .stroke(egui::Stroke::new(1.0, theme::BORDER_SOFT)),
+            )
             .show(ui, |ui| {
-                self.mode_rail(ui, &mut actions);
+                self.toolbar(ui, &mut actions);
             });
+
+        // M22 classic layout: no mode rail — mode selection lives in the
+        // toolbar (compact segmented control) and the menus.
 
         egui::Panel::bottom("status_bar")
             .exact_size(22.0)
@@ -4567,19 +4644,30 @@ impl eframe::App for NovaApp {
                     self.bottom_dock(ui, &mut actions);
                 });
 
-            egui::Panel::left("project_tree")
+            // Classic 2009 layout: narrow toolbox far left (Animation
+            // mode only — code mode has no stage tools), a single right
+            // dock with Properties on top and the project library below,
+            // and the timeline dock at the bottom.
+            if self.state.mode == Mode::Animation {
+                egui::Panel::left("toolbox")
+                    .exact_size(48.0)
+                    .frame(egui::Frame::new().fill(theme::BG_DEEPEST))
+                    .show(ui, |ui| {
+                        actions.extend(toolbox::show(ui, &mut self.state));
+                    });
+            }
+
+            egui::Panel::right("right_dock")
                 .resizable(true)
-                .default_size(232.0)
-                .size_range(180.0..=360.0)
+                .default_size(320.0)
+                .size_range(240.0..=560.0)
+                .frame(
+                    egui::Frame::new()
+                        .fill(theme::BG_PANEL)
+                        .stroke(egui::Stroke::new(1.0, theme::BORDER_SOFT)),
+                )
                 .show(ui, |ui| {
-                    actions.extend(tree::show(ui, &mut self.project, &mut self.state));
-                });
-            egui::Panel::right("properties_panel")
-                .resizable(true)
-                .default_size(268.0)
-                .size_range(210.0..=390.0)
-                .show(ui, |ui| {
-                    actions.extend(properties::show(ui, &mut self.project, &mut self.state));
+                    self.right_dock(ui, &mut actions);
                 });
 
             egui::CentralPanel::default().show(ui, |ui| match self.state.mode {

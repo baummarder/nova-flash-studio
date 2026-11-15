@@ -39,7 +39,9 @@ impl View {
 
 pub fn show(ui: &mut Ui, project: &mut Project, state: &mut AppState) -> Vec<UiAction> {
     let mut actions = Vec::new();
-    tool_strip(ui, state, &mut actions);
+    // Tools live in the classic left toolbox panel (app.rs) — no
+    // horizontal strip inside the stage.
+    let _ = &mut actions;
     let available = ui.available_size();
     if available.x < 20.0 || available.y < 20.0 {
         return actions;
@@ -953,46 +955,6 @@ fn draw_playhead_hint(
 }
 
 // ------------------------------------------------------------------ tools
-
-fn tool_strip(ui: &mut Ui, state: &mut AppState, actions: &mut Vec<UiAction>) {
-    ui.horizontal(|ui| {
-        for tool in [
-            crate::state::Tool::Select,
-            crate::state::Tool::Line,
-            crate::state::Tool::Pencil,
-            crate::state::Tool::Brush,
-            crate::state::Tool::Eraser,
-            crate::state::Tool::Fill,
-            crate::state::Tool::PathEdit,
-            crate::state::Tool::Pen,
-            crate::state::Tool::SkinPaint,
-        ] {
-            let selected = state.tool == tool;
-            if ui
-                .selectable_label(
-                    selected,
-                    egui::RichText::new(tool.label())
-                        .small()
-                        .color(if selected {
-                            theme::ACCENT
-                        } else {
-                            theme::TEXT_DIM
-                        }),
-                )
-                .on_hover_text(tool.hint())
-                .clicked()
-            {
-                actions.push(UiAction::SetTool(tool));
-            }
-        }
-        ui.separator();
-        ui.label(
-            egui::RichText::new(state.tool.hint())
-                .small()
-                .color(theme::TEXT_FAINT),
-        );
-    });
-}
 
 /// Topmost visual object under a stage-space point at the current frame.
 fn hit_object(
