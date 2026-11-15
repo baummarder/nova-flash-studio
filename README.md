@@ -8,13 +8,20 @@ the project format is versioned JSON, and the SWF writer is implemented directly
 against the published SWF file-format specification. Tools and extensions run in
 an embedded QuickJS context; ActionScript is **not** executed by QuickJS.
 
-> **Status: M22 in progress — UI redesign & internationalization.**
-> M22 adds a five-language UI (`de-DE`, `en-GB`, `da-DK`, `fr-FR`,
-> `pl-PL`; en-GB fallback), a first-run language wizard, per-edition
-> language persistence, an Animate-style left mode rail, and removes
-> the console window on Windows GUI startup (CLI output is preserved
-> via parent-console attach; panics go to `nova-crash.log`). See
-> `docs/I18N.md` and `docs/MEGA_MILESTONE_22_PLAN.md`.
+> **Status: M23 — integrated code workspace & installer redesign.**
+> M23 adds three editor layouts — **Stage**, **Stage + Code**
+> (draggable split) and **Code** — persisted per edition, plus a
+> classic-2009 restyled Windows installer wizard with a
+> "Dokumentation öffnen" finish action. Headless install/uninstall
+> is covered by `scripts/test-installer.ps1` for all three editions.
+> See `docs/MEGA_MILESTONE_23_PLAN.md`.
+>
+> **M22 baseline:** five-language UI (`de-DE`, `en-GB`, `da-DK`,
+> `fr-FR`, `pl-PL`; en-GB fallback), first-run language wizard,
+> per-edition language + workspace persistence, classic 2009
+> charcoal/bevel theme with left icon toolbox, and no console
+> window on Windows GUI startup. See `docs/I18N.md` and
+> `docs/MEGA_MILESTONE_22_PLAN.md`.
 >
 > **M21 baseline `0.17.0-rc1`:** the **Enterprise Edition** provides an
 > offline-first administration & teamwork workspace in `nova-ent` —

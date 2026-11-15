@@ -3,9 +3,26 @@
 All notable changes are documented per release candidate. The `.nova`
 project format stays at v4 and edition-neutral across all editions.
 
-## [0.17.0-rc1] — M21 Enterprise Edition + M21 remediation + M22 UI/i18n
+## [0.17.0-rc1] — M21 Enterprise Edition + M21 remediation + M22 UI/i18n + M23 workspace/installer
 
 ### Added
+
+- **M23 — Integrated code workspace:** three editor layouts —
+  Stage Only, Stage + Code (draggable divider, both panes fully
+  interactive) and Code Only — selectable via a compact toolbar
+  segment and the view menu, localized in all five languages.
+  Workspace arrangement persisted per edition in
+  `app-settings.json` (`layout` + `split_ratio`).
+- **M23 — Installer redesign:** the setup wizard now uses the
+  classic 2009 desktop look (shared `WizardTheme` palette,
+  gradient header, beveled buttons) and the finish page offers
+  "Dokumentation öffnen". Engine unchanged: per-user/all-users
+  scopes, UAC relaunch, manifest-based upgrade/uninstall,
+  association restore, user-data preservation.
+- **M23 — Installer tests:** `scripts/test-installer.ps1` runs a
+  headless install → verify → uninstall cycle per edition
+  (39 checks: payload, manifest, registry, docs, uninstaller,
+  removal, user-data survival).
 
 - **M21 — Enterprise Edition (`nova-ent`):** workspaces (`org.json`),
   project registry with SHA-256 baselines, 7-role team model with
@@ -21,8 +38,8 @@ project format stays at v4 and edition-neutral across all editions.
   central `i18n` module with `{placeholder}` support, embedded
   UTF-8-no-BOM locale files, per-edition `app-settings.json`
   persistence, first-run language wizard, live language switcher in
-  settings, Animate-style left mode rail (Code/Animation/Classroom/
-  Enterprise + AI Agent).
+  settings, classic 2009 theme (charcoal/bevel) with left icon
+  toolbox and right Properties+Library dock.
 
 ### Fixed
 
