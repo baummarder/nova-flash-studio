@@ -133,6 +133,5 @@ repaired (143 segments) — verified by compile + tests + diff review.
 
 ## 9. Commits
 
-- `9f4a1b2`-series implementation commit (see `git log`) with verified
-  `Co-authored-by: Devin AI <158243242+devin-ai-integration[bot]@users.noreply.github.com>`
-- docs commit (this report)
+- `acaedcd` — M26 implementation
+- `af9b754` — M26 docs (this report)
