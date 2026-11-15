@@ -2565,6 +2565,7 @@ dependencies = [
  "nova-build",
  "nova-core",
  "nova-edu",
+ "nova-ent",
  "nova-formats",
  "nova-script",
  "nova-swf",

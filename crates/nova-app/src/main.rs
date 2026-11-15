@@ -11,6 +11,8 @@ mod code_view;
 mod console;
 mod edition;
 mod edu_state;
+mod ent_state;
+mod enterprise_view;
 mod flash;
 mod highlight;
 mod history;

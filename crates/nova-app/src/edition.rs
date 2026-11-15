@@ -189,8 +189,8 @@ const ENTERPRISE_MODULES: &[EditionModule] = &[
     },
     EditionModule {
         id: "administration",
-        label: "Administration & Zusammenarbeit",
-        reserved: true,
+        label: "Enterprise-Administration & Zusammenarbeit",
+        reserved: false,
     },
 ];
 
@@ -279,13 +279,29 @@ mod tests {
 
     #[test]
     fn reserved_modules_are_marked_not_implemented() {
-        // Enterprise keeps exactly one reserved slot (administration).
-        // Edu's classroom module became active in M20; User has none.
-        let reserved: Vec<_> = ENTERPRISE_MODULES.iter().filter(|m| m.reserved).collect();
-        assert_eq!(reserved.len(), 1);
-        assert_eq!(reserved[0].id, "administration");
+        // All edition modules are implemented: Edu classroom (M20) and
+        // Enterprise administration (M21) are active; User has none.
+        assert!(ENTERPRISE_MODULES.iter().all(|m| !m.reserved));
         assert!(EDU_MODULES.iter().all(|m| !m.reserved));
         assert!(CORE_MODULES.iter().all(|m| !m.reserved));
+        assert!(has_active_module_for_test(
+            "administration",
+            Edition::Enterprise
+        ));
+        assert!(!has_active_module_for_test("administration", Edition::User));
+        assert!(!has_active_module_for_test("administration", Edition::Edu));
+        assert!(!has_active_module_for_test(
+            "classroom",
+            Edition::Enterprise
+        ));
+        assert!(has_active_module_for_test("classroom", Edition::Edu));
+    }
+
+    fn has_active_module_for_test(id: &str, edition: Edition) -> bool {
+        profile_for(edition)
+            .modules
+            .iter()
+            .any(|m| m.id == id && !m.reserved)
     }
 
     #[test]

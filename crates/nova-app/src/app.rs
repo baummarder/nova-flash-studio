@@ -20,8 +20,8 @@ use crate::state::{
     Tool, UiAction,
 };
 use crate::{
-    autosave, branding, classroom_view, code_view, console, edition, flash, properties, stage_view,
-    theme, tilemap_view, timeline_view, tree, util,
+    autosave, branding, classroom_view, code_view, console, edition, enterprise_view, flash,
+    properties, stage_view, theme, tilemap_view, timeline_view, tree, util,
 };
 
 fn egui_key_for_letter(index: usize) -> Key {
@@ -86,6 +86,7 @@ pub struct NovaApp {
     ai: AiEditor,
     audio: crate::audio::AudioEngine,
     edu: crate::edu_state::EduUi,
+    ent: crate::ent_state::EntUi,
 }
 
 impl NovaApp {
@@ -135,6 +136,11 @@ impl NovaApp {
             ai,
             audio: crate::audio::AudioEngine::new(),
             edu: crate::edu_state::EduUi::load_local(
+                &nova_core::Edition::current()
+                    .config_dir()
+                    .unwrap_or_else(|| std::path::PathBuf::from(".")),
+            ),
+            ent: crate::ent_state::EntUi::load_local(
                 &nova_core::Edition::current()
                     .config_dir()
                     .unwrap_or_else(|| std::path::PathBuf::from(".")),
@@ -563,6 +569,9 @@ impl NovaApp {
             if edition::has_active_module("classroom") {
                 modes.push((Mode::Classroom, "Klassenzimmer"));
             }
+            if edition::has_active_module("administration") {
+                modes.push((Mode::Enterprise, "Enterprise"));
+            }
             for (mode, label) in modes {
                 if ui
                     .selectable_label(self.state.mode == mode, RichText::new(label).strong())
@@ -874,6 +883,11 @@ impl NovaApp {
                     if mode == Mode::Classroom && !edition::has_active_module("classroom") {
                         self.state
                             .set_status("Klassenzimmer ist in dieser Edition nicht verfügbar");
+                        continue;
+                    }
+                    if mode == Mode::Enterprise && !edition::has_active_module("administration") {
+                        self.state
+                            .set_status("Enterprise-Modus ist in dieser Edition nicht verfügbar");
                         continue;
                     }
                     self.state.mode = mode;
@@ -3633,7 +3647,7 @@ impl NovaApp {
                             ui.label(RichText::new("Ehrliche Grenzen").strong());
                             ui.label(
                                 RichText::new(
-                                    "• ActionScript wird für eine dokumentierte Teilmenge zu echtem AVM2-ABC kompiliert. Nicht unterstützte Syntax ist ein Compilerfehler mit Datei/Zeile.\n• Die ABC- und SWF-Struktur wird mit einem unabhängigen Parser validiert. „Open in Flash Player“ startet die konfigurierte Runtime (Adobe-Projector als Standard, Ruffle nur nach ausdrücklicher Auswahl); eine automatische Playback-Prüfung oder eingebettete Runtime gibt es nicht.\n• Skript-Objekte werden einmal platziert und danach von ActionScript gesteuert; ihre Timeline-Tweens werden nicht zusätzlich gebacken.\n• Nicht-Skript-Objekte werden weiterhin Frame für Frame gebacken.\n• Text ist statisch: die eingebaute 5×7-Vektorschrift wird als Shapes exportiert. System-/OpenType-Fonts und editierbarer Laufzeittext fehlen; Bitmaps und Sounds werden als Assets unterstützt.\n• Bitmaps, Sounds, verschachtelte Symbol-Timelines, Masken, Shape-Tweens und Skelett-Animation sind implementiert; die Audio-Vorschau wendet Offset-/Dauer-Trimming nicht an.\n• Array-, Objekt- und Index-Zugriffe in AS3 sind strukturell geprüft, aber nicht gegen eine echte Runtime getestet.\n• Classroom-, Lehrkräfte-/Schülerrollen und Enterprise-Administration sind noch nicht implementiert; die native Windows-Dateizuordnung für .nova folgt in M20.1.",
+                                    "• ActionScript wird für eine dokumentierte Teilmenge zu echtem AVM2-ABC kompiliert. Nicht unterstützte Syntax ist ein Compilerfehler mit Datei/Zeile.\n• Die ABC- und SWF-Struktur wird mit einem unabhängigen Parser validiert. „Open in Flash Player“ startet die konfigurierte Runtime (Adobe-Projector als Standard, Ruffle nur nach ausdrücklicher Auswahl); eine automatische Playback-Prüfung oder eingebettete Runtime gibt es nicht.\n• Skript-Objekte werden einmal platziert und danach von ActionScript gesteuert; ihre Timeline-Tweens werden nicht zusätzlich gebacken.\n• Nicht-Skript-Objekte werden weiterhin Frame für Frame gebacken.\n• Text ist statisch: die eingebaute 5×7-Vektorschrift wird als Shapes exportiert. System-/OpenType-Fonts und editierbarer Laufzeittext fehlen; Bitmaps und Sounds werden als Assets unterstützt.\n• Bitmaps, Sounds, verschachtelte Symbol-Timelines, Masken, Shape-Tweens und Skelett-Animation sind implementiert; die Audio-Vorschau wendet Offset-/Dauer-Trimming nicht an.\n• Array-, Objekt- und Index-Zugriffe in AS3 sind strukturell geprüft, aber nicht gegen eine echte Runtime getestet.\n• Klassenzimmer- (Edu) und Enterprise-Funktionen (Administration, Teams, Assets, Versionen, Reviews, Builds) sind editionsscharf getrennt und ab M20/M21 implementiert; Rollen sind Workflow-Labels, keine Authentifizierung.",
                                 )
                                 .small()
                                 .color(theme::TEXT_DIM),
@@ -4417,6 +4431,17 @@ impl eframe::App for NovaApp {
                     &self.project.metadata.name,
                 ));
             });
+        } else if self.state.mode == Mode::Enterprise {
+            // Enterprise administration owns the full central area.
+            egui::CentralPanel::default().show(ui, |ui| {
+                let path = self.state.path.clone();
+                actions.extend(enterprise_view::show(
+                    ui,
+                    &mut self.ent,
+                    path.as_deref(),
+                    &self.project.metadata.name,
+                ));
+            });
         } else {
             egui::Panel::bottom("bottom_dock")
                 .resizable(true)
@@ -4449,6 +4474,15 @@ impl eframe::App for NovaApp {
                         ui,
                         &mut self.edu,
                         json.as_deref(),
+                        &self.project.metadata.name,
+                    ));
+                }
+                Mode::Enterprise => {
+                    let path = self.state.path.clone();
+                    actions.extend(enterprise_view::show(
+                        ui,
+                        &mut self.ent,
+                        path.as_deref(),
                         &self.project.metadata.name,
                     ));
                 }

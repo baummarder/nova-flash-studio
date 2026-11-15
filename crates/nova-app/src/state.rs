@@ -15,6 +15,8 @@ pub enum Mode {
     Animation,
     /// Edu-only classroom workspace (gated by the edition module registry).
     Classroom,
+    /// Enterprise-only administration workspace (gated likewise).
+    Enterprise,
 }
 
 impl Mode {
@@ -23,6 +25,7 @@ impl Mode {
             Self::Code => "Code",
             Self::Animation => "Animation",
             Self::Classroom => "Klassenzimmer",
+            Self::Enterprise => "Enterprise",
         }
     }
 }
