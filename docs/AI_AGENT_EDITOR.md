@@ -219,7 +219,35 @@ mentions them. `powershell` is allowlist-only; `cargo fmt` without
 `--check` is blocked. Every run records command, workdir, duration,
 exit code and output tail; processes are killable and time-limited.
 
-### Agent limits (M26.10)
+### Agent sandbox (M27)
+
+Every implement run creates a **per-task sandbox**
+(`ai-sandboxes/<task-id>/project` in the edition config dir): a copy of
+the project plus the current staged `ReviewSession` state. New, modified
+and deleted staged files are materialized; `.git`, `target`,
+`node_modules`, `dist`, `build`, symlinks and all M25 sensitive paths
+are excluded; a size cap aborts oversized copies.
+
+- Build/test commands run **inside the sandbox** via the same M26 argv
+  allowlist — never in the original project.
+- After each iteration the sandbox is re-synced (content-compared, so
+  only changed files are rewritten; sandbox build outputs survive).
+- If the agent stages changes but requests no checks on a Rust project,
+  `cargo check` runs anyway — integrity checks are not silently skipped.
+- `sandbox_check()` re-runs the sandbox check without calling the
+  provider (UI action **Build/Tests erneut**).
+- `ReviewSession::fingerprint()` detects staleness: if the staged state
+  changes after a test, the UI marks **TESTSTAND VERALTET**.
+- The M25 `ReviewSession` remains the only apply path; the sandbox is
+  derived state and is deleted when the task result is dropped.
+
+**Honest security limits:** this is a project-copy sandbox — allowlist
+commands, no shell, timeouts, size caps — but there is **no OS-level
+network isolation, no job-object process trees and no memory quotas**.
+Cargo may reach crates.io for dependencies. Commands run as the current
+user without admin rights.
+
+## Agent limits (M26.10)
 
 Collapsible **Agent-Limits** in the tasks panel, persisted per edition in
 `ai-agent.json`: max iterations, max runtime, max changed files, max

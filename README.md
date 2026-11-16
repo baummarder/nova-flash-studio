@@ -8,11 +8,20 @@ the project format is versioned JSON, and the SWF writer is implemented directly
 against the published SWF file-format specification. Tools and extensions run in
 an embedded QuickJS context; ActionScript is **not** executed by QuickJS.
 
-> **Status: M24/M25 — installer i18n & AI project access.**
-> The setup wizard is fully localized (5 languages, first-run language
-> page, persisted choice) with a summary page and clip-proof footer.
-> The AI Agent now works under explicit per-project file grants with an
-> isolated review/staging workspace, per-file diffs and safe apply.
+> **Status: M27 — agent sandbox & real EULA (`0.18.0-rc1`).**
+> Agent tasks now run builds/tests inside a per-task isolated sandbox
+> (project copy + staged changes, allowlist commands only, staleness
+> detection). The installer enforces a full five-language EULA with
+> explicit consent and records the accepted version.
+>
+> **M26:** the AI Agent is a bounded development agent — natural-language
+> tasks, structured plan approval, iterative implementation in the M25
+> review staging, allowlisted build/test commands and per-edition task
+> history. See `docs/MEGA_MILESTONE_26_FINAL_REPORT.md`.
+>
+> **M24/M25:** installer i18n (5 languages) and AI project access —
+> per-project file grants, isolated review/staging workspace, per-file
+> diffs and safe apply.
 >
 > **M23 baseline:** three editor layouts — Stage, Stage + Code
 > (draggable split) and Code — persisted per edition, plus a

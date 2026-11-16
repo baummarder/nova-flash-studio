@@ -75,6 +75,16 @@ contributed to the change.
    GitHub identity is missing — do NOT invent one.
 4. If unsure whether an identity is valid, omit the trailer and ask.
 
+## M27 notes
+
+- Agent build/test commands MUST run inside the per-task `Sandbox`
+  (`nova-ai/src/sandbox.rs`), never in the original project. The M25
+  `ReviewSession` stays the only apply path.
+- The sandbox is a project copy, not an OS sandbox — no network/process
+  isolation claims without real implementation.
+- EULA files live in `legal/LICENSE-EULA*`; installer embeds them per
+  language. Never overwrite `legal/EULA-DRAFT.md` or `LICENSES/`.
+
 ## Local commit permissions
 
 Devin MAY create local git commits autonomously once a task is fully
