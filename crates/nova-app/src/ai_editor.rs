@@ -1512,6 +1512,40 @@ impl AiEditor {
                         );
                     }
                 }
+                // M28.7: native tool-call history for this task.
+                if !task.tool_records.is_empty() {
+                    ui.add_space(4.0);
+                    ui.label(
+                        RichText::new(format!("TOOLS ({})", task.tool_records.len()))
+                            .small()
+                            .strong()
+                            .color(theme::ACCENT),
+                    );
+                    for record in task.tool_records.iter().rev().take(10) {
+                        ui.label(
+                            RichText::new(format!(
+                                "{} · {} · {} ms{}",
+                                record.name,
+                                record.risk,
+                                record.duration_ms,
+                                if record.ok {
+                                    String::new()
+                                } else {
+                                    format!(
+                                        " — {}",
+                                        record.error.as_deref().unwrap_or("Fehler")
+                                    )
+                                }
+                            ))
+                            .small()
+                            .color(if record.ok {
+                                theme::TEXT_DIM
+                            } else {
+                                theme::RED
+                            }),
+                        );
+                    }
+                }
                 // M27.5/27.6: sandbox status + staleness of the last test.
                 ui.add_space(4.0);
                 match &task.sandbox_fingerprint {
