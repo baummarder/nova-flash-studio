@@ -198,6 +198,8 @@ try {
         -p:NovaAppVersion="$version" `
         -p:NovaProductName="$productName" `
         -p:NovaSetupAssemblyName="NOVA-$($ed.slug)-Setup" `
+        -p:NovaCompany="$($env:NOVA_COMPANY_NAME)" `
+        -p:NovaCopyright="$($env:NOVA_COPYRIGHT)" `
         -o "$publishDir"
     if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed with exit code $LASTEXITCODE" }
 } finally {
@@ -213,6 +215,54 @@ if (-not (Test-Path -LiteralPath $publishedExe -PathType Leaf)) {
 $setupName = $ed.setupExe
 $setupPath = Join-Path $editionDir $setupName
 Copy-Item -LiteralPath $publishedExe -Destination $setupPath -Force
+
+# --- M29: Authenticode signing (optional) --------------------------------------
+# Sign BEFORE checksums: signatures change file bytes. Missing config =>
+# SIGNING_NOT_CONFIGURED (unsigned dev build); invalid cert => hard error.
+. (Join-Path $PSScriptRoot 'lib\Signing.ps1')
+$signConfig = Get-NovaSigningConfig -RepoRoot $root
+$setupSignInfo = [pscustomobject]@{ Certificate = $null; Details = @{} }
+if ($null -ne $signConfig) {
+    $signTool = Find-NovaSignTool
+    if ($null -eq $signTool) {
+        throw 'Code signing configured but signtool.exe was not found (Windows SDK required).'
+    }
+    $signCert = Test-NovaSigningCertificate -Config $signConfig -SignTool $signTool
+    try {
+        if ($signCert.Status -ne 'READY') {
+            throw "Code signing certificate invalid: $($signCert.Status) - $($signCert.Reason)"
+        }
+        $setupSignInfo = $signCert
+        Write-Host "== Authenticode signing (installer, edition: $Edition) ==" -ForegroundColor Cyan
+        $setupSignRecords = @(Invoke-NovaArtifactSigning `
+            -Files @($setupPath) `
+            -Config $signConfig `
+            -CertInfo $signCert `
+            -SignTool $signTool `
+            -Description "$productName Setup")
+        foreach ($record in $setupSignRecords) {
+            if ($record.status -ne 'SIGNED') {
+                throw "Signing failed for $($record.file): $($record.status) $($record.detail)"
+            }
+            Write-Host "  signed+verified: $($record.file) (timestamped=$($record.timestamped))"
+        }
+    } finally {
+        Remove-NovaTemporaryCertificate -CertInfo $signCert
+    }
+} else {
+    Write-Host '== Code signing: SIGNING_NOT_CONFIGURED (unsigned installer) ==' -ForegroundColor Yellow
+    $setupSignRecords = @([pscustomobject][ordered]@{
+        file = $setupName; path = $setupPath; status = 'SIGNING_NOT_CONFIGURED'
+        thumbprint = $null; timestamped = $false; verified = $false; detail = ''
+    })
+}
+$null = Write-NovaSigningStatus `
+    -Directory $editionDir `
+    -Edition $Edition `
+    -Version $version `
+    -CertInfo $setupSignInfo `
+    -Records $setupSignRecords `
+    -Publisher ''
 
 # --- Smoke tests ---------------------------------------------------------------
 $versionResult = Invoke-Native -Executable $setupPath -Arguments '--version'

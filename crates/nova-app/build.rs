@@ -56,6 +56,19 @@ fn main() {
     };
     let original_filename = format!("{product_name}.exe");
 
+    // M29.5: publisher identity is configuration, not hardcoded branding.
+    // NOVA_COMPANY_NAME / NOVA_COPYRIGHT are set by the release pipeline;
+    // the defaults are documented placeholders pending rights-holder
+    // confirmation (see docs/CODE_SIGNING.md). No invented company.
+    let company = env::var("NOVA_COMPANY_NAME")
+        .ok()
+        .filter(|v| !v.trim().is_empty())
+        .unwrap_or_else(|| "N\u{00D8}VA Flash Studio contributors".to_string());
+    let copyright = env::var("NOVA_COPYRIGHT")
+        .ok()
+        .filter(|v| !v.trim().is_empty())
+        .unwrap_or_else(|| "MIT OR Apache-2.0".to_string());
+
     let rc_text = format!(
         r#"#pragma code_page(65001)
 1 ICON "{icon_path}"
@@ -73,11 +86,11 @@ BEGIN
   BEGIN
     BLOCK "040904B0"
     BEGIN
-      VALUE "CompanyName", "NØVA Flash Studio contributors\0"
+      VALUE "CompanyName", "{company}\0"
       VALUE "FileDescription", "{product_name}\0"
       VALUE "FileVersion", "{version}\0"
       VALUE "InternalName", "{internal_name}\0"
-      VALUE "LegalCopyright", "MIT OR Apache-2.0\0"
+      VALUE "LegalCopyright", "{copyright}\0"
       VALUE "OriginalFilename", "{original_filename}\0"
       VALUE "ProductName", "{product_name}\0"
       VALUE "ProductVersion", "{version}\0"

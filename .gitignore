@@ -50,3 +50,11 @@ desktop.ini
 # SWFs are build products; checked-in samples stay tracked
 **/*.swf
 !samples/*.swf
+
+# M29: signing config may reference local cert material
+packaging/signing.json
+*.pfx
+*.p12
+
+# M29: assembled release packages (generated artifacts)
+release/

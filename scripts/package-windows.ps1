@@ -165,6 +165,45 @@ try {
         throw "Startup check failed: $($startupResult.Output) $($startupResult.Error)"
     }
 
+    # M29: Authenticode signing (optional). Missing config => unsigned
+    # build marked SIGNING_NOT_CONFIGURED; invalid cert => hard error.
+    . (Join-Path $PSScriptRoot 'lib\Signing.ps1')
+    $signConfig = Get-NovaSigningConfig -RepoRoot $root
+    $signRecords = @()
+    $signCertInfo = [pscustomobject]@{ Certificate = $null; Details = @{} }
+    if ($null -ne $signConfig) {
+        $signTool = Find-NovaSignTool
+        if ($null -eq $signTool) {
+            throw 'Code signing configured but signtool.exe was not found (Windows SDK required).'
+        }
+        $signCert = Test-NovaSigningCertificate -Config $signConfig -SignTool $signTool
+        try {
+            if ($signCert.Status -ne 'READY') {
+                throw "Code signing certificate invalid: $($signCert.Status) - $($signCert.Reason)"
+            }
+            $signCertInfo = $signCert
+            Write-Host "== Authenticode signing ($editionId) ==" -ForegroundColor Cyan
+            $signRecords = @(Invoke-NovaArtifactSigning `
+                -Files @($targetExe) `
+                -Config $signConfig `
+                -CertInfo $signCert `
+                -SignTool $signTool `
+                -Description $productName)
+            foreach ($record in $signRecords) {
+                if ($record.status -ne 'SIGNED') {
+                    throw "Signing failed for $($record.file): $($record.status) $($record.detail)"
+                }
+                Write-Host "  signed+verified: $($record.file) (timestamped=$($record.timestamped))"
+            }
+            # Re-hash AFTER signing — signatures change the file bytes.
+            $checksums = @()
+        } finally {
+            Remove-NovaTemporaryCertificate -CertInfo $signCert
+        }
+    } else {
+        Write-Host '== Code signing: SIGNING_NOT_CONFIGURED (unsigned build) ==' -ForegroundColor Yellow
+    }
+
     $checksums = @()
     $checksums += (Get-FileHash -LiteralPath $targetExe -Algorithm SHA256).Hash + "  $productName.exe"
     $zipPath = $null
@@ -198,6 +237,25 @@ try {
         ($buildInfo | ConvertTo-Json),
         [System.Text.UTF8Encoding]::new($false)
     )
+
+    # M29: persist per-artifact signing status for this edition payload.
+    $signStatusDir = $stageRoot
+    $signStatusRecords = if ($signRecords.Count -gt 0) {
+        $signRecords
+    } else {
+        @([pscustomobject][ordered]@{
+            file = "$productName.exe"; path = $targetExe
+            status = if ($null -eq $signConfig) { 'SIGNING_NOT_CONFIGURED' } else { 'UNSIGNED' }
+            thumbprint = $null; timestamped = $false; verified = $false; detail = ''
+        })
+    }
+    $null = Write-NovaSigningStatus `
+        -Directory $signStatusDir `
+        -Edition $editionId `
+        -Version $version `
+        -CertInfo $signCertInfo `
+        -Records $signStatusRecords `
+        -Publisher ''
 
     # Archive the PREVIOUS release artifacts of this edition before swapping.
     # archive-releases.ps1 never deletes; it verifies checksums and copies

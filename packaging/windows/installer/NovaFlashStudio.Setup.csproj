@@ -19,8 +19,10 @@
     <InformationalVersion>$(NovaAppVersion)</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Product>$(NovaProductName)</Product>
-    <Company>NØVA Flash Studio contributors</Company>
-    <Copyright>© NØVA Flash Studio contributors</Copyright>
+    <NovaCompany Condition="'$(NovaCompany)' == ''">NOVA Flash Studio contributors</NovaCompany>
+    <NovaCopyright Condition="'$(NovaCopyright)' == ''">Copyright (c) NOVA Flash Studio contributors</NovaCopyright>
+    <Company>$(NovaCompany)</Company>
+    <Copyright>$(NovaCopyright)</Copyright>
     <Description>NØVA Flash Studio installer and uninstaller</Description>
     <SelfContained Condition="'$(RuntimeIdentifier)' != ''">true</SelfContained>
   </PropertyGroup>

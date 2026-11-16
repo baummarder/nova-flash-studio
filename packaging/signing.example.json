@@ -1,0 +1,10 @@
+{
+  "_comment": "M29 code-signing configuration TEMPLATE. Copy to signing.json (gitignored) or use NOVA_SIGN_* environment variables. Never put private keys or passwords here. See docs/CODE_SIGNING.md.",
+  "mode": "store",
+  "thumbprint": "PASTE-CERT-THUMBPRINT-HERE-OR-USE-SUBJECT",
+  "subject": "",
+  "store": "My",
+  "pfxPath": "",
+  "timestampUrl": "http://timestamp.digicert.com",
+  "requireSigned": false
+}
