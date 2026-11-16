@@ -3,6 +3,31 @@
 All notable changes are documented per release candidate. The `.nova`
 project format stays at v4 and edition-neutral across all editions.
 
+## [0.18.0-rc1] — M26 AI agent workflow + M27 sandbox & EULA
+
+### Added
+
+- **M26 — AI agent development tasks:** natural-language tasks with
+  unique IDs, 10-status lifecycle, persisted per-project history
+  (`ai-tasks.json`), structured plan with user approval gate,
+  iterative implementation in the M25 staging workspace, allowlist-only
+  build/test commands (`runner.rs`), iteration/time/file/command limits,
+  cooperative cancel and rerun. Tasks panel in the AI Agent Editor.
+- **M27 — Isolated agent sandbox:** per-task sandbox = project copy +
+  staged changes (`sandbox.rs`), sensitive-file/symlink/size-cap
+  exclusions, incremental content-compared sync, build/test commands
+  executed inside the sandbox only, `cargo check` auto-run when changes
+  are staged without checks, review-fingerprint staleness detection,
+  `Build/Tests erneut` action and sandbox details window. Honest limit:
+  project-copy sandbox, no OS-level network/process isolation.
+- **M27 — Full EULA:** five complete language versions
+  (`legal/LICENSE-EULA.*`) covering all 18 required sections with
+  explicit no-key/no-activation/no-DRM/no-seat-limit terms; installer
+  license page now requires explicit consent (nothing pre-checked),
+  shows `EULA v1.0`, reloads per language with en-GB fallback, records
+  `EulaVersion` in manifest + registry; app menu opens the EULA in the
+  UI language.
+
 ## [0.17.0-rc1] — M21 Enterprise Edition + M21 remediation + M22 UI/i18n + M23 workspace/installer + M24 installer/i18n + M25 AI access
 
 ### Added
