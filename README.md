@@ -8,7 +8,11 @@ the project format is versioned JSON, and the SWF writer is implemented directly
 against the published SWF file-format specification. Tools and extensions run in
 an embedded QuickJS context; ActionScript is **not** executed by QuickJS.
 
-> **Status: M28 — native AI tool calling (`0.19.0-rc1`).**
+> **Status: M29 — signing & release pipeline (`0.20.0-rc1`).**
+> Optional Authenticode signing (SHA-256 + RFC-3161) for all Windows
+> artifacts, per-edition signing status, machine-readable release
+> manifest and read-only verification. Currently `SIGNING_NOT_CONFIGURED`
+> — no trusted certificate yet (honest status, not claimed signed).
 > The agent now uses typed, provider-independent tool calls: project
 > inspection, review-staged file edits (incl. patches) and validated
 > `.nova` editor operations — all behind M25 grants, bounded per task,

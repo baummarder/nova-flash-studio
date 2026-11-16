@@ -641,6 +641,19 @@ SHA-256 values; it is generated after the documentation is packaged so this
 page does not go stale. The binaries are unsigned. macOS/Linux artifacts were
 not built on their native hosts.
 
+## Code signing (M29)
+
+Windows artifacts support optional Authenticode signing (SHA-256 +
+RFC-3161 timestamp, `signtool.exe`). Configure via
+`packaging/signing.json` (gitignored) or `NOVA_SIGN_*` env vars — see
+`docs/CODE_SIGNING.md`. Without configuration builds are honestly
+marked `SIGNING_NOT_CONFIGURED`/`UNSIGNED`; invalid or expired
+certificates abort the build. `scripts/sign-windows.ps1` signs/verifies
+arbitrary paths, `scripts/build-release-package.ps1` assembles
+`release/<version>/windows/` with `release-manifest.json`, and
+`scripts/verify-release.ps1` performs read-only hash/signature/manifest
+checks.
+
 ## Release checklist
 
 1. Update `Cargo.toml` workspace version.
@@ -658,3 +671,8 @@ not built on their native hosts.
 10. Run the manual projector test in `README.md`; record the exact player build.
 11. Upload artifacts and checksums; keep the untested-platform caveat in release
     notes.
+12. M29: configure a real code-signing certificate (see
+    `docs/CODE_SIGNING.md`), rebuild with signing, run
+    `build-release-package.ps1 -RequireSigned` and
+    `verify-release.ps1`; fill publisher metadata and EULA placeholders
+    before any public release.

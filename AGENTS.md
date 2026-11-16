@@ -90,6 +90,10 @@ contributed to the change.
   executes arbitrary code; destructive ops must stay `Destructive`.
 - Edit Rust files only via the file tools — PowerShell round-trips have
   corrupted UTF-8 before (see encoding regression test).
+- Windows `.ps1` files MUST stay ASCII-only (no BOM needed but no
+  non-ASCII either): PS 5.1 misreads UTF-8 and smart quotes break
+  parsing. Signing config lives in `packaging/signing.json`
+  (gitignored) or `NOVA_SIGN_*` env — never commit cert material.
 
 ## Local commit permissions
 

@@ -3,6 +3,33 @@
 All notable changes are documented per release candidate. The `.nova`
 project format stays at v4 and edition-neutral across all editions.
 
+## [0.20.0-rc1] — M29 code signing & release preparation
+
+### Added
+
+- **M29 — Signing infrastructure** (`scripts/lib/Signing.ps1`,
+  `sign-windows.ps1`): Authenticode via `signtool.exe`, SHA-256 digest,
+  RFC-3161 timestamp, post-sign `verify /pa`, per-file statuses
+  (`SIGNED`/`UNSIGNED`/`SIGNING_NOT_CONFIGURED`/`SIGNATURE_INVALID`/
+  `CERTIFICATE_EXPIRED`/`SIGNING_FAILED`), certificate validation
+  (thumbprint/subject, validity, Code Signing EKU, chain), PFX import
+  with immediate cleanup, `SIGNING-STATUS.json` per edition.
+- **Pipeline integration:** app EXE signed before ZIP in
+  `package-windows.ps1`; setup EXE signed in `package-installer.ps1`;
+  checksums always computed after signing.
+- **Release package:** `build-release-package.ps1` assembles
+  `release/<version>/windows/<edition>/` with `release-manifest.json`
+  (per-artifact metadata + signing status) and `RELEASE.md`;
+  `verify-release.ps1` performs read-only hash/manifest/signature checks.
+- **Publisher metadata:** `NOVA_COMPANY_NAME`/`NOVA_COPYRIGHT` env vars
+  feed app + installer resources (documented placeholders, no invented
+  company).
+- **Tests:** `test-signing.ps1` — 12 technical tests with self-signed
+  certs (validation, EKU, expiry, sign/verify, tamper detection,
+  release verify); clearly not trusted-publisher evidence.
+- **Docs:** `docs/CODE_SIGNING.md`, `docs/RELEASE.md`,
+  `docs/SECURITY.md`; `docs/PACKAGING.md` signing section.
+
 ## [0.19.0-rc1] — M28 native AI tool calling
 
 ### Added
