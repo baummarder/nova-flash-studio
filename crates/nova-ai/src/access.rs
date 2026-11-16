@@ -466,6 +466,11 @@ impl GuardedWorkspace {
         self.check(relative, true).map(|_| ())
     }
 
+    /// Whether `relative` is currently readable (grant + not sensitive).
+    pub fn is_readable(&self, relative: &str) -> bool {
+        self.can_read(relative)
+    }
+
     pub fn root(&self) -> &Path {
         &self.root
     }

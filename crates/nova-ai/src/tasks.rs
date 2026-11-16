@@ -169,6 +169,9 @@ pub struct AgentLimits {
     /// Persist task history.
     #[serde(default = "default_history_enabled")]
     pub history_enabled: bool,
+    /// Max native tool calls per task execution (M28.5).
+    #[serde(default = "default_max_tool_calls")]
+    pub max_tool_calls: u32,
 }
 
 fn default_max_iterations() -> u32 {
@@ -195,6 +198,9 @@ fn default_confirm_unknown() -> bool {
 fn default_history_enabled() -> bool {
     true
 }
+fn default_max_tool_calls() -> u32 {
+    crate::tools::DEFAULT_MAX_TOOL_CALLS
+}
 
 impl Default for AgentLimits {
     fn default() -> Self {
@@ -207,6 +213,7 @@ impl Default for AgentLimits {
             max_sandbox_bytes: default_max_sandbox_bytes(),
             confirm_unknown_commands: default_confirm_unknown(),
             history_enabled: default_history_enabled(),
+            max_tool_calls: default_max_tool_calls(),
         }
     }
 }
@@ -251,6 +258,9 @@ pub struct Task {
     /// M27.5: id of the sandbox belonging to this task.
     #[serde(default)]
     pub sandbox_id: Option<String>,
+    /// M28.7: tool-call history for this task (bounded).
+    #[serde(default)]
+    pub tool_records: Vec<crate::tools::ToolRecord>,
     #[serde(default)]
     pub error: Option<String>,
 }
@@ -277,6 +287,7 @@ impl Task {
             review_summary: String::new(),
             sandbox_fingerprint: None,
             sandbox_id: None,
+            tool_records: Vec::new(),
             error: None,
         })
     }

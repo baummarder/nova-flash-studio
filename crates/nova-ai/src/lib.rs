@@ -20,6 +20,7 @@ pub mod review;
 pub mod runner;
 pub mod sandbox;
 pub mod tasks;
+pub mod tools;
 
 pub use access::{
     ACCESS_FILE, AccessLevel, AccessPolicy, AccessStore, Grant, GuardedWorkspace, SENSITIVE_RULES,
@@ -46,8 +47,8 @@ pub use operations::{
 };
 pub use provider::{
     ChatMessage, ChatResponse, ConnectionTest, ProviderConfig, ProviderKind, ProviderManager,
-    ProviderSettings, SETTINGS_FILE, chat, default_config_dir, discover_models, load_settings,
-    save_settings, test_connection,
+    ProviderSettings, SETTINGS_FILE, ToolChatResponse, chat, chat_tools, default_config_dir,
+    discover_models, load_settings, save_settings, test_connection,
 };
 pub use review::{ApplyReport, ReviewItem, ReviewSession, stage_changes};
 pub use runner::{CommandRunner, CommandSpec, allowlist as command_allowlist, find_spec};
@@ -55,4 +56,9 @@ pub use sandbox::{DEFAULT_MAX_SANDBOX_BYTES, Sandbox};
 pub use tasks::{
     AgentLimits, CommandRecord, PlanStep, TASKS_FILE, Task, TaskEvent, TaskPlan, TaskStatus,
     TaskStore,
+};
+pub use tools::{
+    DEFAULT_MAX_TOOL_CALLS, MAX_TOOL_OUTPUT, RiskClass, TOOL_SCHEMA_VERSION, ToolCall, ToolContext,
+    ToolErrorCode, ToolOutcome, ToolRecord, ToolRegistry, ToolSpec, assistant_tool_calls_message,
+    execute_tool, parse_tool_calls, parse_tool_calls_from_text, tool_result_message, tools_prompt,
 };

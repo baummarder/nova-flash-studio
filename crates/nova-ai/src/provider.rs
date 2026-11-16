@@ -401,6 +401,108 @@ pub struct ChatResponse {
     pub model: String,
 }
 
+/// Response of a tool-enabled chat turn (M28). `tool_calls` is empty
+/// when the model answered with plain content.
+#[derive(Debug, Clone)]
+pub struct ToolChatResponse {
+    pub content: String,
+    pub tool_calls: Vec<crate::tools::ToolCall>,
+    pub model: String,
+}
+
+/// Native tool-calling chat (M28.8). All current provider kinds support
+/// the OpenAI-style `tools`/`tool_calls` shape (Ollama accepts the same
+/// function schema). `messages` are raw provider JSON — callers build
+/// assistant/tool messages via `crate::tools` helpers.
+///
+/// Returns `AiError::Protocol` when the response cannot be parsed; an
+/// empty `tool_calls` + `content` means a normal text answer.
+pub fn chat_tools(
+    provider: &ProviderConfig,
+    key: Option<&str>,
+    messages: &[serde_json::Value],
+    tools: &[serde_json::Value],
+    transport: &dyn HttpTransport,
+) -> AiResult<ToolChatResponse> {
+    provider.validate()?;
+    if provider.model.trim().is_empty() {
+        return Err(AiError::Config(format!(
+            "Für '{}' ist kein Modell ausgewählt.",
+            provider.name
+        )));
+    }
+    let key = require_key(provider, key)?;
+    let ollama = matches!(
+        provider.kind,
+        ProviderKind::OllamaLocal | ProviderKind::OllamaCloud
+    );
+    let mut body = serde_json::json!({
+        "model": provider.model,
+        "messages": messages,
+        "stream": false,
+        "tools": tools,
+        "tool_choice": "auto",
+        "options": { "temperature": provider.temperature.unwrap_or(0.2) },
+    });
+    if !ollama && let Some(object) = body.as_object_mut() {
+        object.remove("options");
+        object.insert(
+            "temperature".into(),
+            serde_json::json!(provider.temperature.unwrap_or(0.2)),
+        );
+    }
+    let (url, headers) = if ollama {
+        (
+            join_endpoint(&provider.base_url, "/api/chat"),
+            ollama_headers(key),
+        )
+    } else {
+        (
+            join_endpoint(&provider.base_url, "/chat/completions"),
+            bearer_headers(key),
+        )
+    };
+    let bytes = serde_json::to_vec(&body).map_err(|error| {
+        AiError::Config(format!("Anfrage konnte nicht serialisiert werden: {error}"))
+    })?;
+    let mut request = HttpRequest::post_json(url, bytes).timeout(120);
+    for (name, value) in headers {
+        request = request.header(name, value);
+    }
+    let response = transport.execute(request)?;
+    check_status(&response)?;
+    let value = parse_json(&response.body)?;
+    let message = if ollama {
+        value.get("message").cloned().unwrap_or_default()
+    } else {
+        value
+            .get("choices")
+            .and_then(|c| c.as_array())
+            .and_then(|c| c.first())
+            .and_then(|c| c.get("message"))
+            .cloned()
+            .unwrap_or_default()
+    };
+    let content = message
+        .get("content")
+        .and_then(|c| c.as_str())
+        .unwrap_or("")
+        .to_string();
+    let tool_calls = crate::tools::parse_tool_calls(&serde_json::json!({
+        "tool_calls": message.get("tool_calls").cloned().unwrap_or_default(),
+    }));
+    if content.is_empty() && tool_calls.is_empty() {
+        return Err(AiError::Protocol(
+            "Anbieter-Antwort enthält weder Text noch Tool-Aufrufe.".into(),
+        ));
+    }
+    Ok(ToolChatResponse {
+        content,
+        tool_calls,
+        model: provider.model.clone(),
+    })
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConnectionTest {
     pub models: Vec<String>,

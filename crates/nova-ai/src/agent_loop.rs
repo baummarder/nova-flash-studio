@@ -26,11 +26,15 @@ use crate::access::GuardedWorkspace;
 use crate::agent::parse_agent_reply;
 use crate::error::{AiError, AiResult};
 use crate::http::HttpTransport;
-use crate::provider::{ChatMessage, ProviderManager, chat};
+use crate::provider::{ChatMessage, ProviderKind, ProviderManager, chat, chat_tools};
 use crate::review::ReviewSession;
 use crate::runner::{CommandRunner, summarize_output};
 use crate::sandbox::Sandbox;
 use crate::tasks::{AgentLimits, Task, TaskPlan, TaskStatus};
+use crate::tools::{
+    ToolContext, ToolRegistry, assistant_tool_calls_message, execute_tool, tool_result_message,
+    tools_prompt,
+};
 
 /// System prompt for the planning phase.
 const PLAN_PROMPT: &str = r##"Du bist der Planungs-Agent von NØVA Flash Studio.
@@ -358,6 +362,19 @@ impl AgentLoop {
         let mut last_command_summary = String::new();
         let runner = CommandRunner::with_cancel(Arc::clone(&self.cancel));
 
+        // M28: typed tool-calling registry (provider-independent).
+        let registry = ToolRegistry::with_project_tools();
+        let tool_specs: Vec<serde_json::Value> = registry
+            .specs()
+            .iter()
+            .map(|spec| spec.provider_json())
+            .collect();
+        let ollama_provider = matches!(
+            provider.kind,
+            ProviderKind::OllamaLocal | ProviderKind::OllamaCloud
+        );
+        let mut tool_calls_used = 0u32;
+
         loop {
             self.check_cancel()?;
             if iterations >= self.limits.max_iterations {
@@ -453,15 +470,116 @@ impl AgentLoop {
                     last_command_summary.chars().take(6_000).collect()
                 }
             );
-            let reply_text = self.chat(provider, key, IMPLEMENT_PROMPT, &impl_user, transport)?;
-            let reply = parse_implementation(&reply_text);
+            // M28.5: tool-enabled implementation turn(s). Native tool_calls
+            // execute against guarded workspace + review session; providers
+            // answering with plain text still use the M26 JSON protocol
+            // (the compatibility layer also parses embedded tool-call JSON).
+            let mut messages: Vec<serde_json::Value> = vec![
+                serde_json::json!({
+                    "role": "system",
+                    "content": format!("{IMPLEMENT_PROMPT}\n\n{}", tools_prompt(&registry)),
+                }),
+                serde_json::json!({"role": "user", "content": impl_user.clone()}),
+            ];
+            let mut reply = ImplementationReply::default();
+            let mut tool_rounds = 0u32;
+            let mut tool_staged = false;
+            let tool_loop_result: AiResult<()> = (|| {
+                loop {
+                    self.check_cancel()?;
+                    let response = match chat_tools(
+                        provider,
+                        key,
+                        &messages,
+                        &tool_specs,
+                        transport,
+                    ) {
+                        Ok(response) => response,
+                        Err(error) => {
+                            // Provider rejected the tools parameter — fall
+                            // back to the plain M26 JSON protocol once.
+                            outcome.operation_errors.push(format!(
+                                "Tool-Calling nicht verfügbar ({error}) — JSON-Protokoll wird verwendet."
+                            ));
+                            let text =
+                                self.chat(provider, key, IMPLEMENT_PROMPT, &impl_user, transport)?;
+                            reply = parse_implementation(&text);
+                            return Ok(());
+                        }
+                    };
+                    // Compatibility layer: tool calls embedded in text.
+                    let calls = if response.tool_calls.is_empty() {
+                        crate::tools::parse_tool_calls_from_text(&response.content)
+                    } else {
+                        response.tool_calls
+                    };
+                    if calls.is_empty() {
+                        reply = parse_implementation(&response.content);
+                        if reply.message.is_empty() && !response.content.trim().is_empty() {
+                            reply.message = response.content.trim().chars().take(2_000).collect();
+                        }
+                        // A final text answer after tool work counts as done.
+                        if tool_rounds > 0
+                            && !reply.done
+                            && reply.changes.is_empty()
+                            && reply.commands.is_empty()
+                            && reply.operations.is_empty()
+                        {
+                            reply.done = true;
+                        }
+                        return Ok(());
+                    }
+                    if tool_calls_used + calls.len() as u32 > self.limits.max_tool_calls {
+                        outcome.operation_errors.push(format!(
+                            "Tool-Call-Limit erreicht ({} pro Task).",
+                            self.limits.max_tool_calls
+                        ));
+                        return Ok(());
+                    }
+                    tool_rounds += 1;
+                    messages.push(assistant_tool_calls_message(&response.content, &calls));
+                    {
+                        let mut ctx = ToolContext::new(guarded, Some(&mut review));
+                        for call in &calls {
+                            tool_calls_used += 1;
+                            let tool_outcome = execute_tool(&registry, &mut ctx, call);
+                            if task.tool_records.len() < 500 {
+                                task.tool_records.push(tool_outcome.record());
+                            }
+                            if !tool_outcome.ok {
+                                outcome.operation_errors.push(format!(
+                                    "Tool {}: {}",
+                                    tool_outcome.name,
+                                    tool_outcome.error.as_deref().unwrap_or("fehlgeschlagen")
+                                ));
+                            }
+                            messages.push(tool_result_message(
+                                call,
+                                &tool_outcome,
+                                ollama_provider,
+                            ));
+                        }
+                    }
+                    // Staged state may have changed → sandbox stays in sync.
+                    let fp = review.fingerprint();
+                    if fp != sandbox.staged_fingerprint.as_deref().unwrap_or("") {
+                        sandbox.sync(&review)?;
+                        tool_staged = true;
+                    }
+                    // Bound tool rounds per outer iteration (no loops).
+                    if tool_rounds >= 8 {
+                        return Ok(());
+                    }
+                }
+            })();
+            tool_loop_result?;
             if !reply.message.is_empty() {
                 outcome.messages.push(reply.message.clone());
                 task.event(TaskStatus::Executing, reply.message.clone());
             }
 
             // Stage changes (never touches originals).
-            let mut staged_any = false;
+            let mut staged_any = tool_staged;
             for change in &reply.changes {
                 match review.stage_or_update(guarded, change) {
                     Ok(()) => staged_any = true,
