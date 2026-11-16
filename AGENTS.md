@@ -84,6 +84,12 @@ contributed to the change.
   isolation claims without real implementation.
 - EULA files live in `legal/LICENSE-EULA*`; installer embeds them per
   language. Never overwrite `legal/EULA-DRAFT.md` or `LICENSES/`.
+- Agent tools (`nova-ai/src/tools.rs`) are the only model→project path:
+  read tools via `GuardedWorkspace`, writes via `ReviewSession`, editor
+  ops via `ProjectOperation`. Never add a tool that writes originals or
+  executes arbitrary code; destructive ops must stay `Destructive`.
+- Edit Rust files only via the file tools — PowerShell round-trips have
+  corrupted UTF-8 before (see encoding regression test).
 
 ## Local commit permissions
 

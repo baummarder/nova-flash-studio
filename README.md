@@ -8,7 +8,11 @@ the project format is versioned JSON, and the SWF writer is implemented directly
 against the published SWF file-format specification. Tools and extensions run in
 an embedded QuickJS context; ActionScript is **not** executed by QuickJS.
 
-> **Status: M27 — agent sandbox & real EULA (`0.18.0-rc1`).**
+> **Status: M28 — native AI tool calling (`0.19.0-rc1`).**
+> The agent now uses typed, provider-independent tool calls: project
+> inspection, review-staged file edits (incl. patches) and validated
+> `.nova` editor operations — all behind M25 grants, bounded per task,
+> with a tool history in the AI Agent panel.
 > Agent tasks now run builds/tests inside a per-task isolated sandbox
 > (project copy + staged changes, allowlist commands only, staleness
 > detection). The installer enforces a full five-language EULA with

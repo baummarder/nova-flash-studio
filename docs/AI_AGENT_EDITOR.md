@@ -247,6 +247,47 @@ network isolation, no job-object process trees and no memory quotas**.
 Cargo may reach crates.io for dependencies. Commands run as the current
 user without admin rights.
 
+## Native tool calling (M28)
+
+The agent loop now uses a **provider-independent typed tool system**
+(`nova-ai/src/tools.rs`, schema version 1):
+
+- `ToolRegistry` — explicit registration only; every `ToolSpec` carries
+  name, description, JSON-schema parameters, [`RiskClass`] and write
+  flag. `AgentLimits.max_tool_calls` (default 40) bounds calls per task.
+- Structured [`ToolCall`]/[`ToolOutcome`] with unique call ids and
+  error codes (`unknown_tool`, `invalid_arguments`, `permission_denied`,
+  `not_found`, `conflict`, `limit_exceeded`, `unsupported`, `internal`).
+  Arguments and outputs are size-bounded; unknown/malformed calls are
+  rejected — never executed.
+- **Project tools (read-only):** `project.get_info`, `get_tree`,
+  `get_metadata`, `search_files`, `read_file`, `get_file_diff`,
+  `list_scenes`, `get_scene`, `list_assets`, `get_asset_info`,
+  `file.read` — all through `GuardedWorkspace` (M25 grants + sensitive
+  denylist).
+- **File staging tools:** `file.create`, `file.update`, `file.delete`,
+  `file.rename`, `file.apply_patch` (unique-search hunks),
+  `editor.script_write` — all stage into the M25 `ReviewSession`;
+  originals are never touched. Deletes/renames are `Destructive` and
+  stage `Delete` items that default to *unaccepted* — the user confirms
+  each concrete action in the diff review.
+- **Editor tools:** `editor.scene_create`, `layer_create`,
+  `object_create`, `object_update`, `keyframe_create`, `frame_label`,
+  `tween_create`, `symbol_create`, `place_symbol` — mapped onto the
+  validated `ProjectOperation` pipeline; the `.nova` file is loaded
+  once per task, edited transactionally and staged as a file change.
+  Unsupported domain ops (scene rename/reorder, object/frame removal,
+  tween editing, bone read) are documented as open — no stubs.
+- **Providers:** `chat_tools` sends OpenAI-style `tools` to Ollama
+  (`/api/chat`) and OpenAI-compatible endpoints (`/chat/completions`);
+  tool results are returned in each provider's native message shape.
+  Providers that reject the parameter or ignore it fall back to the M26
+  JSON protocol; `parse_tool_calls_from_text` additionally accepts
+  validated JSON tool envelopes in plain text — free text is never
+  executed.
+- **UI:** task detail shows a `TOOLS (n)` history (name, risk class,
+  duration, error) persisted per task.
+
 ## Agent limits (M26.10)
 
 Collapsible **Agent-Limits** in the tasks panel, persisted per edition in

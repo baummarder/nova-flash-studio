@@ -3,6 +3,33 @@
 All notable changes are documented per release candidate. The `.nova`
 project format stays at v4 and edition-neutral across all editions.
 
+## [0.19.0-rc1] — M28 native AI tool calling
+
+### Added
+
+- **M28 — Typed tool-calling architecture** (`nova-ai/src/tools.rs`):
+  provider-independent `ToolRegistry` with versioned schemas, risk
+  classes (read-only/staging/destructive), unique call ids, structured
+  error codes, argument/output bounds and per-task call limits.
+- **Project tools:** info/tree/metadata/search/read/diff plus scene,
+  asset and file-diff inspection — all behind M25 grants and the
+  sensitive-file denylist.
+- **File staging tools:** create/update/delete/rename/apply_patch and
+  `.as` script writes — everything lands in the M25 `ReviewSession`;
+  deletes default to unaccepted (explicit per-file confirmation).
+- **Editor tools:** scene/layer/object/keyframe/frame-label/tween/
+  symbol/place-symbol operations mapped onto the validated
+  `ProjectOperation` pipeline; the `.nova` file is edited
+  transactionally and staged as a file change.
+- **Provider integration:** `chat_tools` uses native `tools`/
+  `tool_calls` for Ollama and OpenAI-compatible APIs with correct
+  per-provider message shapes; graceful fallback to the M26 JSON
+  protocol plus a validated text-envelope parser — never arbitrary
+  code execution.
+- **Agent loop:** multi-turn tool rounds inside each iteration
+  (bounded), sandbox re-sync after staged changes, per-task tool
+  history (`TOOLS (n)`) in the AI Agent panel.
+
 ## [0.18.0-rc1] — M26 AI agent workflow + M27 sandbox & EULA
 
 ### Added
